@@ -39,10 +39,80 @@ erDiagram
   appointments ||--o{ appointment_history : "auditoría"
   appointments ||--o{ appointment_photos : "fotos"
   profiles ||--o{ appointment_history : "autor"
+  profiles ||--o{ appointment_photos : "sube"
+  profiles ||--o{ customer_notes : "autor"
 
+  profiles {
+    uuid id PK
+    text name
+    enum role "agent | admin"
+    timestamptz created_at
+  }
+  customers {
+    uuid id PK
+    text code UK "CLI-1001"
+    text first_name
+    text last_name
+    text phone
+    text email "opcional"
+    text notes "opcional"
+    bool allow_marketing
+    timestamptz created_at
+  }
+  addresses {
+    uuid id PK
+    uuid customer_id FK
+    text line1
+    text unit
+    text city
+    text state
+    text zip
+    text notes "opcional"
+    float lat "opcional"
+    float lng "opcional"
+  }
+  customer_notes {
+    uuid id PK
+    uuid customer_id FK
+    uuid author_id FK "opcional"
+    text author_name
+    text text
+    timestamptz created_at
+  }
+  services {
+    uuid id PK
+    text slug UK
+    text name
+    text category
+    text description "opcional"
+    int base_price_cents
+    int duration_min
+    bool active
+    bool two_addresses
+    text internal_notes "opcional"
+    text detailed_specs "solo agentes"
+    jsonb fields "campos dinámicos"
+  }
+  technicians {
+    uuid id PK
+    text name
+    text color
+    text zone
+    bool active
+    smallint_array work_days
+    int shift_start_min
+    int shift_end_min
+  }
   appointments {
     uuid id PK
     text code UK "SVC-2001"
+    uuid agent_id FK
+    uuid customer_id FK
+    uuid address_id FK
+    jsonb destination_address "solo recogida/entrega"
+    jsonb billing_address "opcional"
+    uuid service_id FK
+    uuid technician_id FK
     date date
     int start_min
     int duration_min
@@ -50,15 +120,31 @@ erDiagram
     enum payment_status
     enum invoice_status
     int price_cents
-    jsonb destination_address "solo recogida/entrega"
-    jsonb billing_address "opcional"
+    text notes
     jsonb specs
+    jsonb alerts
+    text cancellation_reason "opcional"
+    text reschedule_reason "opcional"
+    timestamptz created_at
+    timestamptz updated_at
   }
-  services {
+  appointment_history {
     uuid id PK
-    bool two_addresses
-    jsonb fields "campos dinámicos"
-    text detailed_specs "solo agentes"
+    uuid appointment_id FK
+    uuid actor_id FK
+    text actor_name
+    enum actor_role
+    text field
+    text from_value "opcional"
+    text to_value "opcional"
+    timestamptz created_at
+  }
+  appointment_photos {
+    uuid id PK
+    uuid appointment_id FK
+    text storage_path
+    uuid uploaded_by FK "opcional"
+    timestamptz created_at
   }
 ```
 
@@ -111,7 +197,7 @@ sequenceDiagram
 ## Reglas de negocio implementadas
 
 | Regla                                                         | Dónde vive                                 | Prueba                                   |
-| ------------------------------------------------------------- | ------------------------------------------ | ---------------------------------------- |
+| ------------------------------------------------------------- | ------------------------------------------ | ----------------------------------------- |
 | Una cita nueva empieza como no confirmada y no pagada         | `createAppointment`                        | `appointments.test.ts`                   |
 | Cancelar conserva la cita y exige motivo (`other` pide texto) | `resolveCancelReason`, `cancelAppointment` | `domain.test.ts`, `appointments.test.ts` |
 | Reprogramar exige motivo                                      | `rescheduleSchema`, `requireReason`        | `appointments.test.ts`                   |
