@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+:root {
+  --brand: #0d9c8e;
+  --brand-soft: #dff4f0;
+  --ink: #151a21;
+  --canvas: #f5f4f0;
+  --hair: #e3e1da;
+}
+
+@theme inline {
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-ink: var(--ink);
+  --color-canvas: var(--canvas);
+  --color-hair: var(--hair);
+  --font-sans: var(--font-plex);
+  --font-display: var(--font-grotesk);
+}
+
+body {
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-plex), system-ui, sans-serif;
+}
