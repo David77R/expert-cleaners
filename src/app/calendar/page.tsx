@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { getDb } from "@/db/client";
 import { technicians } from "@/db/schema";
-import { DayGrid } from "@/components/day-grid";
+import { CalendarBoard } from "@/components/calendar-board";
 import { getDay } from "@/server/appointments";
 import { getActor } from "@/server/auth";
 import { logout } from "../login/actions";
@@ -58,7 +58,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
           </form>
         </nav>
       </header>
-      <DayGrid day={day} technicians={techs.filter((t) => t.active)} />
+      <CalendarBoard day={day} technicians={techs.filter((t) => t.active)} />
     </main>
   );
 }

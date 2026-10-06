@@ -113,3 +113,45 @@ export function formatMinutes(min: number): string {
   const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
   return `${h12}:${String(m).padStart(2, "0")} ${suffix}`;
 }
+
+export const STATUS_LABEL: Record<AppointmentStatus, string> = {
+  not_confirmed: "No confirmada",
+  confirmed: "Confirmada",
+  rescheduled: "Reprogramada",
+  cancelled: "Cancelada",
+  completed: "Completada",
+};
+
+export const PAYMENT_LABEL: Record<"unpaid" | "paid", string> = {
+  unpaid: "Sin pagar",
+  paid: "Pagado",
+};
+
+export const INVOICE_LABEL: Record<"not_generated" | "generated" | "sent", string> = {
+  not_generated: "Sin generar",
+  generated: "Generada",
+  sent: "Enviada",
+};
+
+export const CANCEL_REASON_LABEL: Record<CancelReason, string> = {
+  customer_cancelled: "El cliente canceló",
+  customer_requested_other_date: "El cliente pidió otra fecha",
+  weather: "Clima",
+  duplicate: "Cita duplicada",
+  other: "Otro motivo",
+};
+
+export const HISTORY_FIELD_LABEL: Record<string, string> = {
+  created: "Cita creada",
+  status: "Estado",
+  notes: "Notas",
+  payment: "Pago",
+  invoice: "Factura",
+  schedule: "Horario",
+  technician: "Técnico",
+  start_time: "Hora de inicio",
+  cancellation_reason: "Motivo de cancelación",
+  reschedule_reason: "Motivo de reprogramación",
+  destination_address: "Dirección de entrega",
+  billing_address: "Dirección de facturación",
+};

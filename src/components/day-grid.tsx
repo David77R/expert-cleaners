@@ -1,5 +1,7 @@
+"use client";
+
 import type { getDay } from "@/server/appointments";
-import { formatMinutes } from "@/domain/appointment-rules";
+import { formatMinutes, STATUS_LABEL } from "@/domain/appointment-rules";
 
 type Day = Awaited<ReturnType<typeof getDay>>;
 type Technician = Day["appointments"][number]["technician"];
@@ -8,15 +10,15 @@ const START_HOUR = 7;
 const END_HOUR = 20;
 const HOUR_PX = 64;
 
-const STATUS_LABEL: Record<string, string> = {
-  not_confirmed: "No confirmada",
-  confirmed: "Confirmada",
-  rescheduled: "Reprogramada",
-  cancelled: "Cancelada",
-  completed: "Completada",
-};
-
-export function DayGrid({ day, technicians }: { day: Day; technicians: Technician[] }) {
+export function DayGrid({
+  day,
+  technicians,
+  onSelect,
+}: {
+  day: Day;
+  technicians: Technician[];
+  onSelect: (id: string) => void;
+}) {
   const overlap = new Set(day.overlapIds);
   const hours = Array.from({ length: END_HOUR - START_HOUR }, (_, i) => START_HOUR + i);
 
@@ -66,9 +68,11 @@ export function DayGrid({ day, technicians }: { day: Day; technicians: Technicia
                 const height = Math.max((a.durationMin / 60) * HOUR_PX, 28);
                 const cancelled = a.status === "cancelled";
                 return (
-                  <article
+                  <button
                     key={a.id}
-                    className="absolute inset-x-1 overflow-hidden rounded-md border-l-4 px-2 py-1 text-xs"
+                    type="button"
+                    onClick={() => onSelect(a.id)}
+                    className="absolute inset-x-1 overflow-hidden rounded-md border-l-4 px-2 py-1 text-left text-xs transition-colors hover:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand"
                     style={{
                       top,
                       height,
@@ -83,7 +87,7 @@ export function DayGrid({ day, technicians }: { day: Day; technicians: Technicia
                       {a.service.name} · {formatMinutes(a.startMin)}
                     </div>
                     <div className="text-ink/60">{STATUS_LABEL[a.status]}</div>
-                  </article>
+                  </button>
                 );
               })}
           </div>
