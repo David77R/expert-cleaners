@@ -3,6 +3,7 @@ import { getDb } from "@/db/client";
 import { profiles, type Actor } from "@/db/schema";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { DomainError } from "@/domain/appointment-rules";
+import { assertAdmin } from "@/domain/permissions";
 
 export async function getActor(): Promise<Actor | null> {
   const supabase = await createSupabaseServerClient();
@@ -21,6 +22,6 @@ export async function requireActor(): Promise<Actor> {
 
 export async function requireAdmin(): Promise<Actor> {
   const actor = await requireActor();
-  if (actor.role !== "admin") throw new DomainError("forbidden", "Solo un administrador puede hacer esto");
+  assertAdmin(actor);
   return actor;
 }

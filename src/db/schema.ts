@@ -199,6 +199,8 @@ export const appointmentPhotos = pgTable("appointment_photos", {
     .notNull()
     .references(() => appointments.id, { onDelete: "cascade" }),
   storagePath: text("storage_path").notNull(),
+  contentType: text("content_type").notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
   uploadedBy: uuid("uploaded_by").references(() => profiles.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -206,11 +208,16 @@ export const appointmentPhotos = pgTable("appointment_photos", {
 export const customersRelations = relations(customers, ({ many }) => ({
   addresses: many(addresses),
   appointments: many(appointments),
-  notes: many(customerNotes),
+  history: many(customerNotes),
 }));
 
 export const addressesRelations = relations(addresses, ({ one }) => ({
   customer: one(customers, { fields: [addresses.customerId], references: [customers.id] }),
+}));
+
+export const customerNotesRelations = relations(customerNotes, ({ one }) => ({
+  customer: one(customers, { fields: [customerNotes.customerId], references: [customers.id] }),
+  author: one(profiles, { fields: [customerNotes.authorId], references: [profiles.id] }),
 }));
 
 export const appointmentsRelations = relations(appointments, ({ one, many }) => ({
@@ -231,6 +238,12 @@ export const appointmentPhotosRelations = relations(appointmentPhotos, ({ one })
   appointment: one(appointments, { fields: [appointmentPhotos.appointmentId], references: [appointments.id] }),
 }));
 
+export type Technician = typeof technicians.$inferSelect;
+export type Service = typeof services.$inferSelect;
+export type Customer = typeof customers.$inferSelect;
+export type NewCustomer = typeof customers.$inferInsert;
+export type Address = typeof addresses.$inferSelect;
+export type Photo = typeof appointmentPhotos.$inferSelect;
 export type Appointment = typeof appointments.$inferSelect;
 export type NewAppointment = typeof appointments.$inferInsert;
 export type AppointmentStatus = (typeof appointmentStatus.enumValues)[number];
