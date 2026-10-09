@@ -2,18 +2,56 @@
 
 :root {
   --brand: #0d9c8e;
-  --brand-soft: #dff4f0;
-  --ink: #151a21;
-  --canvas: #f5f4f0;
-  --hair: #e3e1da;
+  --brand-soft: #d9f1ec;
+  --brand-ink: #0a5a50;
+  --ink: #12181f;
+  --soft: #4a473d;
+  --muted: #8a8579;
+  --canvas: #eef2f1;
+  --hair: #d8dfdd;
+  --neutral-soft: #edebe6;
+  --warning: #9c6b12;
+  --warning-soft: #f5ecda;
+  --success: #3f7d5c;
+  --success-soft: #e6f0ea;
+  --info: #3e6b8a;
+  --info-soft: #e7eef3;
+  --attention: #b23a34;
+  --attention-soft: #f7e7e5;
+  --paper: #ffffff;
+  --rail: #12181f;
+  --rail-raised: #1c262e;
+  --rail-line: #2b3640;
+  --rail-text: #9fb0b8;
+  --indigo: #4c5fe0;
+  --indigo-soft: #e8eafb;
 }
 
 @theme inline {
   --color-brand: var(--brand);
   --color-brand-soft: var(--brand-soft);
+  --color-brand-ink: var(--brand-ink);
   --color-ink: var(--ink);
+  --color-soft: var(--soft);
+  --color-muted: var(--muted);
   --color-canvas: var(--canvas);
   --color-hair: var(--hair);
+  --color-neutral-soft: var(--neutral-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-attention: var(--attention);
+  --color-attention-soft: var(--attention-soft);
+  --color-paper: var(--paper);
+  --color-rail: var(--rail);
+  --color-rail-raised: var(--rail-raised);
+  --color-rail-line: var(--rail-line);
+  --color-rail-text: var(--rail-text);
+  --color-indigo: var(--indigo);
+  --color-indigo-soft: var(--indigo-soft);
   --font-sans: var(--font-plex);
   --font-display: var(--font-grotesk);
 }
@@ -22,4 +60,24 @@ body {
   background: var(--canvas);
   color: var(--ink);
   font-family: var(--font-plex), system-ui, sans-serif;
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+@utility hatch {
+  background-image: repeating-linear-gradient(135deg, transparent 0 5px, rgb(18 24 31 / 0.08) 5px 6px);
+}
+
+@utility hatch-light {
+  background-image: repeating-linear-gradient(135deg, transparent 0 7px, rgb(18 24 31 / 0.045) 7px 8px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }

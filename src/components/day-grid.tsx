@@ -1,97 +1,163 @@
-"use client";
+import { formatMinutes } from "@/domain/appointment-rules";
+import { initialsOf, layoutSlots, offShiftRanges, readableOn } from "@/domain/calendar-view";
+import { AppointmentTicket } from "@/components/appointment-ticket";
+import { DragTicket } from "@/components/drag-ticket";
+import { isDraggable } from "@/domain/drag-target";
+import { END_HOUR, HOUR_PX, START_HOUR, toPx } from "@/lib/day-grid";
+import type { CalendarAppointment, CalendarNav, CalendarTechnician } from "@/components/calendar-types";
 
-import type { getDay } from "@/server/appointments";
-import { formatMinutes, STATUS_LABEL } from "@/domain/appointment-rules";
-
-type Day = Awaited<ReturnType<typeof getDay>>;
-type Technician = Day["appointments"][number]["technician"];
-
-const START_HOUR = 7;
-const END_HOUR = 20;
-const HOUR_PX = 64;
+const HOURS = Array.from({ length: END_HOUR - START_HOUR }, (_, index) => START_HOUR + index);
+const GRID_HEIGHT = HOURS.length * HOUR_PX;
 
 export function DayGrid({
-  day,
+  appointments,
+  overlapIds,
   technicians,
-  onSelect,
+  nav,
+  selectedId,
+  nowMin,
 }: {
-  day: Day;
-  technicians: Technician[];
-  onSelect: (id: string) => void;
+  appointments: CalendarAppointment[];
+  overlapIds: string[];
+  technicians: CalendarTechnician[];
+  nav: CalendarNav;
+  selectedId: string | null;
+  nowMin: number | null;
 }) {
-  const overlap = new Set(day.overlapIds);
-  const hours = Array.from({ length: END_HOUR - START_HOUR }, (_, i) => START_HOUR + i);
+  const overlap = new Set(overlapIds);
+  const laneNames = technicians.map((technician) => ({ id: technician.id, name: technician.name }));
+  const showNow = nowMin !== null && nowMin >= START_HOUR * 60 && nowMin <= END_HOUR * 60;
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-hair bg-white">
+    <div className="overflow-x-auto rounded-md border border-hair bg-paper">
       <div
-        className="grid min-w-[720px]"
-        style={{ gridTemplateColumns: `64px repeat(${technicians.length}, minmax(0, 1fr))` }}
+        className="grid min-w-[760px]"
+        style={{ gridTemplateColumns: `76px repeat(${technicians.length}, minmax(0, 1fr))` }}
       >
-        <div />
-        {technicians.map((t) => (
-          <div
-            key={t.id}
-            className="flex items-center gap-2 border-b border-l border-hair px-3 py-2 text-sm font-medium"
-            style={{ borderBottomColor: t.color }}
-          >
-            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: t.color }} />
-            {t.name}
-          </div>
-        ))}
-
-        <div className="relative" style={{ height: hours.length * HOUR_PX }}>
-          {hours.map((h) => (
+        <div className="border-b border-hair" />
+        {technicians.map((technician) => {
+          const count = appointments.filter((a) => a.technicianId === technician.id && a.status !== "cancelled").length;
+          return (
             <div
-              key={h}
-              className="absolute right-2 -translate-y-2 text-xs text-ink/50"
-              style={{ top: (h - START_HOUR) * HOUR_PX }}
+              key={technician.id}
+              className="flex items-center gap-3 border-b-[3px] border-l border-l-hair px-3.5 py-3"
+              style={{ borderBottomColor: technician.color }}
             >
-              {formatMinutes(h * 60)}
+              <span
+                className="font-display flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-sm font-bold"
+                style={{ backgroundColor: technician.color, color: readableOn(technician.color) }}
+              >
+                {initialsOf(technician.name)}
+              </span>
+              <span className="flex min-w-0 flex-1 flex-col leading-tight">
+                <span className="truncate text-sm font-semibold">{technician.name}</span>
+                <span className="truncate text-xs text-soft">{technician.zone}</span>
+              </span>
+              <span className="text-right leading-tight">
+                <span className="font-display block text-xl font-semibold tabular-nums">{count}</span>
+                <span className="block text-[11px] text-muted">{count === 1 ? "cita" : "citas"}</span>
+              </span>
             </div>
-          ))}
+          );
+        })}
+
+        <div className="relative" style={{ height: GRID_HEIGHT }}>
+          {HOURS.slice(1)
+            .filter((hour) => !showNow || Math.abs(nowMin - hour * 60) >= 15)
+            .map((hour) => (
+              <span
+                key={hour}
+                className="font-display absolute right-3 -translate-y-1/2 whitespace-nowrap text-xs font-medium tabular-nums text-muted"
+                style={{ top: (hour - START_HOUR) * HOUR_PX }}
+              >
+                {formatMinutes(hour * 60)}
+              </span>
+            ))}
+          {showNow && (
+            <span
+              className="font-display absolute right-1.5 z-20 -translate-y-1/2 rounded-[3px] bg-attention px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-white"
+              style={{ top: toPx(nowMin) }}
+            >
+              {formatMinutes(nowMin).replace(" ", "")}
+            </span>
+          )}
         </div>
 
-        {technicians.map((t) => (
-          <div key={t.id} className="relative border-l border-hair" style={{ height: hours.length * HOUR_PX }}>
-            {hours.map((h) => (
-              <div
-                key={h}
-                className="absolute inset-x-0 border-t border-hair/70"
-                style={{ top: (h - START_HOUR) * HOUR_PX }}
-              />
-            ))}
-            {day.appointments
-              .filter((a) => a.technicianId === t.id)
-              .map((a) => {
-                const top = ((a.startMin - START_HOUR * 60) / 60) * HOUR_PX;
-                const height = Math.max((a.durationMin / 60) * HOUR_PX, 28);
-                const cancelled = a.status === "cancelled";
+        {technicians.map((technician) => {
+          const own = appointments.filter((a) => a.technicianId === technician.id);
+          const layout = layoutSlots(own);
+          const off = offShiftRanges(technician, nav.date, START_HOUR * 60, END_HOUR * 60);
+          return (
+            <div
+              key={technician.id}
+              data-lane={technician.id}
+              className="relative border-l border-hair"
+              style={{ height: GRID_HEIGHT }}
+            >
+              {off.map(([start, end]) => (
+                <div
+                  key={`${start}-${end}`}
+                  aria-hidden="true"
+                  className="hatch-light absolute inset-x-0 bg-canvas/70"
+                  style={{ top: toPx(start), height: toPx(end) - toPx(start) }}
+                />
+              ))}
+              {HOURS.map((hour) => (
+                <div key={hour}>
+                  <div
+                    className="absolute inset-x-0 border-t border-hair"
+                    style={{ top: (hour - START_HOUR) * HOUR_PX }}
+                  />
+                  <div
+                    className="absolute inset-x-0 border-t border-dotted border-hair/80"
+                    style={{ top: (hour - START_HOUR) * HOUR_PX + HOUR_PX / 2 }}
+                  />
+                </div>
+              ))}
+              {own.map((appointment) => {
+                const { column, columns } = layout.get(appointment.id) ?? { column: 0, columns: 1 };
+                const height = Math.max((appointment.durationMin / 60) * HOUR_PX - 3, 46);
+                const detail = columns > 1 ? "minimal" : height >= 84 ? "full" : height >= 58 ? "medium" : "minimal";
                 return (
-                  <button
-                    key={a.id}
-                    type="button"
-                    onClick={() => onSelect(a.id)}
-                    className="absolute inset-x-1 overflow-hidden rounded-md border-l-4 px-2 py-1 text-left text-xs transition-colors hover:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand"
+                  <DragTicket
+                    key={appointment.id}
+                    appointmentId={appointment.id}
+                    code={appointment.code}
+                    serviceName={appointment.service.name}
+                    startMin={appointment.startMin}
+                    durationMin={appointment.durationMin}
+                    technicianId={appointment.technicianId}
+                    technicians={laneNames}
+                    draggable={isDraggable(appointment.status)}
+                    className="absolute z-10"
                     style={{
-                      top,
+                      top: toPx(appointment.startMin) + 1,
                       height,
-                      borderLeftColor: t.color,
-                      backgroundColor: `${t.color}1f`,
-                      opacity: cancelled ? 0.5 : 1,
-                      outline: overlap.has(a.id) ? "2px dashed #d63f63" : undefined,
+                      left: `calc(${(column / columns) * 100}% + 6px)`,
+                      width: `calc(${100 / columns}% - 12px)`,
                     }}
                   >
-                    <div className="font-semibold">{a.code}</div>
-                    <div className="truncate text-ink/70">
-                      {a.service.name} · {formatMinutes(a.startMin)}
-                    </div>
-                    <div className="text-ink/60">{STATUS_LABEL[a.status]}</div>
-                  </button>
+                    <AppointmentTicket
+                      appointment={appointment}
+                      nav={nav}
+                      conflicting={overlap.has(appointment.id)}
+                      selected={appointment.id === selectedId}
+                      detail={detail}
+                      className="h-full w-full"
+                    />
+                  </DragTicket>
                 );
               })}
-          </div>
-        ))}
+              {showNow && (
+                <div
+                  aria-hidden="true"
+                  className="absolute inset-x-0 z-20 h-0.5 bg-attention"
+                  style={{ top: toPx(nowMin) }}
+                />
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

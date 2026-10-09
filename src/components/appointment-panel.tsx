@@ -1,369 +1,380 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import type { getAppointment } from "@/server/appointments";
+import Link from "next/link";
+import type { ReactNode } from "react";
+import { CANCEL_REASON_LABELS, describeChange, minutesToTimeInput, panelActions } from "@/domain/appointment-panel";
+import { CANCEL_REASONS } from "@/domain/appointment-rules";
+import { formatDayLabel, formatRange, initialsOf, readableOn } from "@/domain/calendar-view";
+import { formatPhone } from "@/domain/customer-rules";
+import { describeSpecs, formatAddress, formatMoney } from "@/domain/invoice";
+import { calendarHref } from "@/lib/calendar-links";
 import {
-  CANCEL_REASON_LABEL,
-  CANCEL_REASONS,
-  formatMinutes,
-  HISTORY_FIELD_LABEL,
-  INVOICE_LABEL,
-  PAYMENT_LABEL,
-  STATUS_LABEL,
-  type CancelReason,
-} from "@/domain/appointment-rules";
+  cancelAction,
+  completeAction,
+  confirmAction,
+  invoiceAction,
+  notesAction,
+  payAction,
+  rescheduleAction,
+} from "@/app/calendar/actions";
+import { ActionForm } from "@/components/action-form";
+import type { CalendarNav, CalendarTechnician } from "@/components/calendar-types";
+import { Icon } from "@/components/icons";
+import { PhotoGallery } from "@/components/photo-gallery";
+import { StatusBadge } from "@/components/status-badge";
+import type { getAppointment } from "@/server/appointments";
+import type { PanelPhotos } from "@/server/photos";
 
-type AppointmentDetail = Awaited<ReturnType<typeof getAppointment>>;
+type Detail = Awaited<ReturnType<typeof getAppointment>>;
 
-const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
-const dateTime = new Intl.DateTimeFormat("es-VE", { dateStyle: "short", timeStyle: "short" });
+const FIELD =
+  "w-full rounded-md border border-hair bg-paper px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20";
 
-function formatDate(date: string): string {
-  return new Intl.DateTimeFormat("es-VE", { weekday: "short", day: "numeric", month: "short" }).format(
-    new Date(`${date}T00:00:00`),
+const HISTORY_TIME = new Intl.DateTimeFormat("es-US", {
+  timeZone: "America/New_York",
+  day: "numeric",
+  month: "short",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="flex flex-col gap-2.5 border-t border-hair px-5 py-4">
+      <h3 className="text-sm font-semibold">{title}</h3>
+      {children}
+    </section>
   );
 }
 
-async function extractError(res: Response): Promise<string> {
-  try {
-    const body = await res.json();
-    if (typeof body.message === "string") return body.message;
-    if (Array.isArray(body.issues)) return body.issues.map((i: { message: string }) => i.message).join(", ");
-  } catch {
-    // respuesta sin cuerpo JSON
-  }
-  return "Algo salió mal. Intenta de nuevo.";
+function Row({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 text-sm">
+      <dt className="shrink-0 text-soft">{label}</dt>
+      <dd className="min-w-0 text-right font-medium">{children}</dd>
+    </div>
+  );
 }
 
-async function fetchDetail(id: string): Promise<AppointmentDetail> {
-  const res = await fetch(`/api/appointments/${id}`);
-  if (!res.ok) throw new Error(await extractError(res));
-  return res.json();
-}
-
-async function postAction(id: string, body: Record<string, unknown>): Promise<void> {
-  const res = await fetch(`/api/appointments/${id}/actions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(await extractError(res));
+function Expandable({ title, tone, children }: { title: string; tone?: "danger"; children: ReactNode }) {
+  return (
+    <details className="group rounded-md border border-hair bg-paper open:shadow-sm">
+      <summary
+        className={`flex cursor-pointer list-none items-center justify-between px-3.5 py-2.5 text-sm font-semibold ${
+          tone === "danger" ? "text-attention" : "text-ink"
+        }`}
+      >
+        {title}
+        <Icon name="right" className="transition-transform group-open:rotate-90" />
+      </summary>
+      <div className="border-t border-hair px-3.5 py-3">{children}</div>
+    </details>
+  );
 }
 
 export function AppointmentPanel({
-  appointmentId,
-  onClose,
-  onChanged,
+  appointment,
+  technicians,
+  nav,
+  photos,
 }: {
-  appointmentId: string;
-  onClose: () => void;
-  onChanged: () => void;
+  appointment: Detail;
+  technicians: CalendarTechnician[];
+  nav: CalendarNav;
+  photos: PanelPhotos;
 }) {
-  const [data, setData] = useState<AppointmentDetail | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [notesDraft, setNotesDraft] = useState("");
-  const [pending, setPending] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [cancelOpen, setCancelOpen] = useState(false);
-  const [cancelReason, setCancelReason] = useState<CancelReason>(CANCEL_REASONS[0]);
-  const [cancelExplanation, setCancelExplanation] = useState("");
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    const raf = requestAnimationFrame(() => setMounted(true));
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchDetail(appointmentId)
-      .then((detail) => {
-        if (cancelled) return;
-        setData(detail);
-        setNotesDraft(detail.notes);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setLoadError(err instanceof Error ? err.message : "No se pudo cargar la cita.");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [appointmentId]);
-
-  async function run(action: string, body: Record<string, unknown>, onSuccess?: () => void) {
-    setPending(action);
-    setActionError(null);
-    try {
-      await postAction(appointmentId, { action, ...body });
-      const fresh = await fetchDetail(appointmentId);
-      setData(fresh);
-      setNotesDraft(fresh.notes);
-      onChanged();
-      onSuccess?.();
-    } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Algo salió mal.");
-    } finally {
-      setPending(null);
-    }
-  }
+  const actions = panelActions(appointment.status, appointment.paymentStatus, appointment.invoiceStatus);
+  const closeHref = calendarHref(nav);
+  const technicianNames = Object.fromEntries(technicians.map((t) => [t.id, t.name]));
+  const specs = describeSpecs(appointment.specs, appointment.service.fields);
+  const customer = appointment.customer;
+  const customerName = `${customer.firstName} ${customer.lastName}`;
+  const technician = appointment.technician;
+  const id = appointment.id;
 
   return (
-    <div className="fixed inset-0 z-40">
-      <button
-        type="button"
+    <>
+      <Link
+        href={closeHref}
+        scroll={false}
         aria-label="Cerrar panel"
-        onClick={onClose}
-        className="absolute inset-0 bg-ink/20"
+        className="fixed inset-0 z-40 bg-ink/50 2xl:hidden"
+        tabIndex={-1}
       />
       <aside
-        className="motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-out absolute inset-y-0 right-0 flex w-full max-w-md flex-col overflow-y-auto border-l border-hair bg-white"
-        style={{ transform: mounted ? "translateX(0)" : "translateX(100%)" }}
+        aria-label={`Cita ${appointment.code}`}
+        className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[25rem] flex-col overflow-y-auto border-l border-hair bg-paper shadow-2xl"
       >
-        {loadError && (
-          <div className="flex flex-1 flex-col items-start justify-center gap-3 p-6">
-            <p className="text-sm text-ink/70">{loadError}</p>
-            <button
-              type="button"
-              onClick={() => {
-                setLoadError(null);
-                setData(null);
-                fetchDetail(appointmentId)
-                  .then((detail) => {
-                    setData(detail);
-                    setNotesDraft(detail.notes);
-                  })
-                  .catch((err) => setLoadError(err instanceof Error ? err.message : "No se pudo cargar la cita."));
-              }}
-              className="rounded-lg border border-hair px-3 py-1.5 text-sm"
+        <div className="h-1.5 shrink-0" style={{ backgroundColor: technician.color }} />
+        <header className="flex flex-col gap-3 px-5 pb-4 pt-4">
+          <div className="flex items-center justify-between gap-3">
+            <span className="flex items-center gap-2.5">
+              <span className="font-display text-sm font-semibold tabular-nums text-soft">{appointment.code}</span>
+              <StatusBadge status={appointment.status} />
+            </span>
+            <Link
+              href={closeHref}
+              scroll={false}
+              className="flex h-9 w-9 items-center justify-center rounded-md text-soft hover:bg-canvas"
             >
-              Reintentar
-            </button>
+              <Icon name="close" />
+              <span className="sr-only">Cerrar</span>
+            </Link>
           </div>
+          <div>
+            <h2 className="font-display text-2xl font-semibold leading-tight">{appointment.service.name}</h2>
+            <p className="mt-1 flex items-center gap-1.5 text-sm text-soft">
+              <Icon name="clock" size={14} />
+              {formatDayLabel(appointment.date)} · {formatRange(appointment.startMin, appointment.durationMin)}
+            </p>
+          </div>
+          <div className="flex items-center gap-2.5 text-sm">
+            <span
+              className="font-display flex h-8 w-8 items-center justify-center rounded-md text-xs font-bold"
+              style={{ backgroundColor: technician.color, color: readableOn(technician.color) }}
+            >
+              {initialsOf(technician.name)}
+            </span>
+            <span className="leading-tight">
+              <span className="block font-medium">{technician.name}</span>
+              <span className="block text-xs text-soft">{technician.zone}</span>
+            </span>
+          </div>
+          {appointment.alerts.length > 0 && (
+            <ul className="flex flex-wrap gap-1.5">
+              {appointment.alerts.map((alert) => (
+                <li
+                  key={alert.key}
+                  className={`rounded-[3px] px-2 py-0.5 text-xs font-medium ${
+                    alert.level === "attention"
+                      ? "bg-attention-soft text-attention"
+                      : alert.level === "warning"
+                        ? "bg-warning-soft text-warning"
+                        : "bg-info-soft text-info"
+                  }`}
+                >
+                  {alert.label}
+                </li>
+              ))}
+            </ul>
+          )}
+        </header>
+
+        {appointment.status === "cancelled" && (
+          <p className="mx-5 mb-4 rounded-md bg-neutral-soft px-3 py-2 text-sm text-soft">
+            Cancelada
+            {appointment.cancellationReason
+              ? `: ${
+                  appointment.cancellationReason.startsWith("other: ")
+                    ? appointment.cancellationReason.slice(7)
+                    : (CANCEL_REASON_LABELS[appointment.cancellationReason] ?? appointment.cancellationReason)
+                }`
+              : ""}
+          </p>
         )}
 
-        {!loadError && !data && <p className="p-6 text-sm text-ink/60">Cargando cita…</p>}
-
-        {!loadError && data && (
-          <>
-            <header className="flex items-start justify-between gap-3 border-b border-hair p-5">
-              <div>
-                <p className="font-display text-lg font-semibold">{data.code}</p>
-                <p className="text-sm text-ink/60">
-                  {formatDate(data.date)} · {formatMinutes(data.startMin)}–
-                  {formatMinutes(data.startMin + data.durationMin)}
-                </p>
-              </div>
-              <button type="button" onClick={onClose} className="rounded-lg border border-hair px-2 py-1 text-sm">
-                Cerrar
-              </button>
-            </header>
-
-            <div className="flex flex-1 flex-col gap-5 p-5">
-              <section>
-                <p className="text-sm text-ink/60">Estado</p>
-                <p className="font-medium">{STATUS_LABEL[data.status]}</p>
-                <p className="mt-2 text-sm text-ink/60">
-                  {data.service.name} · {data.technician.name} · {currency.format(data.priceCents / 100)}
-                </p>
-                <p className="text-sm text-ink/60">Agente: {data.agent?.name ?? "—"}</p>
-              </section>
-
-              <section className="border-t border-hair pt-4">
-                <p className="text-sm text-ink/60">Cliente</p>
-                <p className="font-medium">
-                  {data.customer.firstName} {data.customer.lastName}
-                </p>
-                <p className="text-sm text-ink/60">{data.customer.phone}</p>
-                <p className="text-sm text-ink/60">
-                  {data.address.line1}
-                  {data.address.unit ? ` ${data.address.unit}` : ""}, {data.address.city}, {data.address.state}{" "}
-                  {data.address.zip}
-                </p>
-              </section>
-
-              <section className="border-t border-hair pt-4">
-                <p className="text-sm text-ink/60">Notas internas (solo agentes)</p>
-                <textarea
-                  value={notesDraft}
-                  onChange={(e) => setNotesDraft(e.target.value)}
-                  rows={3}
-                  className="mt-1 w-full rounded-lg border border-hair p-2 text-sm"
+        {(actions.confirm || actions.complete || actions.pay || actions.invoice) && (
+          <Section title="Acciones">
+            <div className="grid grid-cols-2 gap-2">
+              {actions.confirm && (
+                <ActionForm
+                  action={confirmAction.bind(null, id)}
+                  submit="Confirmar"
+                  pendingText="Confirmando…"
+                  tone="primary"
                 />
-                <button
-                  type="button"
-                  disabled={notesDraft === data.notes || pending === "update_notes"}
-                  onClick={() => run("update_notes", { notes: notesDraft })}
-                  className="mt-2 rounded-lg border border-hair px-3 py-1.5 text-sm disabled:opacity-40"
-                >
-                  {pending === "update_notes" ? "Guardando…" : "Guardar notas"}
-                </button>
-              </section>
-
-              <section className="border-t border-hair pt-4">
-                <p className="text-sm text-ink/60">Pago y factura</p>
-                <div className="mt-1 flex items-center justify-between">
-                  <span className="text-sm">{PAYMENT_LABEL[data.paymentStatus]}</span>
-                  {data.paymentStatus === "unpaid" && data.status !== "cancelled" && (
-                    <button
-                      type="button"
-                      disabled={pending === "mark_paid"}
-                      onClick={() => run("mark_paid", {})}
-                      className="rounded-lg border border-hair px-3 py-1.5 text-sm disabled:opacity-40"
-                    >
-                      {pending === "mark_paid" ? "Marcando…" : "Marcar pagado"}
-                    </button>
-                  )}
-                </div>
-                <div className="mt-2 flex items-center justify-between">
-                  <span className="text-sm">{INVOICE_LABEL[data.invoiceStatus]}</span>
-                  {data.invoiceStatus !== "sent" && data.status !== "cancelled" && (
-                    <button
-                      type="button"
-                      disabled={pending === "advance_invoice"}
-                      onClick={() => run("advance_invoice", {})}
-                      className="rounded-lg border border-hair px-3 py-1.5 text-sm disabled:opacity-40"
-                    >
-                      {pending === "advance_invoice"
-                        ? "Actualizando…"
-                        : data.invoiceStatus === "not_generated"
-                          ? "Generar factura"
-                          : "Marcar enviada"}
-                    </button>
-                  )}
-                </div>
-              </section>
-
-              <section className="border-t border-hair pt-4">
-                <p className="text-sm text-ink/60">Fotos</p>
-                {data.photos.length === 0 ? (
-                  <p className="mt-1 text-sm text-ink/50">Aún no hay fotos para esta cita.</p>
-                ) : (
-                  <ul className="mt-1 space-y-1 text-sm">
-                    {data.photos.map((photo) => (
-                      <li key={photo.id} className="text-ink/70">
-                        {photo.storagePath}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-
-              <section className="border-t border-hair pt-4">
-                <p className="text-sm text-ink/60">Historial</p>
-                {data.history.length === 0 ? (
-                  <p className="mt-1 text-sm text-ink/50">Sin cambios registrados todavía.</p>
-                ) : (
-                  <ul className="mt-1 space-y-2 text-sm">
-                    {data.history.map((h) => (
-                      <li key={h.id} className="text-ink/70">
-                        <span className="font-medium text-ink">{HISTORY_FIELD_LABEL[h.field] ?? h.field}</span>{" "}
-                        {h.fromValue ?? "—"} → {h.toValue ?? "—"}
-                        <br />
-                        {h.actorName} · {dateTime.format(new Date(h.createdAt as unknown as string))}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-
-              {actionError && <p className="border-t border-hair pt-4 text-sm text-[#d63f63]">{actionError}</p>}
-
-              <section className="mt-auto flex flex-wrap gap-2 border-t border-hair pt-4">
-                {(data.status === "not_confirmed" || data.status === "rescheduled") && (
-                  <button
-                    type="button"
-                    disabled={pending === "confirm"}
-                    onClick={() => run("confirm", {})}
-                    className="rounded-lg bg-brand px-3 py-1.5 text-sm text-white disabled:opacity-40"
-                  >
-                    {pending === "confirm" ? "Confirmando…" : "Confirmar"}
-                  </button>
-                )}
-                {data.status !== "cancelled" && data.status !== "completed" && (
-                  <button
-                    type="button"
-                    disabled={pending === "complete"}
-                    onClick={() => run("complete", {})}
-                    className="rounded-lg border border-hair px-3 py-1.5 text-sm disabled:opacity-40"
-                  >
-                    {pending === "complete" ? "Completando…" : "Completar"}
-                  </button>
-                )}
-                {data.status !== "cancelled" && data.status !== "completed" && !cancelOpen && (
-                  <button
-                    type="button"
-                    onClick={() => setCancelOpen(true)}
-                    className="rounded-lg border border-hair px-3 py-1.5 text-sm text-[#d63f63]"
-                  >
-                    Cancelar cita
-                  </button>
-                )}
-              </section>
-
-              {cancelOpen && (
-                <section className="rounded-lg border border-hair p-3">
-                  <label className="text-sm text-ink/60" htmlFor="cancel-reason">
-                    Motivo de la cancelación
-                  </label>
-                  <select
-                    id="cancel-reason"
-                    value={cancelReason}
-                    onChange={(e) => setCancelReason(e.target.value as CancelReason)}
-                    className="mt-1 w-full rounded-lg border border-hair p-2 text-sm"
-                  >
-                    {CANCEL_REASONS.map((reason) => (
-                      <option key={reason} value={reason}>
-                        {CANCEL_REASON_LABEL[reason]}
-                      </option>
-                    ))}
-                  </select>
-                  {cancelReason === "other" && (
-                    <textarea
-                      value={cancelExplanation}
-                      onChange={(e) => setCancelExplanation(e.target.value)}
-                      placeholder="Explica el motivo"
-                      rows={2}
-                      className="mt-2 w-full rounded-lg border border-hair p-2 text-sm"
-                    />
-                  )}
-                  <div className="mt-2 flex gap-2">
-                    <button
-                      type="button"
-                      disabled={pending === "cancel"}
-                      onClick={() =>
-                        run(
-                          "cancel",
-                          { reason: cancelReason, explanation: cancelReason === "other" ? cancelExplanation : undefined },
-                          () => setCancelOpen(false),
-                        )
-                      }
-                      className="rounded-lg bg-[#d63f63] px-3 py-1.5 text-sm text-white disabled:opacity-40"
-                    >
-                      {pending === "cancel" ? "Cancelando…" : "Confirmar cancelación"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCancelOpen(false)}
-                      className="rounded-lg border border-hair px-3 py-1.5 text-sm"
-                    >
-                      Volver
-                    </button>
-                  </div>
-                </section>
+              )}
+              {actions.complete && (
+                <ActionForm
+                  action={completeAction.bind(null, id)}
+                  submit="Completar"
+                  pendingText="Guardando…"
+                  tone={actions.confirm ? "secondary" : "primary"}
+                />
+              )}
+              {actions.pay && (
+                <ActionForm action={payAction.bind(null, id)} submit="Registrar cobro" pendingText="Guardando…" />
+              )}
+              {actions.invoice && (
+                <ActionForm
+                  action={invoiceAction.bind(null, id)}
+                  submit={actions.invoice === "generate" ? "Generar factura" : "Marcar factura enviada"}
+                  pendingText="Guardando…"
+                />
               )}
             </div>
-          </>
+          </Section>
         )}
+
+        <Section title="Cliente">
+          <Link
+            href={`/customers/${customer.id}`}
+            className="flex items-center justify-between gap-3 rounded-md border border-hair px-3.5 py-3 transition-colors hover:bg-canvas"
+          >
+            <span className="min-w-0 leading-tight">
+              <span className="block truncate font-medium">{customerName}</span>
+              <span className="mt-1 block text-sm tabular-nums text-soft">{formatPhone(customer.phone)}</span>
+              {customer.email && <span className="block truncate text-sm text-soft">{customer.email}</span>}
+            </span>
+            <Icon name="right" className="shrink-0 text-muted" />
+          </Link>
+          <dl className="flex flex-col gap-2">
+            <Row label="Dirección del servicio">{formatAddress(appointment.address)}</Row>
+            {appointment.destinationAddress && (
+              <Row label="Dirección de entrega">{formatAddress(appointment.destinationAddress)}</Row>
+            )}
+            {appointment.billingAddress && <Row label="Facturar a">{formatAddress(appointment.billingAddress)}</Row>}
+          </dl>
+        </Section>
+
+        <Section title="Servicio y cobro">
+          <dl className="flex flex-col gap-2">
+            {specs.map((spec) => (
+              <Row key={spec.label} label={spec.label}>
+                {spec.value}
+              </Row>
+            ))}
+            <Row label="Precio">
+              <span className="font-display text-base tabular-nums">{formatMoney(appointment.priceCents)}</span>
+            </Row>
+            <Row label="Pago">
+              <span className={appointment.paymentStatus === "paid" ? "text-success" : "text-attention"}>
+                {appointment.paymentStatus === "paid" ? "Pagado" : "Sin pagar"}
+              </span>
+            </Row>
+            <Row label="Factura">
+              {appointment.invoiceStatus === "not_generated" ? (
+                <span className="text-soft">Sin generar</span>
+              ) : (
+                <a
+                  href={`/api/appointments/${id}/invoice`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-brand-ink underline underline-offset-2"
+                >
+                  {appointment.invoiceStatus === "sent" ? "Enviada · ver PDF" : "Generada · ver PDF"}
+                </a>
+              )}
+            </Row>
+          </dl>
+        </Section>
+
+        <Section title="Notas de la cita">
+          <ActionForm action={notesAction.bind(null, id)} submit="Guardar notas" pendingText="Guardando…">
+            <textarea
+              name="notes"
+              rows={3}
+              defaultValue={appointment.notes}
+              placeholder="Acceso, mascotas, indicaciones para el técnico…"
+              aria-label="Notas de la cita"
+              className={`${FIELD} resize-y`}
+            />
+          </ActionForm>
+        </Section>
+
+        <Section title="Fotos">
+          <PhotoGallery
+            appointmentId={id}
+            photos={photos.photos}
+            available={photos.available}
+            canUpload={appointment.status !== "cancelled"}
+          />
+        </Section>
+
+        {(actions.reschedule || actions.cancel) && (
+          <Section title="Cambios en la cita">
+            <div className="flex flex-col gap-2">
+              {actions.reschedule && (
+                <Expandable title="Reprogramar">
+                  <ActionForm
+                    action={rescheduleAction.bind(null, id)}
+                    submit="Reprogramar cita"
+                    pendingText="Guardando…"
+                    tone="primary"
+                  >
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="flex flex-col gap-1 text-xs font-medium text-soft">
+                        Fecha
+                        <input type="date" name="date" required defaultValue={appointment.date} className={FIELD} />
+                      </label>
+                      <label className="flex flex-col gap-1 text-xs font-medium text-soft">
+                        Hora
+                        <input
+                          type="time"
+                          name="time"
+                          required
+                          defaultValue={minutesToTimeInput(appointment.startMin)}
+                          className={FIELD}
+                        />
+                      </label>
+                    </div>
+                    <label className="flex flex-col gap-1 text-xs font-medium text-soft">
+                      Técnico
+                      <select name="technicianId" defaultValue={technician.id} className={FIELD}>
+                        {technicians.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1 text-xs font-medium text-soft">
+                      Motivo
+                      <input
+                        type="text"
+                        name="reason"
+                        required
+                        placeholder="Ej: el cliente pidió otro día"
+                        className={FIELD}
+                      />
+                    </label>
+                  </ActionForm>
+                </Expandable>
+              )}
+              {actions.cancel && (
+                <Expandable title="Cancelar cita" tone="danger">
+                  <ActionForm
+                    action={cancelAction.bind(null, id)}
+                    submit="Cancelar cita"
+                    pendingText="Cancelando…"
+                    tone="danger"
+                  >
+                    <label className="flex flex-col gap-1 text-xs font-medium text-soft">
+                      Motivo
+                      <select name="reason" required defaultValue="" className={FIELD}>
+                        <option value="" disabled>
+                          Elige un motivo
+                        </option>
+                        {CANCEL_REASONS.map((reason) => (
+                          <option key={reason} value={reason}>
+                            {CANCEL_REASON_LABELS[reason]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1 text-xs font-medium text-soft">
+                      Explicación (obligatoria si el motivo es «Otro motivo»)
+                      <input type="text" name="explanation" className={FIELD} />
+                    </label>
+                  </ActionForm>
+                </Expandable>
+              )}
+            </div>
+          </Section>
+        )}
+
+        <Section title="Historial">
+          <ol className="flex flex-col">
+            {appointment.history.map((entry) => (
+              <li key={entry.id} className="relative border-l-2 border-hair py-1.5 pl-4">
+                <span className="absolute -left-[5px] top-3 h-2 w-2 rounded-full bg-muted" />
+                <p className="text-sm">{describeChange(entry, technicianNames)}</p>
+                <p className="text-xs text-muted">
+                  {entry.actorName} · {HISTORY_TIME.format(entry.createdAt)}
+                </p>
+              </li>
+            ))}
+          </ol>
+        </Section>
       </aside>
-    </div>
+    </>
   );
 }
