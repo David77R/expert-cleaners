@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lte, ne, sql } from "drizzle-orm";
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import * as schema from "@/db/schema";
 import {
@@ -15,6 +15,7 @@ import {
   cancelSchema,
   createAppointmentSchema,
   moveSchema,
+  rangeQuerySchema,
   rescheduleSchema,
   addressSnapshotSchema,
   type CreateAppointmentInput,
@@ -308,6 +309,23 @@ export async function updateNotes(db: Db, actor: Actor, id: string, notes: strin
   });
 }
 
+function overlapIdsOf(rows: AppointmentRow[]): string[] {
+  const active = rows.filter((r) => r.status !== "cancelled");
+  const groups = new Map<string, AppointmentRow[]>();
+  for (const row of active) {
+    const key = `${row.date}|${row.technicianId}`;
+    groups.set(key, [...(groups.get(key) ?? []), row]);
+  }
+  const ids = new Set<string>();
+  for (const group of groups.values()) {
+    const blocks = group.map(toBlock);
+    for (const row of group) {
+      if (findConflicts(toBlock(row), blocks).length > 0) ids.add(row.id);
+    }
+  }
+  return [...ids];
+}
+
 export async function getDay(db: Db, date: string, technicianId?: string) {
   const where = technicianId
     ? and(eq(appointments.date, date), eq(appointments.technicianId, technicianId))
@@ -317,12 +335,25 @@ export async function getDay(db: Db, date: string, technicianId?: string) {
     with: { customer: true, address: true, service: true, technician: true },
     orderBy: [asc(appointments.startMin)],
   });
-  const active = rows.filter((r) => r.status !== "cancelled");
-  const overlapIds = new Set<string>();
-  for (const row of active) {
-    if (findConflicts(toBlock(row), active.map(toBlock)).length > 0) overlapIds.add(row.id);
+  return { appointments: rows, overlapIds: overlapIdsOf(rows) };
+}
+
+export async function getRange(db: Db, raw: unknown) {
+  const { from, to, technicianId } = rangeQuerySchema.parse(raw);
+  const conditions = [gte(appointments.date, from), lte(appointments.date, to)];
+  if (technicianId) conditions.push(eq(appointments.technicianId, technicianId));
+
+  const rows = await db.query.appointments.findMany({
+    where: and(...conditions),
+    with: { customer: true, address: true, service: true, technician: true },
+    orderBy: [asc(appointments.date), asc(appointments.startMin)],
+  });
+
+  const countsByDate: Record<string, number> = {};
+  for (const row of rows) {
+    if (row.status !== "cancelled") countsByDate[row.date] = (countsByDate[row.date] ?? 0) + 1;
   }
-  return { appointments: rows, overlapIds: [...overlapIds] };
+  return { appointments: rows, overlapIds: overlapIdsOf(rows), countsByDate };
 }
 
 export async function getAppointment(db: Db, id: string) {

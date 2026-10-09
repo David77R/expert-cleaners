@@ -1,0 +1,272 @@
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { ZodError } from "zod";
+import { AGENT_JOSUE } from "@/db/seed-data";
+import { DomainError } from "@/domain/appointment-rules";
+import { escapeLike, isValidPhone, phoneDigits } from "@/domain/customer-rules";
+import { createAppointment } from "@/server/appointments";
+import {
+  addAddress,
+  addCustomerNote,
+  createCustomer,
+  deleteAddress,
+  getCustomer,
+  searchCustomers,
+  updateAddress,
+  updateCustomer,
+} from "@/server/customers";
+import { appointmentInput, createTestDb } from "./helpers";
+
+type Ctx = Awaited<ReturnType<typeof createTestDb>>;
+let ctx: Ctx;
+
+beforeAll(async () => {
+  ctx = await createTestDb();
+});
+
+afterAll(async () => {
+  await ctx.client.close();
+});
+
+const home = { line1: "500 Biscayne Blvd", unit: "", city: "Miami", state: "FL", zip: "33132" };
+const office = { line1: "8000 NW 36th St", unit: "Suite 2", city: "Doral", state: "FL", zip: "33166" };
+
+function newCustomer(overrides: Record<string, unknown> = {}) {
+  return {
+    firstName: "Laura",
+    lastName: "Pérez",
+    phone: "(305) 555-0142",
+    addresses: [home],
+    ...overrides,
+  };
+}
+
+describe("reglas de teléfono", () => {
+  it("extrae solo dígitos", () => {
+    expect(phoneDigits("+1 (305) 555-0142")).toBe("13055550142");
+  });
+
+  it("acepta entre 7 y 15 dígitos", () => {
+    expect(isValidPhone("555-0142")).toBe(true);
+    expect(isValidPhone("12345")).toBe(false);
+    expect(isValidPhone("1234567890123456")).toBe(false);
+  });
+
+  it("escapa los comodines de LIKE", () => {
+    expect(escapeLike("50%_off\\")).toBe("50\\%\\_off\\\\");
+  });
+});
+
+describe("crear cliente", () => {
+  it("genera código CLI consecutivo y guarda sus direcciones", async () => {
+    const first = await createCustomer(ctx.db, newCustomer({ phone: "786 555 0100" }));
+    const second = await createCustomer(ctx.db, newCustomer({ firstName: "Mario", phone: "786 555 0101" }));
+    expect(first.customer.code).toMatch(/^CLI-\d+$/);
+    expect(Number(second.customer.code.slice(4))).toBe(Number(first.customer.code.slice(4)) + 1);
+    expect(first.addresses).toHaveLength(1);
+    expect(first.addresses[0].customerId).toBe(first.customer.id);
+  });
+
+  it("el primer cliente nuevo continúa después del cliente semilla", async () => {
+    const created = await createCustomer(ctx.db, newCustomer({ phone: "786 555 0102" }));
+    expect(Number(created.customer.code.slice(4))).toBeGreaterThan(1001);
+  });
+
+  it("normaliza el correo a minúsculas", async () => {
+    const { customer } = await createCustomer(
+      ctx.db,
+      newCustomer({ phone: "786 555 0103", email: "  Laura@Example.COM " }),
+    );
+    expect(customer.email).toBe("laura@example.com");
+  });
+
+  it("avisa de teléfonos duplicados sin bloquear la creación", async () => {
+    await createCustomer(ctx.db, newCustomer({ phone: "954-555-0200" }));
+    const second = await createCustomer(ctx.db, newCustomer({ firstName: "Otra", phone: "(954) 555 0200" }));
+    expect(second.customer.id).toBeDefined();
+    expect(second.duplicates).toHaveLength(1);
+    expect(second.duplicates[0].lastName).toBe("Pérez");
+  });
+
+  it("exige al menos una dirección y un teléfono válido", async () => {
+    await expect(createCustomer(ctx.db, newCustomer({ addresses: [] }))).rejects.toBeInstanceOf(ZodError);
+    await expect(createCustomer(ctx.db, newCustomer({ phone: "123" }))).rejects.toBeInstanceOf(ZodError);
+    await expect(createCustomer(ctx.db, newCustomer({ email: "no-es-correo" }))).rejects.toBeInstanceOf(ZodError);
+  });
+});
+
+describe("actualizar cliente", () => {
+  it("cambia solo los campos enviados", async () => {
+    const { customer } = await createCustomer(ctx.db, newCustomer({ phone: "786 555 0300", notes: "Llamar antes" }));
+    const result = await updateCustomer(ctx.db, customer.id, { lastName: "Gómez" });
+    expect(result.customer.lastName).toBe("Gómez");
+    expect(result.customer.firstName).toBe("Laura");
+    expect(result.customer.notes).toBe("Llamar antes");
+  });
+
+  it("permite limpiar correo y notas con null", async () => {
+    const { customer } = await createCustomer(
+      ctx.db,
+      newCustomer({ phone: "786 555 0301", email: "a@b.com", notes: "x" }),
+    );
+    const result = await updateCustomer(ctx.db, customer.id, { email: null, notes: null });
+    expect(result.customer.email).toBeNull();
+    expect(result.customer.notes).toBeNull();
+  });
+
+  it("avisa de duplicado solo cuando el teléfono cambia a uno existente", async () => {
+    const a = await createCustomer(ctx.db, newCustomer({ phone: "786 555 0400" }));
+    const b = await createCustomer(ctx.db, newCustomer({ phone: "786 555 0401" }));
+    const unchanged = await updateCustomer(ctx.db, b.customer.id, { firstName: "Nuevo" });
+    expect(unchanged.duplicates).toEqual([]);
+    const clash = await updateCustomer(ctx.db, b.customer.id, { phone: "786-555-0400" });
+    expect(clash.duplicates.map((d) => d.id)).toEqual([a.customer.id]);
+  });
+
+  it("rechaza un cuerpo vacío y clientes inexistentes", async () => {
+    await expect(updateCustomer(ctx.db, ctx.customer.id, {})).rejects.toBeInstanceOf(ZodError);
+    await expect(
+      updateCustomer(ctx.db, "00000000-0000-4000-8000-0000000000ff", { firstName: "X" }),
+    ).rejects.toMatchObject({ code: "not_found" });
+  });
+});
+
+describe("buscar clientes", () => {
+  beforeAll(async () => {
+    await createCustomer(ctx.db, newCustomer({ firstName: "Zulay", lastName: "Quintero", phone: "305-555-7788" }));
+    await createCustomer(
+      ctx.db,
+      newCustomer({ firstName: "Zacarías", lastName: "Pino", phone: "305-555-7799", email: "zaca@correo.com" }),
+    );
+  });
+
+  it("encuentra por nombre completo sin importar mayúsculas", async () => {
+    const { items } = await searchCustomers(ctx.db, { q: "zulay quin" });
+    expect(items).toHaveLength(1);
+    expect(items[0].lastName).toBe("Quintero");
+  });
+
+  it("encuentra por teléfono ignorando el formato", async () => {
+    const { items } = await searchCustomers(ctx.db, { q: "(305) 555 7799" });
+    expect(items.map((c) => c.firstName)).toEqual(["Zacarías"]);
+  });
+
+  it("encuentra por correo y por código", async () => {
+    const byEmail = await searchCustomers(ctx.db, { q: "zaca@correo" });
+    expect(byEmail.items).toHaveLength(1);
+    const byCode = await searchCustomers(ctx.db, { q: ctx.customer.code });
+    expect(byCode.items.map((c) => c.id)).toContain(ctx.customer.id);
+  });
+
+  it("trata % y _ como texto literal", async () => {
+    const { items } = await searchCustomers(ctx.db, { q: "%" });
+    expect(items).toEqual([]);
+  });
+
+  it("incluye las direcciones y pagina con hasMore", async () => {
+    const page = await searchCustomers(ctx.db, { limit: 2 });
+    expect(page.items).toHaveLength(2);
+    expect(page.hasMore).toBe(true);
+    expect(page.items[0].addresses.length).toBeGreaterThan(0);
+    const next = await searchCustomers(ctx.db, { limit: 2, offset: 2 });
+    expect(next.items[0].id).not.toBe(page.items[0].id);
+  });
+
+  it("ordena por apellido y luego por nombre", async () => {
+    const base = { phone: "305-555-9000", addresses: [home] };
+    await createCustomer(ctx.db, { ...base, firstName: "Beto", lastName: "Aguirre", email: "orden-1@correo.com" });
+    await createCustomer(ctx.db, { ...base, firstName: "Ana", lastName: "Zambrano", email: "orden-2@correo.com" });
+    await createCustomer(ctx.db, { ...base, firstName: "Ana", lastName: "Aguirre", email: "orden-3@correo.com" });
+    const { items } = await searchCustomers(ctx.db, { q: "orden-" });
+    expect(items.map((c) => `${c.lastName} ${c.firstName}`)).toEqual(["Aguirre Ana", "Aguirre Beto", "Zambrano Ana"]);
+  });
+
+  it("acepta parámetros de query string como texto", async () => {
+    const { items } = await searchCustomers(ctx.db, { q: "Quintero", limit: "5", offset: "0" });
+    expect(items).toHaveLength(1);
+  });
+});
+
+describe("detalle de cliente", () => {
+  it("conserva las notas generales del cliente junto al historial de notas", async () => {
+    const { customer } = await createCustomer(ctx.db, newCustomer({ phone: "786 555 0400", notes: "Portón azul" }));
+    await addCustomerNote(ctx.db, AGENT_JOSUE, customer.id, { text: "Nota firmada" });
+
+    const detail = await getCustomer(ctx.db, customer.id);
+    expect(detail.notes).toBe("Portón azul");
+    expect(detail.history).toHaveLength(1);
+    expect(detail.history[0].text).toBe("Nota firmada");
+  });
+
+  it("devuelve direcciones, notas recientes primero y citas", async () => {
+    await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date: "2026-11-02" }));
+    await addCustomerNote(ctx.db, AGENT_JOSUE, ctx.customer.id, { text: "Primera nota" });
+    await addCustomerNote(ctx.db, AGENT_JOSUE, ctx.customer.id, { text: "Segunda nota" });
+
+    const detail = await getCustomer(ctx.db, ctx.customer.id);
+    expect(detail.addresses.length).toBeGreaterThan(0);
+    expect(detail.history[0].text).toBe("Segunda nota");
+    expect(detail.history[0].authorName).toBe(AGENT_JOSUE.name);
+    expect(detail.appointments.length).toBeGreaterThan(0);
+    expect(detail.appointments[0].serviceName).toBeDefined();
+  });
+
+  it("falla con not_found si no existe", async () => {
+    await expect(getCustomer(ctx.db, "00000000-0000-4000-8000-0000000000ff")).rejects.toMatchObject({
+      code: "not_found",
+    });
+  });
+});
+
+describe("direcciones", () => {
+  it("agrega y actualiza sin tocar los campos no enviados", async () => {
+    const { customer } = await createCustomer(ctx.db, newCustomer({ phone: "786 555 0500" }));
+    const added = await addAddress(ctx.db, customer.id, office);
+    expect(added.unit).toBe("Suite 2");
+
+    const updated = await updateAddress(ctx.db, customer.id, added.id, { city: "Hialeah" });
+    expect(updated.city).toBe("Hialeah");
+    expect(updated.unit).toBe("Suite 2");
+    expect(updated.line1).toBe(office.line1);
+  });
+
+  it("no actualiza una dirección de otro cliente", async () => {
+    const { customer } = await createCustomer(ctx.db, newCustomer({ phone: "786 555 0501" }));
+    await expect(updateAddress(ctx.db, customer.id, ctx.address.id, { city: "X" })).rejects.toMatchObject({
+      code: "not_found",
+    });
+  });
+
+  it("elimina una dirección libre cuando quedan otras", async () => {
+    const { customer } = await createCustomer(ctx.db, newCustomer({ phone: "786 555 0502" }));
+    const added = await addAddress(ctx.db, customer.id, office);
+    await deleteAddress(ctx.db, customer.id, added.id);
+    const detail = await getCustomer(ctx.db, customer.id);
+    expect(detail.addresses).toHaveLength(1);
+  });
+
+  it("no elimina la última dirección", async () => {
+    const { customer, addresses } = await createCustomer(ctx.db, newCustomer({ phone: "786 555 0503" }));
+    await expect(deleteAddress(ctx.db, customer.id, addresses[0].id)).rejects.toMatchObject({
+      code: "last_address",
+    });
+  });
+
+  it("no elimina una dirección con citas asociadas", async () => {
+    const extra = await addAddress(ctx.db, ctx.customer.id, office);
+    await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { addressId: extra.id, date: "2026-11-03" }));
+    const error = await deleteAddress(ctx.db, ctx.customer.id, extra.id).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(DomainError);
+    expect(error).toMatchObject({ code: "address_in_use" });
+  });
+});
+
+describe("notas de cliente", () => {
+  it("rechaza notas vacías y clientes inexistentes", async () => {
+    await expect(addCustomerNote(ctx.db, AGENT_JOSUE, ctx.customer.id, { text: "   " })).rejects.toBeInstanceOf(
+      ZodError,
+    );
+    await expect(
+      addCustomerNote(ctx.db, AGENT_JOSUE, "00000000-0000-4000-8000-0000000000ff", { text: "Hola" }),
+    ).rejects.toMatchObject({ code: "not_found" });
+  });
+});

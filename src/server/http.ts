@@ -6,6 +6,10 @@ const STATUS_BY_CODE: Record<string, number> = {
   unauthorized: 401,
   forbidden: 403,
   not_found: 404,
+  file_required: 422,
+  photo_empty: 422,
+  photo_too_large: 413,
+  photo_unsupported_type: 415,
 };
 
 export function toErrorResponse(error: unknown): NextResponse {
