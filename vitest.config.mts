@@ -7,6 +7,8 @@ export default defineConfig({
     environment: "node",
     include: ["tests/**/*.test.ts"],
     testTimeout: 30000,
+    hookTimeout: 30000,
+    maxWorkers: 3,
     coverage: { provider: "v8", include: ["src/domain/**", "src/server/**"], reporter: ["text", "lcov"] },
   },
 });
