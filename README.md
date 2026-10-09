@@ -15,8 +15,11 @@ Next.js 16 (App Router) · TypeScript estricto · Postgres en Supabase · Drizzl
 | Modelo de datos y migración inicial                     | Listo, probado                                       |
 | Reglas de citas, historial, conflictos, dos direcciones | Listo, 35 pruebas                                    |
 | API REST con validación y errores tipados               | Listo, probada a nivel de servicio                   |
-| Login con roles y calendario del día                    | Escrito y compilando; falta probar con Supabase real |
-| Drag and drop, mapa, reportes, invoice PDF              | Sprints 2 a 4                                        |
+| Login con roles y calendario (día, semana, mes)         | Escrito y compilando; falta probar con Supabase real |
+| Panel de la cita, fotos, clientes y alta de citas       | Listo en la interfaz; probado con datos de prueba    |
+| Mover citas arrastrando (con confirmación)              | Listo en la vista del día, con mouse                 |
+| Administración de servicios (solo administrador)        | Listo                                                |
+| Mapa, rutas, centro de alertas y reportes en pantalla   | Pendiente                                            |
 
 ## Empezar
 
@@ -28,7 +31,7 @@ npm run check
 
 Para correr la app necesitas un proyecto Supabase (o Supabase CLI local):
 
-1. Completa `.env.local` con `DATABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+1. Completa `.env.local` con `DATABASE_URL`, `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Para las fotos, agrega también `SUPABASE_SERVICE_ROLE_KEY` y crea en Supabase un bucket privado llamado `appointment-photos`.
 2. `npm run db:migrate` aplica `drizzle/`.
 3. Ejecuta `supabase/profiles-trigger.sql` en el editor SQL de Supabase.
 4. `npm run db:seed` carga técnicos, servicios y un cliente de ejemplo.
@@ -62,17 +65,13 @@ docs/           arquitectura, ADRs y scrum
 
 ## API
 
-| Método y ruta                        | Descripción                                                                                                                             |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/appointments?date=`        | Citas del día y ids con solapamiento                                                                                                    |
-| `POST /api/appointments`             | Crea una cita (nace no confirmada)                                                                                                      |
-| `GET /api/appointments/:id`          | Detalle con historial y fotos                                                                                                           |
-| `POST /api/appointments/:id/actions` | `confirm`, `complete`, `cancel`, `reschedule`, `move`, `mark_paid`, `advance_invoice`, `set_destination`, `set_billing`, `update_notes` |
+Citas, clientes, servicios, fotos (con subida y visor desde el panel de la cita), reportes por agente, alertas y factura en PDF. La referencia completa, con parámetros, roles y códigos de error, está en [docs/api.md](docs/api.md).
 
 Errores: `422` validación, `401` sin sesión, `403` sin permiso, `404` no existe, `409` regla de negocio.
 
 ## Documentación
 
 - [Arquitectura y diagramas](docs/architecture.md)
+- [Referencia de la API](docs/api.md)
 - [Decisiones (ADRs)](docs/adr)
 - [Scrum: proceso, backlog, Sprint 1 y roadmap](docs/scrum)

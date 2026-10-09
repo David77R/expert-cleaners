@@ -197,7 +197,7 @@ sequenceDiagram
 ## Reglas de negocio implementadas
 
 | Regla                                                         | Dónde vive                                 | Prueba                                   |
-| ------------------------------------------------------------- | ------------------------------------------ | ----------------------------------------- |
+| ------------------------------------------------------------- | ------------------------------------------ | ---------------------------------------- |
 | Una cita nueva empieza como no confirmada y no pagada         | `createAppointment`                        | `appointments.test.ts`                   |
 | Cancelar conserva la cita y exige motivo (`other` pide texto) | `resolveCancelReason`, `cancelAppointment` | `domain.test.ts`, `appointments.test.ts` |
 | Reprogramar exige motivo                                      | `rescheduleSchema`, `requireReason`        | `appointments.test.ts`                   |
