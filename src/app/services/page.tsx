@@ -7,9 +7,15 @@ import type { Service } from "@/db/schema";
 import { describeFieldCount, groupByCategory } from "@/domain/service-form";
 import { formatMoney } from "@/domain/invoice";
 import { AppShell } from "@/components/app-header";
+import { DeleteServiceButton } from "@/components/delete-service-button";
 import { Icon } from "@/components/icons";
 import { getActor } from "@/server/auth";
 import { listServices } from "@/server/services";
+
+const REMOVED_NOTICE: Record<string, string> = {
+  "servicio-eliminado": "Servicio eliminado.",
+  "servicio-retirado": "Servicio eliminado. Las citas que ya lo tenían lo conservan.",
+};
 
 function first(value: string | string[] | undefined): string {
   return (Array.isArray(value) ? value[0] : value) ?? "";
@@ -17,10 +23,10 @@ function first(value: string | string[] | undefined): string {
 
 function ServiceRow({ service, muted = false }: { service: Service; muted?: boolean }) {
   return (
-    <li>
+    <li className="flex items-center gap-2 pr-3 transition-colors hover:bg-canvas/70">
       <Link
         href={`/services/${service.id}`}
-        className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1.5 px-5 py-3.5 transition-colors hover:bg-canvas/70"
+        className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-x-6 gap-y-1.5 py-3.5 pl-5"
       >
         <span className="flex min-w-0 items-center gap-3.5">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-brand-soft text-brand-ink">
@@ -42,6 +48,7 @@ function ServiceRow({ service, muted = false }: { service: Service; muted?: bool
           <Icon name="right" className="self-center text-muted" />
         </span>
       </Link>
+      <DeleteServiceButton serviceId={service.id} serviceName={service.name} back="services" variant="icon" />
     </li>
   );
 }
@@ -80,7 +87,7 @@ export default async function ServicesPage({ searchParams }: PageProps<"/service
   const banner =
     saved && (aviso === "creado" || aviso === "actualizado")
       ? `${aviso === "creado" ? "Servicio creado" : "Cambios guardados"}: ${saved.name}.`
-      : null;
+      : (REMOVED_NOTICE[aviso] ?? null);
 
   return (
     <AppShell active="services" actor={actor}>

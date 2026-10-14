@@ -59,7 +59,7 @@ const FIELD_MESSAGES: Record<string, string> = {
   technicianId: "Elige un técnico",
   date: "Elige una fecha válida",
   time: "Elige una hora válida",
-  durationMin: "Escribe la duración en minutos, entre 15 y 720",
+  durationMin: "Escribe la duración en minutos, entre 0 y 720",
 };
 
 export function emptyAppointmentForm(): AppointmentFormValues {

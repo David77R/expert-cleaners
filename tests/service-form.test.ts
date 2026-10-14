@@ -82,11 +82,11 @@ describe("precio y duración", () => {
     expect(dollarsText(5)).toBe("0.05");
   });
 
-  it("valida la duración entre 15 y 720 minutos enteros", () => {
+  it("valida la duración entre 0 y 720 minutos enteros", () => {
     expect(parseDuration("45")).toBe(45);
-    expect(parseDuration("15")).toBe(15);
+    expect(parseDuration("0")).toBe(0);
     expect(parseDuration("720")).toBe(720);
-    for (const bad of ["", "14", "721", "45.5", "una hora"]) expect(parseDuration(bad)).toBeNull();
+    for (const bad of ["", "-1", "721", "45.5", "una hora"]) expect(parseDuration(bad)).toBeNull();
   });
 });
 
@@ -148,9 +148,10 @@ describe("opciones", () => {
 });
 
 describe("lectura del formulario", () => {
-  it("empieza con 60 minutos, activo y sin datos extra", () => {
+  it("empieza en 0, activo y sin datos extra", () => {
     const values = emptyServiceForm();
-    expect(values.durationMin).toBe("60");
+    expect(values.durationMin).toBe("0");
+    expect(values.price).toBe("0");
     expect(values.active).toBe(true);
     expect(values.fields).toEqual([]);
   });
@@ -219,11 +220,17 @@ describe("validación con mensajes claros", () => {
   });
 
   it("pide los datos básicos", () => {
-    const errors = validateServiceForm({ ...emptyServiceForm(), durationMin: "5" });
+    const errors = validateServiceForm({ ...emptyServiceForm(), price: "", durationMin: "800" });
     expect(errors.name).toMatch(/nombre/i);
     expect(errors.category).toMatch(/categoría/i);
     expect(errors.price).toMatch(/precio/i);
-    expect(errors.durationMin).toMatch(/15 y 720/);
+    expect(errors.durationMin).toMatch(/0 y 720/);
+  });
+
+  it("acepta precio y duración en 0", () => {
+    const errors = validateServiceForm({ ...emptyServiceForm(), name: "Prueba", category: "Sofás" });
+    expect(errors.price).toBeUndefined();
+    expect(errors.durationMin).toBeUndefined();
   });
 
   it("revisa cada dato de la cita", () => {
@@ -357,7 +364,7 @@ describe("errores del esquema como respaldo", () => {
       name: "",
       category: "x",
       basePriceCents: -1,
-      durationMin: 5,
+      durationMin: -5,
       fields: [
         { key: "a", label: "A", type: "select", required: false },
         { key: "Mal Key", label: "B", type: "number", required: false },

@@ -144,7 +144,7 @@ export function ServiceForm({
                   inputMode="decimal"
                   defaultValue={values.price}
                   required
-                  placeholder="120"
+                  placeholder="0"
                   className={`${INPUT} pl-7 tabular-nums`}
                 />
               </div>

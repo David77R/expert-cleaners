@@ -5,6 +5,7 @@ import { getDb } from "@/db/client";
 import { serviceFormFromService } from "@/domain/service-form";
 import { AppShell } from "@/components/app-header";
 import { Icon } from "@/components/icons";
+import { DeleteServiceButton } from "@/components/delete-service-button";
 import { ServiceForm } from "@/components/service-form";
 import { getActor } from "@/server/auth";
 import { countServiceAppointments, getService, listServices } from "@/server/services";
@@ -34,7 +35,10 @@ export default async function EditServicePage({ params }: PageProps<"/services/[
           <Icon name="left" /> Volver a Nuevo pedido
         </Link>
         <div className="flex flex-col gap-1.5">
-          <h1 className="font-display text-2xl font-semibold tracking-tight">{service.name}</h1>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <h1 className="font-display text-2xl font-semibold tracking-tight">{service.name}</h1>
+            <DeleteServiceButton serviceId={service.id} serviceName={service.name} />
+          </div>
           <p className="text-sm text-soft">
             {used === 0 ? "Todavía sin citas." : used === 1 ? "1 cita registrada." : `${used} citas registradas.`} Los
             cambios de precio y duración aplican a las citas nuevas; las existentes conservan su precio.

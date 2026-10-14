@@ -6,6 +6,7 @@ import { scheduleOrderAction } from "@/app/orders/new/actions";
 import { AddressAutocomplete } from "@/components/address-autocomplete";
 import { CustomerPicker } from "@/components/customer-picker";
 import { INPUT } from "@/components/form-kit";
+import { DeleteServiceButton } from "@/components/delete-service-button";
 import { Icon } from "@/components/icons";
 import { Modal } from "@/components/modal";
 import { QuickCustomerForm } from "@/components/quick-customer-form";
@@ -119,8 +120,8 @@ function ScheduleForm({
       setError("Completa la fecha, la hora y el técnico de la recogida.");
       return;
     }
-    if (!Number.isInteger(pickup.durationMin) || pickup.durationMin < 15 || pickup.durationMin > 720) {
-      setError("La duración debe estar entre 15 y 720 minutos.");
+    if (!Number.isInteger(pickup.durationMin) || pickup.durationMin < 0 || pickup.durationMin > 720) {
+      setError("La duración debe estar entre 0 y 720 minutos.");
       return;
     }
     let delivery: Visit | null = null;
@@ -140,8 +141,8 @@ function ScheduleForm({
         setError("La entrega no puede ser antes de la recogida.");
         return;
       }
-      if (!Number.isInteger(delivery.durationMin) || delivery.durationMin < 15 || delivery.durationMin > 720) {
-        setError("La duración de la entrega debe estar entre 15 y 720 minutos.");
+      if (!Number.isInteger(delivery.durationMin) || delivery.durationMin < 0 || delivery.durationMin > 720) {
+        setError("La duración de la entrega debe estar entre 0 y 720 minutos.");
         return;
       }
     }
@@ -186,9 +187,9 @@ function ScheduleForm({
               <input
                 type="number"
                 name="pickupDuration"
-                min={15}
+                min={0}
                 max={720}
-                step={15}
+                step={1}
                 defaultValue={initial?.pickup.durationMin ?? suggestedDuration}
                 className={FIELD}
               />
@@ -246,10 +247,10 @@ function ScheduleForm({
                   <input
                     type="number"
                     name="deliveryDuration"
-                    min={15}
+                    min={0}
                     max={720}
-                    step={15}
-                    defaultValue={initial?.delivery?.durationMin ?? 60}
+                    step={1}
+                    defaultValue={initial?.delivery?.durationMin ?? 0}
                     className={FIELD}
                   />
                 </label>
@@ -381,7 +382,10 @@ export function OrderBuilder({
   const needsDestination = lines.some((line) => byId.get(line.serviceId)?.twoAddresses);
   const suggestedDuration = Math.min(
     720,
-    Math.max(15, lines.reduce((sum, line) => sum + (byId.get(line.serviceId)?.durationMin ?? 0), 0) || 60),
+    Math.max(
+      0,
+      lines.reduce((sum, line) => sum + (byId.get(line.serviceId)?.durationMin ?? 0), 0),
+    ),
   );
 
   function addService(service: FormService) {
@@ -633,14 +637,17 @@ export function OrderBuilder({
                       </span>
                     )}
                     {isAdmin && (
-                      <Link
-                        href={`/services/${service.id}?volver=pedido`}
-                        aria-label={`Editar ${service.name}`}
-                        title="Editar servicio"
-                        className="absolute left-2 top-2 flex h-7 w-7 items-center justify-center rounded-md bg-paper/90 text-soft opacity-0 shadow-sm transition-opacity hover:text-ink focus:opacity-100 group-hover:opacity-100"
-                      >
-                        <Icon name="wrench" size={13} />
-                      </Link>
+                      <div className="absolute left-2 top-2 flex gap-1 transition-opacity focus-within:opacity-100 group-hover:opacity-100 lg:opacity-0">
+                        <Link
+                          href={`/services/${service.id}?volver=pedido`}
+                          aria-label={`Editar ${service.name}`}
+                          title="Editar servicio"
+                          className="flex h-7 w-7 items-center justify-center rounded-md bg-paper/90 text-soft shadow-sm hover:text-ink"
+                        >
+                          <Icon name="wrench" size={13} />
+                        </Link>
+                        <DeleteServiceButton serviceId={service.id} serviceName={service.name} variant="icon" />
+                      </div>
                     )}
                   </div>
                 );

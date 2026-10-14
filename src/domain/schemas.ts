@@ -129,7 +129,7 @@ const serviceFieldsSchema = z
   );
 
 const basePrice = z.number().int().min(0).max(10_000_000);
-const serviceDuration = z.number().int().min(15).max(720);
+const serviceDuration = z.number().int().min(0).max(720);
 
 const serviceIcon = z.enum(SERVICE_ICON_KEYS as [ServiceIconKey, ...ServiceIconKey[]], "Ícono no válido");
 
@@ -242,7 +242,7 @@ const itemsSchema = z
 export const deliverySchema = z.object({
   date: isoDate,
   startMin: minutes,
-  durationMin: z.number().int().min(15).max(720),
+  durationMin: z.number().int().min(0).max(720),
   technicianId: z.uuid("Elige un técnico"),
 });
 
@@ -254,7 +254,7 @@ export const createAppointmentSchema = z.object({
   technicianId: z.uuid(),
   date: isoDate,
   startMin: minutes,
-  durationMin: z.number().int().min(15).max(720),
+  durationMin: z.number().int().min(0).max(720),
   specs: specsSchema.default({}),
   notes: z.string().default(""),
   alerts: z
@@ -289,7 +289,7 @@ export const readyDateSchema = z.object({ readyDate: isoDate.nullable() });
 
 export const updateItemsSchema = z.object({
   items: itemsSchema,
-  durationMin: z.number().int().min(15).max(720).optional(),
+  durationMin: z.number().int().min(0).max(720).optional(),
   destinationAddress: addressSnapshotSchema.optional(),
 });
 

@@ -65,9 +65,9 @@ export function PanelItemsForm({
           name="durationMin"
           type="number"
           inputMode="numeric"
-          min={15}
+          min={0}
           max={720}
-          step={15}
+          step={1}
           defaultValue={durationMin}
           className={INPUT}
         />

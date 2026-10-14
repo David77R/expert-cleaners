@@ -265,9 +265,9 @@ export function AppointmentForm({
               name="durationMin"
               type="number"
               inputMode="numeric"
-              min={15}
+              min={0}
               max={720}
-              step={15}
+              step={1}
               value={duration}
               onChange={(event) => setDuration(event.target.value)}
               required

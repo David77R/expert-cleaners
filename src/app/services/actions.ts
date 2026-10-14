@@ -17,7 +17,7 @@ import {
   type ServiceFormValues,
 } from "@/domain/service-form";
 import { getActor } from "@/server/auth";
-import { countServiceAppointments, createService, updateService } from "@/server/services";
+import { countServiceAppointments, createService, deleteService, updateService } from "@/server/services";
 
 export type ServiceFormState = {
   values: ServiceFormValues;
@@ -83,4 +83,26 @@ export async function updateServiceAction(
   revalidatePath("/orders/new");
   revalidatePath("/appointments/new");
   redirect("/orders/new?aviso=servicio-actualizado");
+}
+
+export type DeleteServiceState = { error?: string };
+
+export async function deleteServiceAction(id: string, back: string): Promise<DeleteServiceState> {
+  const actor = await adminActor();
+  if (!z.uuid().safeParse(id).success) return { error: "El servicio no existe." };
+
+  let mode: "deleted" | "retired";
+  try {
+    mode = (await deleteService(getDb(), actor, id)).mode;
+  } catch (error) {
+    if (error instanceof DomainError) return { error: error.message };
+    console.error(error);
+    return { error: "No se pudo eliminar el servicio. Inténtalo de nuevo." };
+  }
+
+  revalidatePath("/services");
+  revalidatePath("/orders/new");
+  revalidatePath("/appointments/new");
+  const aviso = mode === "deleted" ? "servicio-eliminado" : "servicio-retirado";
+  redirect(back === "services" ? `/services?aviso=${aviso}` : `/orders/new?aviso=${aviso}`);
 }

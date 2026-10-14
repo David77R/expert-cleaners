@@ -2,23 +2,25 @@ import { asc, count, eq } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { DomainError } from "@/domain/appointment-rules";
 import { assertAdmin } from "@/domain/permissions";
-import { SLUG_PATTERN, slugify } from "@/domain/service-rules";
+import { SLUG_PATTERN, isRetiredSlug, retiredSlug, slugify } from "@/domain/service-rules";
 import { createServiceSchema, serviceListSchema, updateServiceSchema, type CreateServiceInput } from "@/domain/schemas";
 import type { Db } from "@/server/appointments";
 
 type Actor = schema.Actor;
 
-const { services, appointments } = schema;
+const { services, appointments, appointmentItems } = schema;
 
 async function requireService(db: Db, id: string): Promise<schema.Service> {
   const [row] = await db.select().from(services).where(eq(services.id, id)).limit(1);
-  if (!row) throw new DomainError("not_found", "El servicio no existe");
+  if (!row || isRetiredSlug(row.slug)) throw new DomainError("not_found", "El servicio no existe");
   return row;
 }
 
 export async function listServices(db: Db, raw: unknown = {}, actor?: Actor) {
   const { includeInactive } = serviceListSchema.parse(raw);
-  const rows = await db.select().from(services).orderBy(asc(services.category), asc(services.name));
+  const rows = (await db.select().from(services).orderBy(asc(services.category), asc(services.name))).filter(
+    (row) => !isRetiredSlug(row.slug),
+  );
   const showAll = includeInactive && actor?.role === "admin";
   return showAll ? rows : rows.filter((row) => row.active);
 }
@@ -69,7 +71,7 @@ export async function updateService(db: Db, actor: Actor, id: string, raw: unkno
 
   return db.transaction(async (tx) => {
     const [current] = await tx.select().from(services).where(eq(services.id, id)).limit(1);
-    if (!current) throw new DomainError("not_found", "El servicio no existe");
+    if (!current || isRetiredSlug(current.slug)) throw new DomainError("not_found", "El servicio no existe");
 
     if (input.twoAddresses !== undefined && input.twoAddresses !== current.twoAddresses) {
       const [{ used }] = await tx.select({ used: count() }).from(appointments).where(eq(appointments.serviceId, id));
@@ -84,5 +86,32 @@ export async function updateService(db: Db, actor: Actor, id: string, raw: unkno
     const patch = Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined));
     const [updated] = await tx.update(services).set(patch).where(eq(services.id, id)).returning();
     return updated;
+  });
+}
+
+export type DeleteServiceResult = { name: string; mode: "deleted" | "retired" };
+
+export async function deleteService(db: Db, actor: Actor, id: string): Promise<DeleteServiceResult> {
+  assertAdmin(actor);
+  return db.transaction(async (tx) => {
+    const [current] = await tx.select().from(services).where(eq(services.id, id)).limit(1);
+    if (!current || isRetiredSlug(current.slug)) throw new DomainError("not_found", "El servicio no existe");
+
+    const [{ main }] = await tx.select({ main: count() }).from(appointments).where(eq(appointments.serviceId, id));
+    const [{ items }] = await tx
+      .select({ items: count() })
+      .from(appointmentItems)
+      .where(eq(appointmentItems.serviceId, id));
+
+    if (main + items === 0) {
+      await tx.delete(services).where(eq(services.id, id));
+      return { name: current.name, mode: "deleted" };
+    }
+
+    await tx
+      .update(services)
+      .set({ active: false, slug: retiredSlug(current.slug, current.id) })
+      .where(eq(services.id, id));
+    return { name: current.name, mode: "retired" };
   });
 }

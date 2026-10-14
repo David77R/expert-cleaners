@@ -100,6 +100,7 @@ describe("elegir el resultado de geocodificación", () => {
 describe("sugerencias de respaldo", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 
   it("lee sugerencias de Photon con el estado en dos letras", () => {
@@ -148,6 +149,10 @@ describe("sugerencias de respaldo", () => {
       return new Response("error", { status: 503 });
     });
     vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubEnv("DATABASE_URL", "postgres://user:pass@localhost:5432/db");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon-key");
+    vi.stubEnv("ORS_API_KEY", "ors-key");
     const suggestions = await suggestAddresses("1200 Brick");
     expect(suggestions.map((s) => s.line1)).toEqual(["1200 Brickell Ave"]);
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes("photon"))).toBe(true);

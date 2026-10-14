@@ -59,11 +59,11 @@ function DeliveryFields({ appointment, technicians }: { appointment: Detail; tec
           <input
             type="number"
             name="deliveryDuration"
-            min={15}
+            min={0}
             max={720}
-            step={15}
+            step={1}
             required
-            defaultValue={scheduled ? appointment.deliveryDurationMin : 60}
+            defaultValue={scheduled ? appointment.deliveryDurationMin : 0}
             className={FIELD}
           />
         </label>

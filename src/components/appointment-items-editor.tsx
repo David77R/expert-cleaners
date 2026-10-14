@@ -36,7 +36,7 @@ function toEditorItems(rows: readonly Row[], services: readonly FormService[]): 
 
 export function itemsDuration(items: readonly EditorItem[]): number {
   const total = items.reduce((sum, item) => sum + (item.service?.durationMin ?? 0), 0);
-  return Math.min(720, Math.max(15, total));
+  return Math.min(720, Math.max(0, total));
 }
 
 export function AppointmentItemsEditor({

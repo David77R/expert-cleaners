@@ -4,7 +4,7 @@ import { AGENT_JOSUE } from "@/db/seed-data";
 import { assertAdmin } from "@/domain/permissions";
 import { slugify } from "@/domain/service-rules";
 import { createAppointment } from "@/server/appointments";
-import { createService, getService, listServices, updateService } from "@/server/services";
+import { createService, deleteService, getService, listServices, updateService } from "@/server/services";
 import { appointmentInput, createTestDb } from "./helpers";
 
 type Ctx = Awaited<ReturnType<typeof createTestDb>>;
@@ -91,7 +91,8 @@ describe("crear servicio", () => {
       );
     await bad({ basePriceCents: -1 });
     await bad({ basePriceCents: 10.5 });
-    await bad({ durationMin: 5 });
+    await bad({ durationMin: -5 });
+    await bad({ durationMin: 721 });
     await bad({ slug: "Con Espacios" });
     await bad({ fields: [{ key: "Mal Key", label: "x", type: "number", required: true }] });
     await bad({ fields: [{ key: "tipo", label: "Tipo", type: "select", required: true }] });
@@ -224,5 +225,63 @@ describe("actualizar servicio", () => {
     const updated = await updateService(ctx.db, ADMIN, created.id, { description: null, internalNotes: null });
     expect(updated.description).toBeNull();
     expect(updated.internalNotes).toBeNull();
+  });
+});
+
+describe("eliminar servicio", () => {
+  it("solo el admin puede eliminar", async () => {
+    const created = await createService(ctx.db, ADMIN, newService({ name: "Para borrar agente" }));
+    await expect(deleteService(ctx.db, AGENT_JOSUE, created.id)).rejects.toMatchObject({ code: "forbidden" });
+  });
+
+  it("borra del todo un servicio sin citas y libera el nombre", async () => {
+    const created = await createService(ctx.db, ADMIN, newService({ name: "Servicio sin uso" }));
+    expect(await deleteService(ctx.db, ADMIN, created.id)).toEqual({ name: "Servicio sin uso", mode: "deleted" });
+    await expect(getService(ctx.db, created.id)).rejects.toMatchObject({ code: "not_found" });
+    const again = await createService(ctx.db, ADMIN, newService({ name: "Servicio sin uso" }));
+    expect(again.slug).toBe("servicio-sin-uso");
+  });
+
+  it("retira un servicio usado en citas: desaparece de todos lados y las citas lo conservan", async () => {
+    const created = await createService(ctx.db, ADMIN, newService({ name: "Servicio con historia" }));
+    const { appointment } = await createAppointment(
+      ctx.db,
+      AGENT_JOSUE,
+      appointmentInput(ctx, {
+        date: "2026-12-03",
+        items: [
+          { serviceId: ctx.services.sofa.id, specs: { sofaType: "Tela", seats: 3 } },
+          { serviceId: created.id, specs: {} },
+        ],
+      }),
+    );
+    expect(appointment.id).toBeDefined();
+
+    expect(await deleteService(ctx.db, ADMIN, created.id)).toEqual({ name: "Servicio con historia", mode: "retired" });
+    const visible = await listServices(ctx.db, { includeInactive: "true" }, ADMIN);
+    expect(visible.some((service) => service.id === created.id)).toBe(false);
+    await expect(getService(ctx.db, created.id)).rejects.toMatchObject({ code: "not_found" });
+    await expect(updateService(ctx.db, ADMIN, created.id, { durationMin: 30 })).rejects.toMatchObject({
+      code: "not_found",
+    });
+    await expect(deleteService(ctx.db, ADMIN, created.id)).rejects.toMatchObject({ code: "not_found" });
+
+    const item = await ctx.db.query.appointmentItems.findFirst({
+      where: (row, { eq }) => eq(row.serviceId, created.id),
+      with: { service: true },
+    });
+    expect(item?.service.name).toBe("Servicio con historia");
+
+    const again = await createService(ctx.db, ADMIN, newService({ name: "Servicio con historia" }));
+    expect(again.slug).toBe("servicio-con-historia");
+  });
+
+  it("acepta precio y duración en 0", async () => {
+    const created = await createService(
+      ctx.db,
+      ADMIN,
+      newService({ name: "Gratis", basePriceCents: 0, durationMin: 0 }),
+    );
+    expect(created).toMatchObject({ basePriceCents: 0, durationMin: 0 });
   });
 });

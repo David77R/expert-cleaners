@@ -9,6 +9,13 @@ import { OrderBuilder } from "@/components/order-builder";
 import { getActor } from "@/server/auth";
 import { listServices } from "@/server/services";
 
+const NOTICES: Record<string, string> = {
+  "servicio-creado": "Servicio creado.",
+  "servicio-actualizado": "Servicio actualizado.",
+  "servicio-eliminado": "Servicio eliminado.",
+  "servicio-retirado": "Servicio eliminado. Las citas que ya lo tenían lo conservan.",
+};
+
 export default async function NewOrderPage({ searchParams }: PageProps<"/orders/new">) {
   const actor = await getActor();
   if (!actor) redirect("/login");
@@ -41,9 +48,9 @@ export default async function NewOrderPage({ searchParams }: PageProps<"/orders/
             </Link>
           )}
         </div>
-        {(aviso === "servicio-creado" || aviso === "servicio-actualizado") && (
+        {typeof aviso === "string" && NOTICES[aviso] && (
           <p role="status" className="rounded-md bg-success-soft px-4 py-3 text-sm font-medium text-success">
-            {aviso === "servicio-creado" ? "Servicio creado." : "Servicio actualizado."}
+            {NOTICES[aviso]}
           </p>
         )}
         <OrderBuilder

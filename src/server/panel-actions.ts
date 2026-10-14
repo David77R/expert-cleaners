@@ -91,7 +91,7 @@ function friendlyIssue(issue: ZodIssue): string {
           ? "Elige el servicio de cada artículo"
           : issue.message;
     case "durationMin":
-      return "Escribe la duración en minutos, entre 15 y 720";
+      return "Escribe la duración en minutos, entre 0 y 720";
     case "destinationAddress":
       return "Completa la dirección de entrega";
     default:

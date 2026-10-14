@@ -160,9 +160,10 @@ describe("errores por campo de la cita", () => {
   it("valida la hora y la duración", () => {
     expect(errorsFor(sofaForm({ time: "" })).time).toBe("Elige una hora válida");
     expect(errorsFor(sofaForm({ time: "25:00" })).time).toBe("Elige una hora válida");
-    expect(errorsFor(sofaForm({ durationMin: "" })).durationMin).toMatch(/entre 15 y 720/);
-    expect(errorsFor(sofaForm({ durationMin: "5" })).durationMin).toMatch(/entre 15 y 720/);
-    expect(errorsFor(sofaForm({ durationMin: "900" })).durationMin).toMatch(/entre 15 y 720/);
+    expect(errorsFor(sofaForm({ durationMin: "" })).durationMin).toMatch(/entre 0 y 720/);
+    expect(errorsFor(sofaForm({ durationMin: "0" })).durationMin).toBeUndefined();
+    expect(errorsFor(sofaForm({ durationMin: "-5" })).durationMin).toMatch(/entre 0 y 720/);
+    expect(errorsFor(sofaForm({ durationMin: "900" })).durationMin).toMatch(/entre 0 y 720/);
   });
 
   it("valida las especificaciones y el precio de cada servicio", () => {

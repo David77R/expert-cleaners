@@ -14,7 +14,7 @@ export const SERVICE_TEXT_FIELDS = [
 ] as const;
 
 export const MAX_SERVICE_FIELDS = 20;
-export const MIN_DURATION = 15;
+export const MIN_DURATION = 0;
 export const MAX_DURATION = 720;
 export const MAX_PRICE_DOLLARS = 100_000;
 export const FIELD_PREFIX = "field_";
@@ -54,8 +54,8 @@ export function emptyServiceForm(): ServiceFormValues {
     category: "",
     icon: "",
     description: "",
-    price: "",
-    durationMin: "60",
+    price: "0",
+    durationMin: "0",
     internalNotes: "",
     detailedSpecs: "",
     twoAddresses: false,
