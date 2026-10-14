@@ -16,7 +16,7 @@ export default async function NewCustomerPage() {
           <Icon name="left" /> Todos los clientes
         </Link>
         <div className="flex flex-col gap-1.5">
-          <h1 className="font-display text-[34px] font-semibold leading-none tracking-tight">Nuevo cliente</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tight">Nuevo cliente</h1>
           <p className="text-sm text-soft">
             Registra los datos de contacto y la dirección donde se prestará el servicio.
           </p>

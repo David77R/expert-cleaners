@@ -90,7 +90,7 @@ export default async function CustomerPage({ params, searchParams }: PageProps<"
           <CustomerAvatar name={fullName} seed={customer.code} size="lg" />
           <div className="flex min-w-0 flex-1 flex-col gap-2">
             <div className="flex flex-wrap items-center gap-2.5">
-              <h1 className="font-display text-[30px] font-semibold leading-none tracking-tight">{fullName}</h1>
+              <h1 className="font-display text-2xl font-semibold tracking-tight">{fullName}</h1>
               <span className="font-display rounded-[3px] bg-canvas px-2 py-0.5 text-xs font-medium tabular-nums text-soft">
                 {customer.code}
               </span>

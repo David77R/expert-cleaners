@@ -78,7 +78,7 @@ export default async function NewAppointmentPage({ searchParams }: PageProps<"/a
           <Icon name="left" /> Volver al calendario
         </Link>
         <div className="flex flex-col gap-1.5">
-          <h1 className="font-display text-[34px] font-semibold leading-none tracking-tight">Nueva cita</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tight">Nueva cita</h1>
           <p className="text-sm text-soft">Elige el cliente, el servicio y el horario del técnico.</p>
         </div>
         <AppointmentForm

@@ -6,12 +6,16 @@ import { todayIn } from "@/domain/date-rules";
 import { logout } from "@/app/login/actions";
 import { Icon, type IconName } from "@/components/icons";
 
-type Section = "calendar" | "customers" | "services";
+type Section = "calendar" | "customers" | "services" | "agents" | "technicians" | "reports" | "alerts";
 
 const LINKS: { key: Section; href: string; label: string; icon: IconName; adminOnly?: boolean }[] = [
-  { key: "calendar", href: "/calendar", label: "Calendario", icon: "calendar" },
   { key: "customers", href: "/customers", label: "Clientes", icon: "users" },
   { key: "services", href: "/services", label: "Servicios", icon: "tag", adminOnly: true },
+  { key: "calendar", href: "/calendar", label: "Calendario", icon: "calendar" },
+  { key: "alerts", href: "/alerts", label: "Alertas", icon: "alert" },
+  { key: "agents", href: "/agents", label: "Agentes", icon: "agent", adminOnly: true },
+  { key: "technicians", href: "/technicians", label: "Técnicos", icon: "wrench", adminOnly: true },
+  { key: "reports", href: "/reports", label: "Reportes", icon: "report" },
 ];
 
 function Brand() {
@@ -47,9 +51,9 @@ export function AppShell({ active, actor, children }: { active: Section; actor: 
         <Link
           href="/calendar"
           aria-label={`Ir a hoy: ${WEEKDAY_LONG[weekdayIndex(today)]} ${Number(today.slice(8, 10))} de ${month.primary.toLowerCase()} de ${month.secondary}`}
-          className="mx-5 flex items-center gap-3 rounded-md border border-rail-line bg-rail-raised px-3 py-2.5 transition-colors hover:bg-rail-line"
+          className="mx-3 flex items-center gap-3 rounded-xl border border-rail-line bg-rail-raised px-3 py-2.5 transition-colors hover:bg-rail-line"
         >
-          <span className="font-display flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-brand text-[22px] font-semibold leading-none tabular-nums text-white">
+          <span className="font-display flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand text-base font-semibold leading-none tabular-nums text-white">
             {Number(today.slice(8, 10))}
           </span>
           <span className="min-w-0 leading-tight">
@@ -62,7 +66,7 @@ export function AppShell({ active, actor, children }: { active: Section; actor: 
           </span>
         </Link>
 
-        <nav aria-label="Principal" className="mt-5 flex flex-col">
+        <nav aria-label="Principal" className="mt-5 flex flex-col gap-1 px-3">
           {links.map((link) => {
             const current = link.key === active;
             return (
@@ -70,10 +74,10 @@ export function AppShell({ active, actor, children }: { active: Section; actor: 
                 key={link.key}
                 href={link.href}
                 aria-current={current ? "page" : undefined}
-                className={`flex items-center gap-3 border-l-[3px] px-5 py-3 text-sm font-medium transition-colors ${
+                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
                   current
-                    ? "border-brand bg-rail-raised text-white"
-                    : "border-transparent text-rail-text hover:bg-rail-raised hover:text-white"
+                    ? "bg-brand/20 text-white ring-1 ring-inset ring-brand/40"
+                    : "text-rail-text hover:bg-white/[0.06] hover:text-white"
                 }`}
               >
                 <Icon name={link.icon} size={18} />
@@ -98,7 +102,7 @@ export function AppShell({ active, actor, children }: { active: Section; actor: 
           <form action={logout} className="mt-3">
             <button
               type="submit"
-              className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm text-rail-text transition-colors hover:bg-rail-raised hover:text-white"
+              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-rail-text transition-colors hover:bg-white/[0.06] hover:text-white"
             >
               <Icon name="logout" />
               Cerrar sesión
@@ -123,8 +127,8 @@ export function AppShell({ active, actor, children }: { active: Section; actor: 
                 key={link.key}
                 href={link.href}
                 aria-current={current ? "page" : undefined}
-                className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium ${
-                  current ? "bg-rail-raised text-white" : "text-rail-text"
+                className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
+                  current ? "bg-brand/20 text-white" : "text-rail-text hover:bg-white/[0.06] hover:text-white"
                 }`}
               >
                 <Icon name={link.icon} />

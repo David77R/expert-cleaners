@@ -20,6 +20,7 @@ import {
   addressSnapshotSchema,
   type CreateAppointmentInput,
 } from "@/domain/schemas";
+import { geocodeIfNeeded } from "@/server/geocoding";
 
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -100,6 +101,8 @@ async function nextCode(tx: Tx): Promise<string> {
 
 export async function createAppointment(db: Db, actor: Actor, raw: CreateAppointmentInput): Promise<Mutation> {
   const input = createAppointmentSchema.parse(raw);
+  const destinationAddress = input.destinationAddress ? await geocodeIfNeeded(input.destinationAddress) : null;
+  const billingAddress = input.billingAddress ? await geocodeIfNeeded(input.billingAddress) : null;
   return db.transaction(async (tx) => {
     const [service] = await tx.select().from(services).where(eq(services.id, input.serviceId)).limit(1);
     if (!service || !service.active) throw new DomainError("service_unavailable", "El servicio no está disponible");
@@ -143,8 +146,8 @@ export async function createAppointment(db: Db, actor: Actor, raw: CreateAppoint
         notes: input.notes,
         specs: input.specs,
         alerts: input.alerts,
-        destinationAddress: input.destinationAddress ?? null,
-        billingAddress: input.billingAddress ?? null,
+        destinationAddress,
+        billingAddress,
       })
       .returning();
 
@@ -274,7 +277,8 @@ export async function advanceInvoice(db: Db, actor: Actor, id: string): Promise<
 }
 
 export async function setDestinationAddress(db: Db, actor: Actor, id: string, raw: unknown): Promise<Mutation> {
-  const address = addressSnapshotSchema.parse(raw);
+  const parsed = addressSnapshotSchema.parse(raw);
+  const address = await geocodeIfNeeded(parsed);
   return db.transaction(async (tx) => {
     const current = await load(tx, id);
     const [service] = await tx.select().from(services).where(eq(services.id, current.serviceId)).limit(1);
@@ -288,7 +292,8 @@ export async function setDestinationAddress(db: Db, actor: Actor, id: string, ra
 }
 
 export async function setBillingAddress(db: Db, actor: Actor, id: string, raw: unknown): Promise<Mutation> {
-  const address = addressSnapshotSchema.parse(raw);
+  const parsed = addressSnapshotSchema.parse(raw);
+  const address = await geocodeIfNeeded(parsed);
   return db.transaction(async (tx) => {
     const current = await load(tx, id);
     const updated = await persist(tx, actor, current, { billingAddress: address }, [

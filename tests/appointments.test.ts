@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   advanceInvoice,
   cancelAppointment,
@@ -15,6 +15,11 @@ import {
 import { AGENT_JOSUE } from "@/db/seed-data";
 import { DomainError } from "@/domain/appointment-rules";
 import { appointmentInput, createTestDb } from "./helpers";
+
+vi.mock("@/server/geocoding", () => ({
+  geocodeIfNeeded: async (address: unknown) => address,
+  getGeocoder: () => null,
+}));
 
 type Ctx = Awaited<ReturnType<typeof createTestDb>>;
 let ctx: Ctx;

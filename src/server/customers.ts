@@ -12,6 +12,7 @@ import {
   type CreateCustomerInput,
 } from "@/domain/schemas";
 import type { Db } from "@/server/appointments";
+import { geocodeIfNeeded } from "@/server/geocoding";
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 type Actor = schema.Actor;

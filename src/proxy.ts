@@ -21,6 +21,7 @@ export async function proxy(request: NextRequest) {
   });
 
   const { data } = await supabase.auth.getUser();
+  if (request.nextUrl.pathname.startsWith("/salir")) return response;
   const isPublic = PUBLIC_PATHS.some((p) => request.nextUrl.pathname.startsWith(p));
 
   if (!data.user && !isPublic) {

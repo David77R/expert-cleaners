@@ -20,12 +20,14 @@ export function CalendarToolbar({
   today,
   tech,
   technicians,
+  mapa,
 }: {
   view: CalendarView;
   date: string;
   today: string;
   tech: string | null;
   technicians: CalendarTechnician[];
+  mapa: boolean;
 }) {
   const heading = viewHeading(view, date);
   const previous = calendarHref({ view, date: shiftAnchor(view, date, -1), tech });
@@ -66,7 +68,7 @@ export function CalendarToolbar({
           </div>
 
           <h1 className="flex flex-col leading-none">
-            <span className="font-display text-[34px] font-semibold tracking-tight">{heading.primary}</span>
+            <span className="font-display text-xl font-semibold tracking-tight">{heading.primary}</span>
             <span className="mt-1.5 text-sm text-soft">{heading.secondary}</span>
           </h1>
         </div>
@@ -81,7 +83,7 @@ export function CalendarToolbar({
           </Link>
           <div role="group" aria-label="Vista" className="flex gap-1 border-b border-hair">
             {CALENDAR_VIEWS.map((option) => {
-              const current = option === view;
+              const current = !mapa && option === view;
               return (
                 <Link
                   key={option}
@@ -95,6 +97,16 @@ export function CalendarToolbar({
                 </Link>
               );
             })}
+            <Link
+              href={calendarHref({ view: "day", date, tech, mapa: true })}
+              aria-current={mapa ? "true" : undefined}
+              className={`-mb-px flex items-center gap-1.5 border-b-[3px] px-4 py-2.5 text-sm font-semibold transition-colors ${
+                mapa ? "border-brand text-ink" : "border-transparent text-muted hover:text-ink"
+              }`}
+            >
+              <Icon name="pin" size={14} />
+              Mapa
+            </Link>
           </div>
         </div>
       </div>

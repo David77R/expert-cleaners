@@ -2,7 +2,6 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { DomainError } from "@/domain/appointment-rules";
 import { BUSINESS_TIMEZONE, enumerateDates } from "@/domain/date-rules";
-import { assertAdmin } from "@/domain/permissions";
 import { reportQuerySchema } from "@/domain/schemas";
 import type { Db } from "@/server/appointments";
 import { renderReportPdf } from "@/server/report-pdf";
@@ -38,7 +37,6 @@ function emptyMetrics(length: number): ReportMetrics {
 }
 
 export async function getAgentReport(db: Db, actor: Actor, raw: unknown) {
-  assertAdmin(actor);
   const { from, to, agentId } = reportQuerySchema.parse(raw);
 
   const people = await db

@@ -39,7 +39,7 @@ export default async function CustomersPage({ searchParams }: PageProps<"/custom
       <main className="mx-auto flex w-full max-w-[88rem] flex-1 flex-col gap-6 px-4 py-6 md:px-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="flex flex-col gap-1.5">
-            <h1 className="font-display text-[34px] font-semibold leading-none tracking-tight">Clientes</h1>
+            <h1 className="font-display text-2xl font-semibold tracking-tight">Clientes</h1>
             <p className="text-sm text-soft">Busca por nombre, teléfono, correo o código de cliente.</p>
           </div>
           <Link

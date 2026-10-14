@@ -205,6 +205,11 @@ export function formatRange(startMin: number, durationMin: number): string {
     : `${start.text} ${start.suffix}–${end.text} ${end.suffix}`;
 }
 
+export function formatTime(min: number): string {
+  const { text, suffix } = clock(min);
+  return `${text} ${suffix}`;
+}
+
 export type ShiftInfo = { shiftStartMin: number; shiftEndMin: number; workDays: number[] };
 
 export function offShiftRanges(

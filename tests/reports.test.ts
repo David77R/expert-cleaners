@@ -130,8 +130,9 @@ describe("reporte por agente", () => {
     ).rejects.toMatchObject({ code: "not_found" });
   });
 
-  it("solo un administrador puede consultarlo", async () => {
-    await expect(getAgentReport(ctx.db, AGENT_JOSUE, range)).rejects.toMatchObject({ code: "forbidden" });
+  it("un agente también puede consultarlo", async () => {
+    const report = await getAgentReport(ctx.db, AGENT_JOSUE, range);
+    expect(report.agents.length).toBeGreaterThan(0);
   });
 });
 

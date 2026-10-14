@@ -11,6 +11,7 @@ import {
   smallint,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -54,6 +55,7 @@ export const profiles = pgTable("profiles", {
   id: uuid("id").primaryKey(),
   name: text("name").notNull(),
   role: userRole("role").notNull().default("agent"),
+  active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -205,6 +207,23 @@ export const appointmentPhotos = pgTable("appointment_photos", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const routeDrafts = pgTable(
+  "route_drafts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    date: date("date", { mode: "string" }).notNull(),
+    mode: text("mode").notNull(),
+    groupKey: text("group_key").notNull(),
+    stopIds: jsonb("stop_ids").$type<string[]>().notNull(),
+    createdById: uuid("created_by_id")
+      .notNull()
+      .references(() => profiles.id),
+    createdByName: text("created_by_name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("route_drafts_date_mode_group_idx").on(t.date, t.mode, t.groupKey)],
+);
+
 export const customersRelations = relations(customers, ({ many }) => ({
   addresses: many(addresses),
   appointments: many(appointments),
@@ -238,6 +257,7 @@ export const appointmentPhotosRelations = relations(appointmentPhotos, ({ one })
   appointment: one(appointments, { fields: [appointmentPhotos.appointmentId], references: [appointments.id] }),
 }));
 
+export type Profile = typeof profiles.$inferSelect;
 export type Technician = typeof technicians.$inferSelect;
 export type Service = typeof services.$inferSelect;
 export type Customer = typeof customers.$inferSelect;
@@ -247,4 +267,5 @@ export type Photo = typeof appointmentPhotos.$inferSelect;
 export type Appointment = typeof appointments.$inferSelect;
 export type NewAppointment = typeof appointments.$inferInsert;
 export type AppointmentStatus = (typeof appointmentStatus.enumValues)[number];
+export type RouteDraft = typeof routeDrafts.$inferSelect;
 export type Actor = { id: string; name: string; role: (typeof userRole.enumValues)[number] };

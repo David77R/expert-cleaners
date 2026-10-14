@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { getDb } from "@/db/client";
-import { technicians as techniciansTable } from "@/db/schema";
+import { services as servicesTable, technicians as techniciansTable } from "@/db/schema";
 import { DomainError } from "@/domain/appointment-rules";
 import { parseView, summarize, viewRange } from "@/domain/calendar-view";
 import { minutesNowIn, todayIn } from "@/domain/date-rules";
@@ -13,11 +13,14 @@ import { CalendarNotice } from "@/components/calendar-notice";
 import { CalendarSummary } from "@/components/calendar-summary";
 import { CalendarToolbar } from "@/components/calendar-toolbar";
 import { DayGrid } from "@/components/day-grid";
+import { MapViewLoader } from "@/components/map-view-loader";
+import type { MapRouteDraft, MapServiceOption, MapStop, MapTechnicianOption } from "@/components/map-view";
 import { MonthView } from "@/components/month-view";
 import { WeekView } from "@/components/week-view";
 import { getAppointment, getDay, getRange } from "@/server/appointments";
 import { getActor } from "@/server/auth";
 import { panelPhotos } from "@/server/photos";
+import { listRouteDraftsForDay } from "@/server/route-drafts";
 import { getPhotoStorage } from "@/server/storage";
 
 function first(value: string | string[] | undefined): string | undefined {
@@ -34,6 +37,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
   if (!parsedDate.success) notFound();
   const date = parsedDate.data;
   const view = parseView(first(params.view));
+  const mapa = first(params.mapa) === "1";
   const nowMin = date === today ? minutesNowIn() : null;
 
   const db = getDb();
@@ -44,10 +48,55 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
   const nav = { view, date, tech };
 
   const data =
-    view === "day"
+    view === "day" || mapa
       ? await getDay(db, date, tech ?? undefined)
       : await getRange(db, { ...viewRange(view, date), technicianId: tech ?? undefined });
   const summary = summarize(data.appointments, data.overlapIds);
+  // En el Mapa no mostramos el aviso de "citas con solape": ese indicador es de choques de
+  // horario del día normal, no de rutas, y ahí solo estorba la vista. Más adelante lo
+  // reemplazamos por un aviso de conflictos de ruta propio del mapa.
+  const summaryForDisplay = mapa ? { ...summary, overlaps: 0 } : summary;
+
+  // El Mapa ignora el filtro de técnico de arriba: siempre considera todas las citas del día,
+  // y son las casillas internas (Técnicos/Servicios) las que deciden qué se dibuja.
+  const mapTechnicians: MapTechnicianOption[] = allTechnicians;
+  let mapServices: MapServiceOption[] = [];
+  let mapStops: MapStop[] = [];
+  let mapDrafts: MapRouteDraft[] = [];
+  let missingCoords = 0;
+
+  if (mapa) {
+    const mapData = tech ? await getDay(db, date) : data;
+    mapServices = (await db.select().from(servicesTable)).filter((s) => s.active);
+    mapDrafts = (await listRouteDraftsForDay(db, date)).map((d) => ({
+      mode: d.mode as "tech" | "service",
+      groupKey: d.groupKey,
+      stopIds: d.stopIds,
+      createdByName: d.createdByName,
+      createdAt: d.createdAt.toISOString(),
+    }));
+
+    const activeMapAppointments = mapData.appointments.filter((a) => a.status !== "cancelled");
+    mapStops = activeMapAppointments
+      .filter((a) => a.address.lat != null && a.address.lng != null)
+      .map((a) => ({
+        id: a.id,
+        code: a.code,
+        startMin: a.startMin,
+        durationMin: a.durationMin,
+        customerName: `${a.customer.firstName} ${a.customer.lastName}`,
+        lat: a.address.lat as number,
+        lng: a.address.lng as number,
+        technicianId: a.technician.id,
+        technicianName: a.technician.name,
+        technicianColor: a.technician.color,
+        serviceId: a.service.id,
+        serviceName: a.service.name,
+        address: `${a.address.line1}${a.address.unit ? ` ${a.address.unit}` : ""}, ${a.address.city}, ${a.address.state} ${a.address.zip}`,
+        notes: a.notes,
+      }));
+    missingCoords = activeMapAppointments.length - mapStops.length;
+  }
 
   const requestedAppointment = z.uuid().safeParse(first(params.appt));
   let selected: Awaited<ReturnType<typeof getAppointment>> | null = null;
@@ -68,10 +117,29 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
           selected ? "2xl:pr-[26rem]" : ""
         }`}
       >
-        <CalendarToolbar view={view} date={date} today={today} tech={tech} technicians={allTechnicians} />
-        <CalendarSummary summary={summary} />
+        <CalendarToolbar view={view} date={date} today={today} tech={tech} technicians={allTechnicians} mapa={mapa} />
+        <CalendarSummary summary={summaryForDisplay} />
 
-        {view === "day" && (
+        {mapa && (
+          <>
+            <MapViewLoader
+              key={date}
+              date={date}
+              stops={mapStops}
+              technicians={mapTechnicians}
+              services={mapServices}
+              drafts={mapDrafts}
+            />
+            {missingCoords > 0 && (
+              <p className="-mt-1 text-xs text-muted">
+                {missingCoords} cita{missingCoords === 1 ? "" : "s"} sin dirección geocodificada no aparece
+                {missingCoords === 1 ? "" : "n"} en el mapa.
+              </p>
+            )}
+          </>
+        )}
+
+        {!mapa && view === "day" && (
           <DayGrid
             appointments={data.appointments}
             overlapIds={data.overlapIds}
@@ -81,12 +149,12 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
             nowMin={nowMin}
           />
         )}
-        {view === "day" && (
+        {!mapa && view === "day" && (
           <p className="-mt-3 hidden text-xs text-muted md:block">
             Arrastra una cita a otra hora o a otro técnico para moverla. Siempre se pide confirmación.
           </p>
         )}
-        {view === "week" && (
+        {!mapa && view === "week" && (
           <WeekView
             nav={nav}
             today={today}
@@ -95,7 +163,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
             selectedId={selectedId}
           />
         )}
-        {view === "month" && (
+        {!mapa && view === "month" && (
           <MonthView nav={nav} today={today} appointments={data.appointments} overlapIds={data.overlapIds} />
         )}
 

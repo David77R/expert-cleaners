@@ -128,6 +128,52 @@ export const updateServiceSchema = z
   })
   .refine((value) => Object.values(value).some((field) => field !== undefined), "Envía al menos un campo");
 
+const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Color inválido");
+const workDays = z
+  .array(z.number().int().min(0).max(6))
+  .min(1, "Elige al menos un día")
+  .transform((days) => [...new Set(days)].sort((a, b) => a - b));
+
+const technicianShape = {
+  name: z.string().trim().min(1).max(80),
+  zone: z.string().trim().min(1).max(80),
+  color: hexColor,
+  workDays,
+  shiftStartMin: minutes,
+  shiftEndMin: minutes,
+};
+
+export const createTechnicianSchema = z
+  .object(technicianShape)
+  .refine((value) => value.shiftEndMin > value.shiftStartMin, {
+    message: "La hora de salida debe ser después de la de entrada",
+    path: ["shiftEndMin"],
+  });
+
+export const updateTechnicianSchema = z
+  .object({ ...technicianShape, active: z.boolean() })
+  .refine((value) => value.shiftEndMin > value.shiftStartMin, {
+    message: "La hora de salida debe ser después de la de entrada",
+    path: ["shiftEndMin"],
+  });
+
+export const AGENT_PASSWORD_MIN = 8;
+const agentName = z.string().trim().min(1).max(80);
+const agentEmail = z.string().trim().toLowerCase().pipe(z.email("Escribe un correo válido"));
+const agentPassword = z
+  .string()
+  .min(AGENT_PASSWORD_MIN, `La contraseña debe tener al menos ${AGENT_PASSWORD_MIN} caracteres`)
+  .max(72);
+
+export const createAgentSchema = z.object({ name: agentName, email: agentEmail, password: agentPassword });
+
+export const updateAgentSchema = z.object({
+  name: agentName,
+  email: agentEmail,
+  password: agentPassword.optional(),
+  active: z.boolean(),
+});
+
 export const serviceListSchema = z.object({
   includeInactive: z
     .enum(["true", "false"])
@@ -188,6 +234,28 @@ export const rangeQuerySchema = z
 
 export const alertsQuerySchema = z.object({ date: isoDate.optional() });
 
+export const routePointSchema = z.object({
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+});
+
+export const routePreviewSchema = z.object({
+  points: z.array(routePointSchema).min(2),
+});
+
+export const routeDraftSaveSchema = z.object({
+  date: isoDate,
+  mode: z.enum(["tech", "service"]),
+  groupKey: z.string().trim().min(1),
+  stopIds: z.array(z.uuid()).min(2),
+});
+
+export const routeDraftDeleteSchema = z.object({
+  date: isoDate,
+  mode: z.enum(["tech", "service"]),
+  groupKey: z.string().trim().min(1),
+});
+
 export const MAX_REPORT_DAYS = 93;
 
 export const reportQuerySchema = z
@@ -227,5 +295,9 @@ export const reportQuerySchema = z
 export type CreateAppointmentInput = z.input<typeof createAppointmentSchema>;
 export type CreateCustomerInput = z.input<typeof createCustomerSchema>;
 export type CreateServiceInput = z.input<typeof createServiceSchema>;
+export type CreateTechnicianInput = z.input<typeof createTechnicianSchema>;
+export type UpdateTechnicianInput = z.input<typeof updateTechnicianSchema>;
+export type CreateAgentInput = z.input<typeof createAgentSchema>;
+export type UpdateAgentInput = z.input<typeof updateAgentSchema>;
 export type CancelInput = z.infer<typeof cancelSchema>;
 export type RescheduleInput = z.infer<typeof rescheduleSchema>;

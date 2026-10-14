@@ -1,3 +1,4 @@
+import { unstable_rethrow } from "next/navigation";
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { DomainError } from "@/domain/appointment-rules";
@@ -13,6 +14,7 @@ const STATUS_BY_CODE: Record<string, number> = {
 };
 
 export function toErrorResponse(error: unknown): NextResponse {
+  unstable_rethrow(error);
   if (error instanceof ZodError) {
     return NextResponse.json(
       { error: "validation_error", issues: error.issues.map((i) => ({ path: i.path.join("."), message: i.message })) },

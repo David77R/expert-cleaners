@@ -23,7 +23,7 @@ export default async function NewServicePage() {
           <Icon name="left" /> Todos los servicios
         </Link>
         <div className="flex flex-col gap-1.5">
-          <h1 className="font-display text-[34px] font-semibold leading-none tracking-tight">Nuevo servicio</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tight">Nuevo servicio</h1>
           <p className="text-sm text-soft">Define el precio, la duración y qué datos se piden al agendarlo.</p>
         </div>
         <ServiceForm initialValues={emptyServiceForm()} categories={categories} lockTwoAddresses={false} />

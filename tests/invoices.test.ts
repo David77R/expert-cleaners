@@ -1,6 +1,11 @@
 import { PDFName } from "pdf-lib";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { AGENT_JOSUE } from "@/db/seed-data";
+
+vi.mock("@/server/geocoding", () => ({
+  geocodeIfNeeded: async (address: unknown) => address,
+  getGeocoder: () => null,
+}));
 import {
   buildInvoice,
   describeSpecs,

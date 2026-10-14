@@ -34,7 +34,7 @@ export default async function EditServicePage({ params }: PageProps<"/services/[
           <Icon name="left" /> Todos los servicios
         </Link>
         <div className="flex flex-col gap-1.5">
-          <h1 className="font-display text-[34px] font-semibold leading-none tracking-tight">{service.name}</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tight">{service.name}</h1>
           <p className="text-sm text-soft">
             {used === 0 ? "Todavía sin citas." : used === 1 ? "1 cita registrada." : `${used} citas registradas.`} Los
             cambios de precio y duración aplican a las citas nuevas; las existentes conservan su precio.

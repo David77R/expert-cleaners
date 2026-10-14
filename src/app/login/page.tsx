@@ -30,7 +30,7 @@ export default function LoginPage() {
           <span className="font-display text-xl font-semibold text-white">Expert Cleaners</span>
         </div>
         <div className="relative max-w-md">
-          <p className="font-display text-4xl font-semibold leading-tight text-white">
+          <p className="font-display text-3xl font-semibold leading-tight text-white">
             Cada técnico, cada cita, cada hora del día en un solo tablero.
           </p>
           <p className="mt-4 text-sm text-rail-text">Centro de operaciones · Miami, FL</p>
@@ -42,7 +42,7 @@ export default function LoginPage() {
           <span className="font-display mb-6 flex h-10 w-10 items-center justify-center rounded-md bg-brand text-base font-bold text-white lg:hidden">
             EC
           </span>
-          <h1 className="font-display text-3xl font-semibold tracking-tight">Iniciar sesión</h1>
+          <h1 className="font-display text-2xl font-semibold tracking-tight">Iniciar sesión</h1>
           <p className="mt-1.5 text-sm text-soft">Entra con tu cuenta del equipo.</p>
 
           <label className="mt-8 block text-sm font-medium" htmlFor="email">

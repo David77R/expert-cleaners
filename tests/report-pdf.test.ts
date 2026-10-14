@@ -217,10 +217,14 @@ describe("reporte en PDF con datos reales", () => {
     expect(text).not.toContain(hexOf("Todos los agentes"));
   });
 
-  it("solo un administrador puede descargarlo y valida los parámetros", async () => {
-    await expect(
-      getAgentReportPdf(ctx.db, AGENT_JOSUE, { from: "2027-03-08", to: "2027-03-12" }, GENERATED_AT),
-    ).rejects.toMatchObject({ code: "forbidden" });
-    await expect(getAgentReportPdf(ctx.db, ADMIN, {}, GENERATED_AT)).rejects.toBeInstanceOf(ZodError);
+  it("un agente también puede descargarlo y se validan los parámetros", async () => {
+    const { pdf } = await getAgentReportPdf(
+      ctx.db,
+      AGENT_JOSUE,
+      { from: "2027-03-08", to: "2027-03-12" },
+      GENERATED_AT,
+    );
+    expect(pdf.byteLength).toBeGreaterThan(0);
+    await expect(getAgentReportPdf(ctx.db, AGENT_JOSUE, {}, GENERATED_AT)).rejects.toBeInstanceOf(ZodError);
   });
 });

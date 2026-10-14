@@ -51,7 +51,7 @@ export function WeekView({
             >
               <span className="flex items-baseline gap-2">
                 <span
-                  className={`font-display text-3xl font-semibold leading-none tabular-nums ${
+                  className={`font-display text-lg font-semibold leading-none tabular-nums ${
                     isToday ? "text-brand-ink" : "text-ink"
                   }`}
                 >

@@ -15,6 +15,20 @@
       "when": 1791394737766,
       "tag": "0001_photo_metadata",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791893700605,
+      "tag": "0002_gorgeous_chamber",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791941116599,
+      "tag": "0003_profile_active",
+      "breakpoints": true
     }
   ]
 }

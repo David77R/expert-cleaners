@@ -15,7 +15,7 @@ export function CalendarSummary({ summary }: { summary: Summary }) {
     <section aria-label="Resumen de citas" className="flex flex-col gap-3 border-y border-hair py-4">
       <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
         <p className="flex items-baseline gap-2">
-          <span className="font-display text-3xl font-semibold tabular-nums">{summary.total}</span>
+          <span className="font-display text-xl font-semibold tabular-nums">{summary.total}</span>
           <span className="text-sm text-soft">{summary.total === 1 ? "cita" : "citas"}</span>
           {summary.cancelled > 0 && (
             <span className="text-sm text-muted">

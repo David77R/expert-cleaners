@@ -11,6 +11,7 @@ export async function login(_prev: { error?: string } | undefined, formData: For
   if (!parsed.success) return { error: "Revisa el correo y la contraseña" };
   const supabase = await createSupabaseServerClient();
   const { error } = await supabase.auth.signInWithPassword(parsed.data);
+  if (error?.code === "user_banned") return { error: "Tu acceso está desactivado. Habla con el administrador." };
   if (error) return { error: "Credenciales incorrectas" };
   redirect("/calendar");
 }
