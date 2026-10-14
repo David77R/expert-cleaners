@@ -1,15 +1,21 @@
 import { z } from "zod";
+import { cleanEnvValue, cleanSupabaseUrl } from "./clean-env";
+
+const text = z.preprocess((value) => (typeof value === "string" ? cleanEnvValue(value) : value), z.string().min(1));
+const optionalText = z.preprocess(
+  (value) => (typeof value === "string" ? cleanEnvValue(value) || undefined : value),
+  z.string().min(1).optional(),
+);
 
 const schema = z.object({
-  DATABASE_URL: z.string().min(1),
-  NEXT_PUBLIC_SUPABASE_URL: z
-    .string()
-    .trim()
-    .pipe(z.url())
-    .transform((url) => url.replace(/\/+$/, "")),
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().trim().min(1),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
-  ORS_API_KEY: z.string().min(1).optional(),
+  DATABASE_URL: text,
+  NEXT_PUBLIC_SUPABASE_URL: z.preprocess(
+    (value) => (typeof value === "string" ? cleanSupabaseUrl(value) : value),
+    z.url(),
+  ),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: text,
+  SUPABASE_SERVICE_ROLE_KEY: optionalText,
+  ORS_API_KEY: optionalText,
 });
 
 export type Env = z.infer<typeof schema>;

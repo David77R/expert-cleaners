@@ -86,3 +86,15 @@ describe("utilidades", () => {
     expect(formatMinutes(570)).toBe("9:30 AM");
   });
 });
+
+describe("limpieza de variables de entorno", () => {
+  it("quita espacios, comillas y rutas extra de la URL de Supabase", async () => {
+    const { cleanEnvValue, cleanSupabaseUrl } = await import("@/lib/clean-env");
+    expect(cleanEnvValue('  "abc"  ')).toBe("abc");
+    expect(cleanEnvValue("'abc'")).toBe("abc");
+    expect(cleanEnvValue("abc")).toBe("abc");
+    expect(cleanEnvValue(undefined)).toBeUndefined();
+    expect(cleanSupabaseUrl(' "https://demo.supabase.co/rest/v1/" ')).toBe("https://demo.supabase.co");
+    expect(cleanSupabaseUrl("no-es-url")).toBe("no-es-url");
+  });
+});

@@ -1,26 +1,46 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { cleanEnvValue, cleanSupabaseUrl } from "@/lib/clean-env";
 
 const PUBLIC_PATHS = ["/login"];
 
 export async function proxy(request: NextRequest) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim().replace(/\/+$/, "");
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
-  if (!url || !key) return NextResponse.next();
+  const url = cleanSupabaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL);
+  const key = cleanEnvValue(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  if (!url || !key) {
+    console.error("Faltan NEXT_PUBLIC_SUPABASE_URL o NEXT_PUBLIC_SUPABASE_ANON_KEY en el entorno");
+    return NextResponse.next();
+  }
 
   let response = NextResponse.next({ request });
-  const supabase = createServerClient(url, key, {
-    cookies: {
-      getAll: () => request.cookies.getAll(),
-      setAll: (list) => {
-        list.forEach(({ name, value }) => request.cookies.set(name, value));
-        response = NextResponse.next({ request });
-        list.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+  let supabase: ReturnType<typeof createServerClient>;
+  try {
+    supabase = createServerClient(url, key, {
+      cookies: {
+        getAll: () => request.cookies.getAll(),
+        setAll: (list) => {
+          list.forEach(({ name, value }) => request.cookies.set(name, value));
+          response = NextResponse.next({ request });
+          list.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
+        },
       },
-    },
-  });
+    });
+  } catch (error) {
+    console.error(
+      `NEXT_PUBLIC_SUPABASE_URL no es una URL válida (empieza por «${url.slice(0, 12)}»). Debe ser https://<proyecto>.supabase.co`,
+      error,
+    );
+    return new NextResponse("Configuración del servidor incompleta. Avisa al administrador.", { status: 500 });
+  }
 
-  const { data } = await supabase.auth.getUser();
+  let user: unknown = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  } catch (error) {
+    console.error("No se pudo validar la sesión con Supabase", error);
+  }
+  const data = { user };
   if (request.nextUrl.pathname.startsWith("/salir")) return response;
   const isPublic = PUBLIC_PATHS.some((p) => request.nextUrl.pathname.startsWith(p));
 
