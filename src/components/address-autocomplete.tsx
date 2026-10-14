@@ -37,6 +37,7 @@ export function AddressAutocomplete({
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const [loading, setLoading] = useState(false);
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   function close() {
     setOpen(false);
@@ -78,6 +79,7 @@ export function AddressAutocomplete({
     fillField(input?.form ?? null, `${prefix}city`, suggestion.city);
     fillField(input?.form ?? null, `${prefix}state`, suggestion.state);
     fillField(input?.form ?? null, `${prefix}zip`, suggestion.zip);
+    setCoords({ lat: suggestion.lat, lng: suggestion.lng });
     setSuggestions([]);
     close();
   }
@@ -115,11 +117,16 @@ export function AddressAutocomplete({
         aria-expanded={showList}
         aria-controls={listId}
         aria-activedescendant={active >= 0 ? `${listId}-${active}` : undefined}
-        onChange={(event: ChangeEvent<HTMLInputElement>) => search(event.target.value)}
+        onChange={(event: ChangeEvent<HTMLInputElement>) => {
+          setCoords(null);
+          search(event.target.value);
+        }}
         onKeyDown={onKeyDown}
         onBlur={close}
         className={className}
       />
+      <input type="hidden" name={`${prefix}lat`} value={coords ? String(coords.lat) : ""} />
+      <input type="hidden" name={`${prefix}lng`} value={coords ? String(coords.lng) : ""} />
       {loading && (
         <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted">
           Buscando…

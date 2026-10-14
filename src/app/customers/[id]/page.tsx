@@ -8,6 +8,7 @@ import { formatPhone } from "@/domain/customer-rules";
 import { AppShell } from "@/components/app-header";
 import { CustomerAvatar } from "@/components/customer-avatar";
 import { Icon } from "@/components/icons";
+import { CustomerAddresses } from "@/components/customer-addresses";
 import { CustomerAppointmentsTable } from "@/components/customer-appointments-table";
 import { MergeCustomerForm } from "@/components/merge-customer-form";
 import { NoteForm } from "@/components/note-form";
@@ -155,25 +156,7 @@ export default async function CustomerPage({ params, searchParams }: PageProps<"
               <h2 className="font-display text-lg font-semibold">
                 Direcciones <span className="text-sm font-normal text-muted">({customer.addresses.length})</span>
               </h2>
-              <ul className="grid gap-3 sm:grid-cols-2">
-                {customer.addresses.map((address) => (
-                  <li key={address.id} className="flex gap-3 rounded-md border border-hair bg-paper p-4">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-info-soft text-info">
-                      <Icon name="pin" size={18} />
-                    </span>
-                    <span className="flex min-w-0 flex-col text-sm">
-                      <span className="font-medium">
-                        {address.line1}
-                        {address.unit ? `, ${address.unit}` : ""}
-                      </span>
-                      <span className="text-soft">
-                        {address.city}, {address.state} {address.zip}
-                      </span>
-                      {address.notes && <span className="mt-1 text-xs text-muted">{address.notes}</span>}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              <CustomerAddresses customerId={customer.id} addresses={customer.addresses} />
             </section>
           </div>
 

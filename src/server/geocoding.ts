@@ -18,33 +18,80 @@ export interface Geocoder {
 }
 
 const ORS_GEOCODE_URL = "https://api.openrouteservice.org/geocode/search";
+const ORS_STRUCTURED_URL = "https://api.openrouteservice.org/geocode/search/structured";
+const SERVICE_AREA = { lat: 25.7617, lng: -80.1918, radiusKm: 200 };
+const PRECISE_LAYERS = new Set(["address", "venue"]);
 
-function formatAddress(input: GeocodeInput): string {
-  return [input.line1, input.unit, input.city, input.state, input.zip]
-    .filter((part) => part && part.trim() !== "")
-    .join(", ");
+type GeocodeFeature = {
+  geometry?: { coordinates?: [number, number] };
+  properties?: { layer?: string; postalcode?: string; confidence?: number };
+};
+
+function zip5(value: string | undefined): string {
+  return (value ?? "").replace(/\D/g, "").slice(0, 5);
+}
+
+export function pickGeocodeResult(data: unknown, input: Pick<GeocodeInput, "zip">): GeocodeResult | null {
+  const features = (data as { features?: GeocodeFeature[] } | null)?.features ?? [];
+  const wantedZip = zip5(input.zip);
+  const candidates = features.filter((feature) => {
+    const [lng, lat] = feature.geometry?.coordinates ?? [];
+    return typeof lat === "number" && typeof lng === "number";
+  });
+  const sameZip = (feature: GeocodeFeature) => wantedZip !== "" && zip5(feature.properties?.postalcode) === wantedZip;
+  const precise = candidates.filter((feature) => PRECISE_LAYERS.has(feature.properties?.layer ?? ""));
+  const chosen =
+    precise.find(sameZip) ??
+    precise.find((feature) => !feature.properties?.postalcode || wantedZip === "") ??
+    precise.find((feature) => (feature.properties?.confidence ?? 0) >= 0.9) ??
+    candidates.find((feature) => feature.properties?.layer === "street" && sameZip(feature));
+  if (!chosen?.geometry?.coordinates) return null;
+  const [lng, lat] = chosen.geometry.coordinates;
+  return { lat, lng };
+}
+
+function withServiceArea(url: URL, apiKey: string): URL {
+  url.searchParams.set("api_key", apiKey);
+  url.searchParams.set("size", "5");
+  url.searchParams.set("boundary.country", "US");
+  url.searchParams.set("boundary.circle.lat", String(SERVICE_AREA.lat));
+  url.searchParams.set("boundary.circle.lon", String(SERVICE_AREA.lng));
+  url.searchParams.set("boundary.circle.radius", String(SERVICE_AREA.radiusKm));
+  return url;
+}
+
+async function requestFeatures(url: URL): Promise<unknown> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) {
+      console.error(`OpenRouteService geocode ${res.status}: ${(await res.text()).slice(0, 300)}`);
+      return null;
+    }
+    return await res.json();
+  } catch (error) {
+    console.error("OpenRouteService geocode failed", error);
+    return null;
+  }
 }
 
 export function createOrsGeocoder(apiKey: string): Geocoder {
   return {
     async geocode(input) {
-      const url = new URL(ORS_GEOCODE_URL);
-      url.searchParams.set("api_key", apiKey);
-      url.searchParams.set("text", formatAddress(input));
-      url.searchParams.set("size", "1");
-      url.searchParams.set("boundary.country", "US");
+      const structured = withServiceArea(new URL(ORS_STRUCTURED_URL), apiKey);
+      structured.searchParams.set("address", input.line1.trim());
+      structured.searchParams.set("locality", input.city.trim());
+      structured.searchParams.set("region", input.state.trim());
+      if (input.zip.trim()) structured.searchParams.set("postalcode", input.zip.trim());
+      structured.searchParams.set("country", "US");
+      const first = pickGeocodeResult(await requestFeatures(structured), input);
+      if (first) return first;
 
-      const res = await fetch(url);
-      if (!res.ok) return null;
-
-      const data = (await res.json()) as {
-        features?: Array<{ geometry: { coordinates: [number, number] } }>;
-      };
-      const feature = data.features?.[0];
-      if (!feature) return null;
-
-      const [lng, lat] = feature.geometry.coordinates;
-      return { lat, lng };
+      const free = withServiceArea(new URL(ORS_GEOCODE_URL), apiKey);
+      free.searchParams.set("text", [input.line1, input.city, input.state, input.zip].filter(Boolean).join(", "));
+      free.searchParams.set("layers", "address,venue,street");
+      free.searchParams.set("focus.point.lat", String(SERVICE_AREA.lat));
+      free.searchParams.set("focus.point.lon", String(SERVICE_AREA.lng));
+      return pickGeocodeResult(await requestFeatures(free), input);
     },
   };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseSuggestions } from "@/server/geocoding";
+import { parseSuggestions, pickGeocodeResult } from "@/server/geocoding";
 
 function feature(properties: Record<string, unknown>, coordinates: [number, number] = [-80.22, 25.76]) {
   return { geometry: { coordinates }, properties };
@@ -57,5 +57,42 @@ describe("sugerencias de direcciones", () => {
   it("devuelve una lista vacía ante respuestas inesperadas", () => {
     expect(parseSuggestions(null)).toEqual([]);
     expect(parseSuggestions({ error: "quota" })).toEqual([]);
+  });
+});
+
+describe("elegir el resultado de geocodificación", () => {
+  const feature = (layer: string, postalcode: string | undefined, lng: number, lat: number, confidence = 0.8) => ({
+    geometry: { coordinates: [lng, lat] },
+    properties: { layer, postalcode, confidence },
+  });
+
+  it("prefiere una dirección exacta con el mismo código postal", () => {
+    const data = {
+      features: [feature("address", "33133", -80.2, 25.7), feature("address", "33134", -80.27, 25.75)],
+    };
+    expect(pickGeocodeResult(data, { zip: "33134-1234" })).toEqual({ lat: 25.75, lng: -80.27 });
+  });
+
+  it("descarta centroides de ciudad, código postal o agua", () => {
+    const data = {
+      features: [feature("locality", undefined, -80.25, 25.72), feature("postalcode", "33134", -80.21, 25.69)],
+    };
+    expect(pickGeocodeResult(data, { zip: "33134" })).toBeNull();
+  });
+
+  it("acepta una calle solo si coincide el código postal y una dirección con otro código si es muy confiable", () => {
+    expect(pickGeocodeResult({ features: [feature("street", "33134", -80.26, 25.74)] }, { zip: "33134" })).toEqual({
+      lat: 25.74,
+      lng: -80.26,
+    });
+    expect(pickGeocodeResult({ features: [feature("street", "33155", -80.3, 25.7)] }, { zip: "33134" })).toBeNull();
+    expect(
+      pickGeocodeResult({ features: [feature("address", "33146", -80.27, 25.72, 0.95)] }, { zip: "33134" }),
+    ).toEqual({ lat: 25.72, lng: -80.27 });
+  });
+
+  it("no falla con respuestas vacías", () => {
+    expect(pickGeocodeResult(null, { zip: "33134" })).toBeNull();
+    expect(pickGeocodeResult({ features: [] }, { zip: "" })).toBeNull();
   });
 });

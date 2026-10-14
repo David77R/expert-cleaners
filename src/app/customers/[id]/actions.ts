@@ -6,7 +6,18 @@ import { z, ZodError } from "zod";
 import { getDb } from "@/db/client";
 import { DomainError } from "@/domain/appointment-rules";
 import { getActor } from "@/server/auth";
-import { addCustomerNote, deleteCustomer, findCustomerByCode, mergeCustomers } from "@/server/customers";
+import {
+  addAddress,
+  addCustomerNote,
+  deleteAddress,
+  deleteCustomer,
+  findCustomerByCode,
+  mergeCustomers,
+  relocateAddress,
+  updateAddress,
+} from "@/server/customers";
+import { DEFAULT_STATE, coordinatesFrom } from "@/domain/customer-form";
+import type { ActionState } from "@/app/calendar/actions";
 
 export type NoteState = { error?: string; version: number };
 
@@ -78,4 +89,104 @@ export async function mergeCustomerAction(
   revalidatePath("/customers");
   revalidatePath("/calendar");
   redirect(`/customers/${targetId}?aviso=unido`);
+}
+
+function addressFromForm(formData: FormData) {
+  const field = (name: string) => String(formData.get(name) ?? "").trim();
+  return {
+    line1: field("line1"),
+    unit: field("unit"),
+    city: field("city"),
+    state: (field("state") || DEFAULT_STATE).toUpperCase(),
+    zip: field("zip"),
+    notes: field("notes"),
+    ...coordinatesFrom(field("lat"), field("lng")),
+  };
+}
+
+function addressFailure(error: unknown, previous: ActionState): ActionState {
+  if (error instanceof ZodError) {
+    return {
+      error: "Revisa la dirección: calle, ciudad, estado y código postal son obligatorios.",
+      stamp: previous.stamp,
+    };
+  }
+  if (error instanceof DomainError) return { error: error.message, stamp: previous.stamp };
+  console.error(error);
+  return { error: "No se pudo guardar la dirección. Inténtalo de nuevo.", stamp: previous.stamp };
+}
+
+async function addressActor() {
+  const actor = await getActor();
+  if (!actor) redirect("/login");
+  return actor;
+}
+
+function afterAddressChange(customerId: string, previous: ActionState, notice?: string): ActionState {
+  revalidatePath(`/customers/${customerId}`);
+  revalidatePath("/calendar");
+  return { notice, stamp: previous.stamp + 1 };
+}
+
+export async function addAddressAction(customerId: string, previous: ActionState, formData: FormData) {
+  await addressActor();
+  try {
+    const { notes, ...address } = addressFromForm(formData);
+    const created = await addAddress(getDb(), customerId, { ...address, ...(notes ? { notes } : {}) });
+    return afterAddressChange(
+      customerId,
+      previous,
+      created.lat === null ? "Dirección agregada, pero no se pudo ubicar en el mapa." : undefined,
+    );
+  } catch (error) {
+    return addressFailure(error, previous);
+  }
+}
+
+export async function updateAddressAction(
+  customerId: string,
+  addressId: string,
+  previous: ActionState,
+  formData: FormData,
+) {
+  await addressActor();
+  try {
+    const { notes, ...address } = addressFromForm(formData);
+    const updated = await updateAddress(getDb(), customerId, addressId, { ...address, notes: notes || null });
+    return afterAddressChange(
+      customerId,
+      previous,
+      updated.lat === null
+        ? "Guardada, pero no se pudo ubicar en el mapa. Elige la dirección de las sugerencias."
+        : undefined,
+    );
+  } catch (error) {
+    return addressFailure(error, previous);
+  }
+}
+
+export async function relocateAddressAction(customerId: string, addressId: string, previous: ActionState) {
+  await addressActor();
+  try {
+    const updated = await relocateAddress(getDb(), customerId, addressId);
+    return afterAddressChange(
+      customerId,
+      previous,
+      updated.lat === null
+        ? "No se encontró una ubicación precisa. Edita la dirección y elígela de las sugerencias."
+        : "Ubicación actualizada.",
+    );
+  } catch (error) {
+    return addressFailure(error, previous);
+  }
+}
+
+export async function deleteAddressAction(customerId: string, addressId: string, previous: ActionState) {
+  await addressActor();
+  try {
+    await deleteAddress(getDb(), customerId, addressId);
+    return afterAddressChange(customerId, previous);
+  } catch (error) {
+    return addressFailure(error, previous);
+  }
 }

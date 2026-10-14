@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { ZodError } from "zod";
 import {
+  coordinatesFrom,
   customerFieldErrors,
   customerInputFromForm,
   emptyCustomerForm,
@@ -201,5 +202,14 @@ describe("búsqueda por ids", () => {
     expect(second.duplicates.map((match) => match.id)).toEqual([first.customer.id]);
     expect(second.customer.email).toBe("laura@correo.com");
     expect(second.addresses[0].state).toBe("FL");
+  });
+});
+
+describe("coordenadas elegidas en el autocompletado", () => {
+  it("solo usa coordenadas cuando vienen las dos y son números", () => {
+    expect(coordinatesFrom("25.75", "-80.26")).toEqual({ lat: 25.75, lng: -80.26 });
+    expect(coordinatesFrom("", "-80.26")).toEqual({});
+    expect(coordinatesFrom("abc", "1")).toEqual({});
+    expect(coordinatesFrom(undefined, undefined)).toEqual({});
   });
 });

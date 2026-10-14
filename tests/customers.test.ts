@@ -16,6 +16,7 @@ import {
   getCustomer,
   mergeCustomers,
   possibleDuplicates,
+  relocateAddress,
   locateMissingAddresses,
   searchCustomers,
   updateAddress,
@@ -305,6 +306,24 @@ describe("ubicación de direcciones para el mapa", () => {
     const unknown = await updateAddress(ctx.db, customer.id, addresses[0].id, { city: "Pueblo Desconocido" });
     expect(unknown.lat).toBeNull();
     expect(unknown.lng).toBeNull();
+  });
+
+  it("vuelve a ubicar una dirección mal puesta y respeta las coordenadas elegidas a mano", async () => {
+    const { customer, addresses } = await createCustomer(ctx.db, newCustomer({ phone: "786 555 0703" }));
+    await ctx.db.update(addressesTable).set({ lat: 25.7, lng: -80.1 }).where(eq(addressesTable.id, addresses[0].id));
+    const relocated = await relocateAddress(ctx.db, customer.id, addresses[0].id);
+    expect(relocated).toMatchObject({ lat: 25.77, lng: -80.19 });
+
+    const picked = await updateAddress(ctx.db, customer.id, addresses[0].id, {
+      line1: "1 Alhambra Plz",
+      city: "Coral Gables",
+      lat: 25.75,
+      lng: -80.26,
+    });
+    expect(picked).toMatchObject({ lat: 25.75, lng: -80.26 });
+    await expect(relocateAddress(ctx.db, ctx.customer.id, addresses[0].id)).rejects.toMatchObject({
+      code: "not_found",
+    });
   });
 
   it("completa y guarda las coordenadas de direcciones guardadas antes de este cambio", async () => {

@@ -15,7 +15,7 @@ export const FORM_FIELDS = [
 ] as const;
 
 export type CustomerFormField = (typeof FORM_FIELDS)[number];
-export type CustomerFormValues = Record<CustomerFormField | "allowMarketing", string>;
+export type CustomerFormValues = Record<CustomerFormField | "allowMarketing" | "lat" | "lng", string>;
 export type CustomerFormErrors = Partial<Record<CustomerFormField, string>>;
 
 export const DEFAULT_STATE = "FL";
@@ -49,6 +49,8 @@ export function emptyCustomerForm(): CustomerFormValues {
     zip: "",
     addressNotes: "",
     allowMarketing: "",
+    lat: "",
+    lng: "",
   };
 }
 
@@ -59,7 +61,18 @@ export function readCustomerForm(data: { get(name: string): FormDataEntryValue |
     values[field] = typeof entry === "string" ? entry : "";
   }
   values.allowMarketing = data.get("allowMarketing") === "on" ? "on" : "";
+  for (const field of ["lat", "lng"] as const) {
+    const entry = data.get(field);
+    values[field] = typeof entry === "string" ? entry : "";
+  }
   return values;
+}
+
+export function coordinatesFrom(rawLat: string | undefined, rawLng: string | undefined) {
+  const lat = Number(rawLat);
+  const lng = Number(rawLng);
+  const valid = rawLat?.trim() && rawLng?.trim() && Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90;
+  return valid ? { lat, lng } : {};
 }
 
 export function customerInputFromForm(values: CustomerFormValues) {
@@ -78,6 +91,7 @@ export function customerInputFromForm(values: CustomerFormValues) {
         state: (blankToUndefined(values.state) ?? DEFAULT_STATE).toUpperCase(),
         zip: values.zip,
         notes: blankToUndefined(values.addressNotes),
+        ...coordinatesFrom(values.lat, values.lng),
       },
     ],
   };

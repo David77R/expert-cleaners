@@ -1,7 +1,7 @@
 import type { ServiceField } from "@/db/schema";
 import { ITEM_PREFIX, itemKey, readItemValues, validateItems } from "./appointment-items";
 import { parseTimeInput } from "./appointment-panel";
-import { DEFAULT_STATE } from "./customer-form";
+import { DEFAULT_STATE, coordinatesFrom } from "./customer-form";
 
 export type AppointmentFormValues = Record<string, string>;
 export type AppointmentFormErrors = Record<string, string>;
@@ -91,6 +91,7 @@ export function destinationFromValues(values: AppointmentFormValues) {
     city: destination("city"),
     state: (destination("state") || DEFAULT_STATE).toUpperCase(),
     zip: destination("zip"),
+    ...coordinatesFrom(values[`${DESTINATION_PREFIX}lat`], values[`${DESTINATION_PREFIX}lng`]),
   };
 }
 

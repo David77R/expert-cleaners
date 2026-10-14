@@ -342,6 +342,25 @@ export async function updateAddress(db: Db, customerId: string, addressId: strin
   return address;
 }
 
+export async function relocateAddress(db: Db, customerId: string, addressId: string) {
+  const current = await requireAddress(db, customerId, addressId);
+  const located = await geocodeIfNeeded({
+    line1: current.line1,
+    unit: current.unit,
+    city: current.city,
+    state: current.state,
+    zip: current.zip,
+    lat: null,
+    lng: null,
+  });
+  const [address] = await db
+    .update(addresses)
+    .set({ lat: located.lat ?? null, lng: located.lng ?? null })
+    .where(eq(addresses.id, addressId))
+    .returning();
+  return address;
+}
+
 export async function locateMissingAddresses(
   db: Db,
   rows: { id: string; line1: string; unit: string | null; city: string; state: string; zip: string }[],
