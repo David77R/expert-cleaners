@@ -28,9 +28,15 @@ export function createOrsRouter(apiKey: string): Router {
           Authorization: apiKey,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ coordinates: points.map((p) => [p.lng, p.lat]) }),
+        body: JSON.stringify({
+          coordinates: points.map((p) => [p.lng, p.lat]),
+          radiuses: points.map(() => -1),
+        }),
       });
-      if (!res.ok) return null;
+      if (!res.ok) {
+        console.error(`OpenRouteService directions ${res.status}: ${(await res.text()).slice(0, 300)}`);
+        return null;
+      }
 
       const data = (await res.json()) as {
         features?: Array<{
