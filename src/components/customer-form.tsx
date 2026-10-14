@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, type ComponentProps } from "react";
 import { createCustomerAction, type CustomerFormState } from "@/app/customers/new/actions";
 import { emptyCustomerForm, type CustomerFormField } from "@/domain/customer-form";
+import { AddressAutocomplete } from "@/components/address-autocomplete";
 import { Card, Field, INPUT } from "@/components/form-kit";
 
 function CustomerField(props: Omit<ComponentProps<typeof Field>, "prefix" | "name"> & { name: CustomerFormField }) {
@@ -93,15 +94,17 @@ export function CustomerForm() {
         </label>
       </Card>
 
-      <Card title="Dirección del servicio" hint="La dirección donde el técnico atenderá las citas.">
+      <Card
+        title="Dirección del servicio"
+        hint="Empieza a escribir la calle y elige una sugerencia: la ciudad, el estado y el código postal se llenan solos."
+      >
         <CustomerField name="line1" label="Calle y número" error={errors.line1} wide>
           {(props) => (
-            <input
-              {...props}
+            <AddressAutocomplete
+              control={props}
               name="line1"
               defaultValue={values.line1}
               required
-              autoComplete="address-line1"
               placeholder="1450 SW 8th St"
               className={INPUT}
             />

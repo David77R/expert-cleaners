@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState, useState, useTransition, type ComponentProps, type FormEvent } from "react";
 import { createAppointmentAction, type AppointmentFormState } from "@/app/appointments/new/actions";
+import { AddressAutocomplete } from "@/components/address-autocomplete";
 import { CustomerPicker } from "@/components/customer-picker";
 import { Card, Field, INPUT } from "@/components/form-kit";
 import {
@@ -190,11 +191,11 @@ export function AppointmentForm({
               wide
             >
               {(props) => (
-                <input
-                  {...props}
+                <AddressAutocomplete
+                  control={props}
                   name={`${DESTINATION_PREFIX}line1`}
+                  prefix={DESTINATION_PREFIX}
                   defaultValue={values[`${DESTINATION_PREFIX}line1`] ?? ""}
-                  autoComplete="off"
                   className={INPUT}
                 />
               )}
