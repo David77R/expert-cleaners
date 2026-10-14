@@ -61,7 +61,25 @@ function definedOnly<T extends Record<string, unknown>>(value: T): Partial<T> {
 export async function createCustomer(db: Db, raw: CreateCustomerInput) {
   const input = createCustomerSchema.parse(raw);
   const located = await Promise.all(input.addresses.map((address) => geocodeIfNeeded(address)));
+  const digits = phoneDigits(input.phone);
   return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`customer:${digits}`}))`);
+    const [existing] = await tx
+      .select()
+      .from(customers)
+      .where(
+        and(
+          sql`${phoneDigitsSql} = ${digits}`,
+          sql`lower(trim(${customers.firstName})) = lower(${input.firstName.trim()})`,
+          sql`lower(trim(${customers.lastName})) = lower(${input.lastName.trim()})`,
+        ),
+      )
+      .limit(1);
+    if (existing) {
+      const existingAddresses = await tx.select().from(addresses).where(eq(addresses.customerId, existing.id));
+      return { customer: existing, addresses: existingAddresses, duplicates: [], existing: true };
+    }
+
     const code = await nextCode(tx);
     const [customer] = await tx
       .insert(customers)
@@ -93,7 +111,12 @@ export async function createCustomer(db: Db, raw: CreateCustomerInput) {
       )
       .returning();
 
-    return { customer, addresses: created, duplicates: await findDuplicates(tx, input.phone, customer.id) };
+    return {
+      customer,
+      addresses: created,
+      duplicates: await findDuplicates(tx, input.phone, customer.id),
+      existing: false,
+    };
   });
 }
 

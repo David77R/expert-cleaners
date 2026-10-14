@@ -196,7 +196,8 @@ describe("búsqueda por ids", () => {
     const first = await createCustomer(ctx.db, input);
     expect(first.duplicates).toHaveLength(0);
 
-    const second = await createCustomer(ctx.db, input);
+    const second = await createCustomer(ctx.db, { ...input, firstName: "Lucía" });
+    expect(second.existing).toBe(false);
     expect(second.duplicates.map((match) => match.id)).toEqual([first.customer.id]);
     expect(second.customer.email).toBe("laura@correo.com");
     expect(second.addresses[0].state).toBe("FL");

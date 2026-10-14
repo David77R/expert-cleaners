@@ -47,6 +47,7 @@ export default async function CustomerPage({ params, searchParams }: PageProps<"
 
   const query = await searchParams;
   const justCreated = first(query.nuevo) === "1";
+  const alreadyExisted = first(query.existente) === "1";
   const duplicateIds = justCreated
     ? parseDuplicateIds(first(query.dup), (value) => z.uuid().safeParse(value).success).filter(
         (id) => id !== customer.id,
@@ -62,6 +63,12 @@ export default async function CustomerPage({ params, searchParams }: PageProps<"
         <Link href="/customers" className="flex w-fit items-center gap-1 text-sm font-medium text-soft hover:text-ink">
           <Icon name="left" /> Todos los clientes
         </Link>
+
+        {alreadyExisted && (
+          <p role="status" className="rounded-md bg-info-soft px-4 py-3 text-sm font-medium text-info">
+            Este cliente ya estaba registrado con el mismo nombre y teléfono ({customer.code}), así que no se creó otro.
+          </p>
+        )}
 
         {justCreated && (
           <div

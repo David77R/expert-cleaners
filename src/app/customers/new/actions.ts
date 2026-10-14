@@ -40,6 +40,7 @@ export async function createCustomerAction(
   }
 
   revalidatePath("/customers");
+  if (created.existing) redirect(`/customers/${created.customer.id}?existente=1`);
   const params = new URLSearchParams({ nuevo: "1" });
   if (created.duplicates.length > 0) params.set("dup", created.duplicates.map((match) => match.id).join(","));
   redirect(`/customers/${created.customer.id}?${params.toString()}`);

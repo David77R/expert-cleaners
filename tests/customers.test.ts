@@ -200,7 +200,7 @@ describe("buscar clientes", () => {
 
 describe("detalle de cliente", () => {
   it("conserva las notas generales del cliente junto al historial de notas", async () => {
-    const { customer } = await createCustomer(ctx.db, newCustomer({ phone: "786 555 0400", notes: "Portón azul" }));
+    const { customer } = await createCustomer(ctx.db, newCustomer({ phone: "786 555 0499", notes: "Portón azul" }));
     await addCustomerNote(ctx.db, AGENT_JOSUE, customer.id, { text: "Nota firmada" });
 
     const detail = await getCustomer(ctx.db, customer.id);
@@ -314,5 +314,33 @@ describe("ubicación de direcciones para el mapa", () => {
     expect(found.get(legacy.id)).toEqual({ lat: 25.77, lng: -80.19 });
     const [saved] = (await getCustomer(ctx.db, customer.id)).addresses;
     expect(saved).toMatchObject({ lat: 25.77, lng: -80.19 });
+  });
+});
+
+describe("clientes repetidos", () => {
+  it("no crea otro cliente si ya existe uno con el mismo nombre y teléfono", async () => {
+    const first = await createCustomer(ctx.db, newCustomer({ firstName: "Marta", phone: "786 555 0900" }));
+    const again = await createCustomer(
+      ctx.db,
+      newCustomer({ firstName: "  marta ", lastName: "PÉREZ", phone: "(786) 555-0900" }),
+    );
+    expect(first.existing).toBe(false);
+    expect(again.existing).toBe(true);
+    expect(again.customer.id).toBe(first.customer.id);
+  });
+
+  it("dos envíos simultáneos del mismo formulario dejan un solo cliente", async () => {
+    const input = newCustomer({ firstName: "Doble", lastName: "Clic", phone: "786 555 0901" });
+    const [a, b] = await Promise.all([createCustomer(ctx.db, input), createCustomer(ctx.db, input)]);
+    expect(a.customer.id).toBe(b.customer.id);
+    expect([a.existing, b.existing].sort()).toEqual([false, true]);
+  });
+
+  it("sí crea a otra persona con el mismo teléfono y avisa del posible duplicado", async () => {
+    const first = await createCustomer(ctx.db, newCustomer({ firstName: "Pedro", phone: "786 555 0902" }));
+    const relative = await createCustomer(ctx.db, newCustomer({ firstName: "Ana", phone: "786 555 0902" }));
+    expect(relative.existing).toBe(false);
+    expect(relative.customer.id).not.toBe(first.customer.id);
+    expect(relative.duplicates.map((d) => d.id)).toContain(first.customer.id);
   });
 });
