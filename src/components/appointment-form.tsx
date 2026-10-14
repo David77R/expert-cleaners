@@ -217,7 +217,7 @@ export function AppointmentForm({
 
       <Card
         title="Horario"
-        hint="Si la hora coincide con otra cita del técnico, la cita se crea igual y se marca el solape."
+        hint="Si la hora coincide con otra cita del técnico, la cita se crea igual y se marca en conflicto."
       >
         <Group label="Técnico" error={errors.technicianId}>
           <div className="grid gap-2 sm:grid-cols-2">

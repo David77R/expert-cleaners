@@ -43,7 +43,7 @@ export function CalendarLegend({ technicians }: { technicians: CalendarTechnicia
             <span className="flex h-4 w-8 items-center justify-center rounded-[3px] border border-attention bg-paper">
               <Icon name="alert" size={11} />
             </span>
-            Borde rojo: se solapa con otra cita
+            Borde rojo: en conflicto con otra cita
           </li>
         </ul>
       </div>

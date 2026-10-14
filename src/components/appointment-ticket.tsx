@@ -68,7 +68,7 @@ export function AppointmentTicket({
         {conflicting && (
           <span className="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-attention">
             <Icon name="alert" size={12} />
-            <span className={detail === "minimal" ? "sr-only" : ""}>Solape</span>
+            <span className={detail === "minimal" ? "sr-only" : ""}>Conflicto</span>
           </span>
         )}
       </span>

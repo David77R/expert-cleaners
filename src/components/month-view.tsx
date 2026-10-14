@@ -75,9 +75,9 @@ export function MonthView({
                 </span>
                 <span className="flex items-center gap-1">
                   {hasOverlap && (
-                    <span className="text-attention" title="Hay citas que se solapan">
+                    <span className="text-attention" title="Hay citas en conflicto">
                       <Icon name="alert" size={12} />
-                      <span className="sr-only">Hay citas que se solapan</span>
+                      <span className="sr-only">Hay citas en conflicto</span>
                     </span>
                   )}
                   {items.length > 0 && (

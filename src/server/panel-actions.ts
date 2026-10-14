@@ -112,14 +112,14 @@ export async function executeAction(
       const count = result.conflicts.length;
       return {
         ok: true,
-        notice: `Entrega programada. Se solapa con ${count} ${count === 1 ? "cita" : "citas"} del técnico: revisa el horario.`,
+        notice: `Entrega programada. Tiene conflicto con ${count} ${count === 1 ? "cita" : "citas"} del técnico: revisa el horario.`,
       };
     }
     if ((kind === "reschedule" || kind === "move") && result.conflicts.length > 0) {
       const count = result.conflicts.length;
       return {
         ok: true,
-        notice: `${kind === "move" ? "Movida" : "Reprogramada"}. Se solapa con ${count} ${count === 1 ? "cita" : "citas"}: revisa el horario.`,
+        notice: `${kind === "move" ? "Movida" : "Reprogramada"}. Tiene conflicto con ${count} ${count === 1 ? "cita" : "citas"}: revisa el horario.`,
       };
     }
     return { ok: true };

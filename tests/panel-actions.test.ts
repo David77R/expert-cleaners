@@ -148,7 +148,7 @@ describe("ejecución de acciones del panel", () => {
     );
     expect(overlapped).toEqual({
       ok: true,
-      notice: "Reprogramada. Se solapa con 1 cita: revisa el horario.",
+      notice: "Reprogramada. Tiene conflicto con 1 cita: revisa el horario.",
     });
     const detail = await getAppointment(ctx.db, second.id);
     expect(detail.status).toBe("rescheduled");
@@ -208,7 +208,7 @@ describe("mover una cita arrastrándola", () => {
       technicianId: first.technicianId,
     });
     expect(result.ok).toBe(true);
-    if (result.ok) expect(result.notice).toMatch(/^Movida\. Se solapa con 1 cita/);
+    if (result.ok) expect(result.notice).toMatch(/^Movida\. Tiene conflicto con 1 cita/);
     expect((await getAppointment(ctx.db, second.id)).startMin).toBe(555);
   });
 

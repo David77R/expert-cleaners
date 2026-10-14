@@ -26,7 +26,7 @@ export function CalendarSummary({ summary }: { summary: Summary }) {
         {summary.overlaps > 0 && (
           <p className="flex items-center gap-1.5 rounded-[3px] bg-attention-soft px-2.5 py-1 text-sm font-medium text-attention">
             <Icon name="alert" size={15} />
-            {summary.overlaps} {summary.overlaps === 1 ? "cita con solape" : "citas con solape"}
+            {summary.overlaps} {summary.overlaps === 1 ? "cita con conflicto" : "citas con conflicto"}
           </p>
         )}
       </div>

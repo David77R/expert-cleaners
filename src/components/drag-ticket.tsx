@@ -239,7 +239,7 @@ export function DragTicket({
               </div>
             </dl>
             <p className="text-xs text-soft">
-              Si se solapa con otra cita, se mueve igual y se marca el solape. Queda registrado en el historial.
+              Si choca con otra cita, se mueve igual y se marca en conflicto. Queda registrado en el historial.
             </p>
             {error && (
               <p role="alert" className="text-sm font-medium text-attention">
