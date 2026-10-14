@@ -2,6 +2,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   parsePhotonSuggestions,
   parseSuggestions,
+  chainGeocoders,
+  createCensusGeocoder,
+  hasHouseNumber,
+  pickCensusMatch,
   pickGeocodeResult,
   rankSuggestions,
   splitHouseNumber,
@@ -232,5 +236,68 @@ describe("direcciones con número de casa", () => {
         ],
       })[0].streetOnly,
     ).toBe(true);
+  });
+});
+
+describe("ubicación exacta con el Census", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const census = (matches: unknown[]) => ({ result: { addressMatches: matches } });
+  const match = (zip: string, x: number, y: number, state = "FL") => ({
+    coordinates: { x, y },
+    addressComponents: { zip, state, city: "MIAMI" },
+  });
+
+  it("reconoce cuando la dirección trae número de casa", () => {
+    expect(hasHouseNumber("795 Northwest 80th Terrace")).toBe(true);
+    expect(hasHouseNumber("Northwest 80th Terrace")).toBe(false);
+    expect(hasHouseNumber("Dolphin Mall")).toBe(false);
+  });
+
+  it("prefiere el mismo código postal y devuelve el código real", () => {
+    const data = census([match("33150", -80.21, 25.85), match("33127", -80.2, 25.81)]);
+    expect(pickCensusMatch(data, { zip: "33127", state: "FL" })).toEqual({
+      lat: 25.81,
+      lng: -80.2,
+      zip: "33127",
+      exact: true,
+    });
+    expect(pickCensusMatch(data, { zip: "", state: "FL" })).toMatchObject({ lat: 25.85, zip: "33150" });
+    expect(pickCensusMatch(census([match("10001", -73.9, 40.7, "NY")]), { zip: "", state: "FL" })).toBeNull();
+    expect(pickCensusMatch(null, { zip: "", state: "FL" })).toBeNull();
+  });
+
+  it("si el código postal está mal, busca sin él y corrige", async () => {
+    const calls: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = new URL(String(input));
+      calls.push(url.searchParams.get("zip") ?? "");
+      return new Response(
+        JSON.stringify(url.searchParams.get("zip") ? census([]) : census([match("33150", -80.21, 25.85)])),
+      );
+    });
+    const result = await createCensusGeocoder().geocode({
+      line1: "795 Northwest 80th Terrace",
+      city: "Miami",
+      state: "FL",
+      zip: "33127",
+    });
+    expect(calls).toEqual(["33127", ""]);
+    expect(result).toMatchObject({ lat: 25.85, lng: -80.21, zip: "33150" });
+  });
+
+  it("sin número de casa no consulta el Census y pasa al siguiente", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    const fallback = { geocode: async () => ({ lat: 1, lng: 2 }) };
+    const result = await chainGeocoders([createCensusGeocoder(), fallback]).geocode({
+      line1: "Brickell Ave",
+      city: "Miami",
+      state: "FL",
+      zip: "",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result).toEqual({ lat: 1, lng: 2 });
   });
 });

@@ -346,8 +346,22 @@ export async function updateAddress(db: Db, customerId: string, addressId: strin
   const patch: Record<string, unknown> = definedOnly(input);
 
   const moved = LOCATION_FIELDS.some((field) => input[field] !== undefined && input[field] !== current[field]);
-  const coordsGiven = input.lat !== undefined || input.lng !== undefined;
-  if (moved && !coordsGiven) {
+  const coordsGiven = input.lat != null && input.lng != null;
+  const saving = LOCATION_FIELDS.some((field) => input[field] !== undefined);
+  if (coordsGiven) {
+    const checked = await geocodeIfNeeded({
+      line1: input.line1 ?? current.line1,
+      unit: input.unit ?? current.unit,
+      city: input.city ?? current.city,
+      state: input.state ?? current.state,
+      zip: input.zip ?? current.zip,
+      lat: input.lat,
+      lng: input.lng,
+    });
+    patch.lat = checked.lat;
+    patch.lng = checked.lng;
+    if (checked.zip !== (input.zip ?? current.zip)) patch.zip = checked.zip;
+  } else if (saving) {
     const located = await geocodeIfNeeded({
       line1: input.line1 ?? current.line1,
       unit: input.unit ?? current.unit,
@@ -357,8 +371,11 @@ export async function updateAddress(db: Db, customerId: string, addressId: strin
       lat: null,
       lng: null,
     });
-    patch.lat = located.lat ?? null;
-    patch.lng = located.lng ?? null;
+    if (located.lat != null || moved) {
+      patch.lat = located.lat ?? null;
+      patch.lng = located.lng ?? null;
+    }
+    if (located.zip !== (input.zip ?? current.zip)) patch.zip = located.zip;
   }
 
   const [address] = await db.update(addresses).set(patch).where(eq(addresses.id, addressId)).returning();
@@ -376,12 +393,13 @@ export async function relocateAddress(db: Db, customerId: string, addressId: str
     lat: null,
     lng: null,
   });
+  if (located.lat == null || located.lng == null) return { address: current, found: false };
   const [address] = await db
     .update(addresses)
-    .set({ lat: located.lat ?? null, lng: located.lng ?? null })
+    .set({ lat: located.lat, lng: located.lng, zip: located.zip })
     .where(eq(addresses.id, addressId))
     .returning();
-  return address;
+  return { address, found: true };
 }
 
 export async function locateMissingAddresses(

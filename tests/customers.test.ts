@@ -312,7 +312,8 @@ describe("ubicación de direcciones para el mapa", () => {
     const { customer, addresses } = await createCustomer(ctx.db, newCustomer({ phone: "786 555 0703" }));
     await ctx.db.update(addressesTable).set({ lat: 25.7, lng: -80.1 }).where(eq(addressesTable.id, addresses[0].id));
     const relocated = await relocateAddress(ctx.db, customer.id, addresses[0].id);
-    expect(relocated).toMatchObject({ lat: 25.77, lng: -80.19 });
+    expect(relocated.found).toBe(true);
+    expect(relocated.address).toMatchObject({ lat: 25.77, lng: -80.19 });
 
     const picked = await updateAddress(ctx.db, customer.id, addresses[0].id, {
       line1: "1 Alhambra Plz",
@@ -324,6 +325,17 @@ describe("ubicación de direcciones para el mapa", () => {
     await expect(relocateAddress(ctx.db, ctx.customer.id, addresses[0].id)).rejects.toMatchObject({
       code: "not_found",
     });
+  });
+
+  it("si no encuentra la nueva ubicación conserva la anterior", async () => {
+    const { customer, addresses } = await createCustomer(ctx.db, newCustomer({ phone: "786 555 0704" }));
+    await ctx.db
+      .update(addressesTable)
+      .set({ lat: 25.7, lng: -80.1, city: "Ciudad Rara" })
+      .where(eq(addressesTable.id, addresses[0].id));
+    const result = await relocateAddress(ctx.db, customer.id, addresses[0].id);
+    expect(result.found).toBe(false);
+    expect(result.address).toMatchObject({ lat: 25.7, lng: -80.1 });
   });
 
   it("completa y guarda las coordenadas de direcciones guardadas antes de este cambio", async () => {

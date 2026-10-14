@@ -11,6 +11,8 @@ export interface GeocodeInput {
 export interface GeocodeResult {
   lat: number;
   lng: number;
+  zip?: string;
+  exact?: boolean;
 }
 
 export interface Geocoder {
@@ -104,28 +106,113 @@ export function createOrsGeocoder(apiKey: string): Geocoder {
   };
 }
 
+const CENSUS_URL = "https://geocoding.geo.census.gov/geocoder/locations/address";
+
+type CensusMatch = {
+  coordinates?: { x?: number; y?: number };
+  addressComponents?: { zip?: string; city?: string; state?: string };
+};
+
+export function hasHouseNumber(line1: string): boolean {
+  return /^\s*\d+[A-Za-z]?(?:-\d+)?\s+\S/.test(line1);
+}
+
+export function pickCensusMatch(data: unknown, input: Pick<GeocodeInput, "zip" | "state">): GeocodeResult | null {
+  const matches = (data as { result?: { addressMatches?: CensusMatch[] } } | null)?.result?.addressMatches ?? [];
+  const valid = matches.filter((match) => {
+    const { x, y } = match.coordinates ?? {};
+    const state = match.addressComponents?.state ?? "";
+    return (
+      typeof x === "number" &&
+      typeof y === "number" &&
+      (!input.state.trim() || !state || state.toUpperCase() === input.state.trim().toUpperCase())
+    );
+  });
+  const wanted = zip5(input.zip);
+  const chosen = valid.find((match) => wanted !== "" && zip5(match.addressComponents?.zip) === wanted) ?? valid[0];
+  if (!chosen?.coordinates) return null;
+  const zip = zip5(chosen.addressComponents?.zip);
+  return {
+    lat: chosen.coordinates.y as number,
+    lng: chosen.coordinates.x as number,
+    exact: true,
+    ...(zip ? { zip } : {}),
+  };
+}
+
+async function requestCensus(input: GeocodeInput, withZip: boolean): Promise<unknown> {
+  const url = new URL(CENSUS_URL);
+  url.searchParams.set("street", input.line1.trim());
+  if (input.city.trim()) url.searchParams.set("city", input.city.trim());
+  url.searchParams.set("state", input.state.trim() || "FL");
+  if (withZip && input.zip.trim()) url.searchParams.set("zip", zip5(input.zip));
+  url.searchParams.set("benchmark", "Public_AR_Current");
+  url.searchParams.set("format", "json");
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(7000), headers: { Accept: "application/json" } });
+    if (!res.ok) {
+      console.error(`Census geocoder ${res.status}: ${(await res.text()).slice(0, 300)}`);
+      return null;
+    }
+    return await res.json();
+  } catch (error) {
+    console.error("Census geocoder failed", error);
+    return null;
+  }
+}
+
+export function createCensusGeocoder(): Geocoder {
+  return {
+    async geocode(input) {
+      if (!hasHouseNumber(input.line1)) return null;
+      if (zip5(input.zip)) {
+        const withZip = pickCensusMatch(await requestCensus(input, true), input);
+        if (withZip) return withZip;
+      }
+      if (!input.city.trim()) return null;
+      return pickCensusMatch(await requestCensus(input, false), input);
+    },
+  };
+}
+
+export function chainGeocoders(geocoders: readonly Geocoder[]): Geocoder {
+  return {
+    async geocode(input) {
+      for (const geocoder of geocoders) {
+        const result = await geocoder.geocode(input);
+        if (result) return result;
+      }
+      return null;
+    },
+  };
+}
+
 let cached: Geocoder | null | undefined;
 
 export function getGeocoder(): Geocoder | null {
   if (cached === undefined) {
     const { ORS_API_KEY } = env();
-    cached = ORS_API_KEY ? createOrsGeocoder(ORS_API_KEY) : null;
+    cached = chainGeocoders([createCensusGeocoder(), ...(ORS_API_KEY ? [createOrsGeocoder(ORS_API_KEY)] : [])]);
   }
   return cached;
 }
 
 type Geocodable = GeocodeInput & { lat?: number | null; lng?: number | null };
 
-export async function geocodeIfNeeded<T extends Geocodable>(address: T): Promise<T> {
-  if (address.lat != null && address.lng != null) return address;
+let census: Geocoder | undefined;
 
-  const geocoder = getGeocoder();
+export async function geocodeIfNeeded<T extends Geocodable>(address: T): Promise<T> {
+  const hasCoords = address.lat != null && address.lng != null;
+  if (hasCoords && !hasHouseNumber(address.line1)) return address;
+
+  const geocoder = hasCoords ? (census ??= createCensusGeocoder()) : getGeocoder();
   if (!geocoder) return address;
 
   const result = await geocoder.geocode(address);
   if (!result) return address;
 
-  return { ...address, lat: result.lat, lng: result.lng };
+  const zip = result.zip && result.zip !== zip5(address.zip) ? { zip: result.zip } : {};
+  return { ...address, ...zip, lat: result.lat, lng: result.lng };
 }
 
 export type AddressSuggestion = {

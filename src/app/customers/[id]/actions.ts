@@ -180,11 +180,11 @@ export async function updateAddressAction(
 export async function relocateAddressAction(customerId: string, addressId: string, previous: ActionState) {
   await addressActor();
   try {
-    const updated = await relocateAddress(getDb(), customerId, addressId);
+    const { found } = await relocateAddress(getDb(), customerId, addressId);
     return afterAddressChange(
       customerId,
       previous,
-      updated.lat === null
+      !found
         ? "No se encontró una ubicación precisa. Edita la dirección y elígela de las sugerencias."
         : "Ubicación actualizada.",
     );
