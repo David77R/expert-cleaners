@@ -233,3 +233,24 @@ export function orderSummary(items: readonly { service: { name: string } }[]): s
   for (const item of items) counts.set(item.service.name, (counts.get(item.service.name) ?? 0) + 1);
   return [...counts.entries()].map(([name, total]) => `${name} x ${total}`);
 }
+
+export type ServiceLine = { name: string; count: number; minutes: number };
+
+export function serviceBreakdown(appointment: {
+  durationMin: number;
+  service: { id: string; name: string; durationMin: number };
+  items?: readonly { service: { id: string; name: string; durationMin: number } }[];
+}): ServiceLine[] {
+  const items = appointment.items ?? [];
+  if (items.length === 0) {
+    return [{ name: appointment.service.name, count: 1, minutes: appointment.durationMin }];
+  }
+  const lines = new Map<string, ServiceLine>();
+  for (const { service } of items) {
+    const line = lines.get(service.id) ?? { name: service.name, count: 0, minutes: 0 };
+    line.count += 1;
+    line.minutes += service.durationMin;
+    lines.set(service.id, line);
+  }
+  return [...lines.values()];
+}

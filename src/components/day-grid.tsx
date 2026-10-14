@@ -121,8 +121,8 @@ export function DayGrid({
               {own.map((appointment) => {
                 const key = entryKey(appointment);
                 const { column, columns } = layout.get(key) ?? { column: 0, columns: 1 };
-                const height = Math.max((appointment.durationMin / 60) * HOUR_PX - 3, 46);
-                const detail = columns > 1 ? "minimal" : height >= 84 ? "full" : height >= 58 ? "medium" : "minimal";
+                const height = Math.max((appointment.durationMin / 60) * HOUR_PX - 3, 52);
+                const detail = height >= 120 ? "full" : height >= 70 ? "medium" : "minimal";
                 return (
                   <DragTicket
                     key={key}
@@ -148,6 +148,7 @@ export function DayGrid({
                       conflicting={appointment.kind !== "delivery" && overlap.has(appointment.id)}
                       selected={appointment.id === selectedId}
                       detail={detail}
+                      peers={appointments}
                       className="h-full w-full"
                     />
                   </DragTicket>

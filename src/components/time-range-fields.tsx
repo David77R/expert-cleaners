@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import { minutesToTimeInput, parseTimeInput } from "@/domain/appointment-panel";
 import { formatMinutes } from "@/domain/appointment-rules";
+import { formatDuration } from "@/domain/calendar-view";
 
 const MAX_DURATION = 720;
 
@@ -21,12 +22,7 @@ export function durationBetween(start: string, end: string): number | null {
   return endMin - startMin;
 }
 
-export function describeDuration(minutes: number): string {
-  if (minutes < 60) return `${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
-}
+export const describeDuration = formatDuration;
 
 export function TimeRange({
   start,

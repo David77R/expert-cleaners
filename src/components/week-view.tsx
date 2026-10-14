@@ -85,6 +85,7 @@ export function WeekView({
                       conflicting={appointment.kind !== "delivery" && overlap.has(appointment.id)}
                       selected={appointment.id === selectedId}
                       detail="full"
+                      peers={dayAppointments}
                     />
                   </li>
                 ))}
