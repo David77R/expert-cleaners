@@ -111,6 +111,7 @@ export const services = pgTable("services", {
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
   category: text("category").notNull(),
+  icon: text("icon"),
   description: text("description"),
   basePriceCents: integer("base_price_cents").notNull(),
   durationMin: integer("duration_min").notNull(),

@@ -434,3 +434,30 @@ describe("etapas, listo en y entregas", () => {
     expect(appointmentIdFromKey(key)).toBe("11111111-1111-4111-8111-111111111111");
   });
 });
+
+describe("crear el pedido con la entrega programada", () => {
+  it("guarda recogida, entrega y fecha de listo en un solo paso", async () => {
+    const { appointment } = await createAppointment(ctx.db, AGENT_JOSUE, {
+      ...appointmentInput(ctx, { date: "2026-12-10" }),
+      readyDate: "2026-12-11",
+      delivery: { date: "2026-12-12", startMin: 600, durationMin: 45, technicianId: ctx.techs[1].id },
+    });
+    expect(appointment).toMatchObject({
+      readyDate: "2026-12-11",
+      deliveryDate: "2026-12-12",
+      deliveryStartMin: 600,
+      deliveryDurationMin: 45,
+      deliveryTechnicianId: ctx.techs[1].id,
+    });
+    expect((await getDeliveries(ctx.db, "2026-12-12", "2026-12-12")).map((d) => d.id)).toContain(appointment.id);
+  });
+
+  it("rechaza una entrega antes de la recogida", async () => {
+    await expect(
+      createAppointment(ctx.db, AGENT_JOSUE, {
+        ...appointmentInput(ctx, { date: "2026-12-10" }),
+        delivery: { date: "2026-12-09", startMin: 600, durationMin: 45, technicianId: ctx.techs[1].id },
+      }),
+    ).rejects.toMatchObject({ code: "delivery_before_service" });
+  });
+});

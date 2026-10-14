@@ -6,9 +6,10 @@ import { todayIn } from "@/domain/date-rules";
 import { logout } from "@/app/login/actions";
 import { Icon, type IconName } from "@/components/icons";
 
-type Section = "calendar" | "customers" | "services" | "agents" | "technicians" | "reports" | "alerts";
+type Section = "orders" | "calendar" | "customers" | "services" | "agents" | "technicians" | "reports" | "alerts";
 
 const LINKS: { key: Section; href: string; label: string; icon: IconName; adminOnly?: boolean }[] = [
+  { key: "orders", href: "/orders/new", label: "Nuevo pedido", icon: "plus" },
   { key: "customers", href: "/customers", label: "Clientes", icon: "users" },
   { key: "services", href: "/services", label: "Servicios", icon: "tag", adminOnly: true },
   { key: "calendar", href: "/calendar", label: "Calendario", icon: "calendar" },

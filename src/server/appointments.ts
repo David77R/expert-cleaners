@@ -211,6 +211,22 @@ export async function createAppointment(db: Db, actor: Actor, raw: CreateAppoint
     const [tech] = await tx.select().from(technicians).where(eq(technicians.id, input.technicianId)).limit(1);
     if (!tech || !tech.active) throw new DomainError("technician_unavailable", "El técnico no está activo");
 
+    if (input.delivery) {
+      if (input.delivery.date < input.date) {
+        throw new DomainError("delivery_before_service", "La entrega no puede ser antes de la recogida");
+      }
+      if (input.delivery.technicianId !== tech.id) {
+        const [deliveryTech] = await tx
+          .select()
+          .from(technicians)
+          .where(eq(technicians.id, input.delivery.technicianId))
+          .limit(1);
+        if (!deliveryTech || !deliveryTech.active) {
+          throw new DomainError("technician_unavailable", "El técnico de la entrega no está activo");
+        }
+      }
+    }
+
     const code = await nextCode(tx);
     const [created] = await tx
       .insert(appointments)
@@ -230,6 +246,15 @@ export async function createAppointment(db: Db, actor: Actor, raw: CreateAppoint
         alerts: input.alerts,
         destinationAddress,
         billingAddress,
+        readyDate: input.readyDate ?? null,
+        ...(input.delivery
+          ? {
+              deliveryDate: input.delivery.date,
+              deliveryStartMin: input.delivery.startMin,
+              deliveryDurationMin: input.delivery.durationMin,
+              deliveryTechnicianId: input.delivery.technicianId,
+            }
+          : {}),
       })
       .returning();
 

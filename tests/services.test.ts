@@ -52,6 +52,14 @@ describe("crear servicio", () => {
     expect(created.fields).toEqual([]);
   });
 
+  it("guarda el ícono elegido, lo cambia y rechaza íconos inexistentes", async () => {
+    const created = await createService(ctx.db, ADMIN, newService({ name: "Tapete persa", icon: "rug" }));
+    expect(created.icon).toBe("rug");
+    const changed = await updateService(ctx.db, ADMIN, created.id, { icon: null });
+    expect(changed.icon).toBeNull();
+    await expect(createService(ctx.db, ADMIN, newService({ name: "Otro", icon: "unicornio" }))).rejects.toThrow();
+  });
+
   it("acepta un slug manual y rechaza duplicados", async () => {
     await createService(ctx.db, ADMIN, newService({ name: "Cortinas", slug: "cortinas" }));
     await expect(

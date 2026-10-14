@@ -1,5 +1,6 @@
 import type { ZodError } from "zod";
 import type { Service, ServiceField } from "@/db/schema";
+import { isServiceIcon } from "./service-icons";
 import { slugify } from "./service-rules";
 
 export const SERVICE_TEXT_FIELDS = [
@@ -31,6 +32,7 @@ export type FieldDraft = {
 };
 
 export type ServiceFormValues = Record<ServiceTextField, string> & {
+  icon: string;
   twoAddresses: boolean;
   active: boolean;
   fields: FieldDraft[];
@@ -50,6 +52,7 @@ export function emptyServiceForm(): ServiceFormValues {
   return {
     name: "",
     category: "",
+    icon: "",
     description: "",
     price: "",
     durationMin: "60",
@@ -71,6 +74,7 @@ export function serviceFormFromService(service: Service): ServiceFormValues {
   return {
     name: service.name,
     category: service.category,
+    icon: service.icon ?? "",
     description: service.description ?? "",
     price: dollarsText(service.basePriceCents),
     durationMin: String(service.durationMin),
@@ -96,6 +100,7 @@ function text(data: { get(name: string): FormDataEntryValue | null }, name: stri
 export function readServiceForm(data: { get(name: string): FormDataEntryValue | null }): ServiceFormValues {
   const values = emptyServiceForm();
   for (const field of SERVICE_TEXT_FIELDS) values[field] = text(data, field);
+  values.icon = text(data, "icon");
   values.twoAddresses = data.get("twoAddresses") === "on";
   values.active = data.get("active") === "on";
 
@@ -228,6 +233,7 @@ export function createServiceInputFromForm(values: ServiceFormValues) {
   return {
     name: values.name,
     category: values.category,
+    ...(isServiceIcon(values.icon) ? { icon: values.icon } : {}),
     description: blankToUndefined(values.description),
     basePriceCents: parseDollars(values.price) ?? 0,
     durationMin: parseDuration(values.durationMin) ?? 0,
@@ -242,6 +248,7 @@ export function updateServiceInputFromForm(values: ServiceFormValues, options: {
   return {
     name: values.name,
     category: values.category,
+    icon: isServiceIcon(values.icon) ? values.icon : null,
     description: blankToNull(values.description),
     basePriceCents: parseDollars(values.price) ?? 0,
     durationMin: parseDuration(values.durationMin) ?? 0,

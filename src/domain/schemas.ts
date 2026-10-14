@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { STAGE_KEYS } from "./delivery";
 import { MAX_ITEMS } from "./appointment-items";
+import { SERVICE_ICON_KEYS, type ServiceIconKey } from "./service-icons";
 import { CANCEL_REASONS } from "./appointment-rules";
 import { isValidPhone } from "./customer-rules";
 import { daysBetween, isRealDate, periodBounds } from "./date-rules";
@@ -130,10 +131,13 @@ const serviceFieldsSchema = z
 const basePrice = z.number().int().min(0).max(10_000_000);
 const serviceDuration = z.number().int().min(15).max(720);
 
+const serviceIcon = z.enum(SERVICE_ICON_KEYS as [ServiceIconKey, ...ServiceIconKey[]], "Ícono no válido");
+
 export const createServiceSchema = z.object({
   name: z.string().trim().min(1),
   slug: z.string().regex(SLUG_PATTERN, "Slug inválido").optional(),
   category: z.string().trim().min(1),
+  icon: serviceIcon.optional(),
   description: z.string().trim().optional(),
   basePriceCents: basePrice,
   durationMin: serviceDuration,
@@ -147,6 +151,7 @@ export const updateServiceSchema = z
   .strictObject({
     name: z.string().trim().min(1).optional(),
     category: z.string().trim().min(1).optional(),
+    icon: serviceIcon.nullable().optional(),
     description: z.string().trim().nullable().optional(),
     basePriceCents: basePrice.optional(),
     durationMin: serviceDuration.optional(),
@@ -224,6 +229,13 @@ const itemsSchema = z
   .min(1, "Agrega al menos un servicio")
   .max(MAX_ITEMS, `Máximo ${MAX_ITEMS} servicios por cita`);
 
+export const deliverySchema = z.object({
+  date: isoDate,
+  startMin: minutes,
+  durationMin: z.number().int().min(15).max(720),
+  technicianId: z.uuid("Elige un técnico"),
+});
+
 export const createAppointmentSchema = z.object({
   customerId: z.uuid(),
   addressId: z.uuid(),
@@ -240,6 +252,8 @@ export const createAppointmentSchema = z.object({
     .default([]),
   destinationAddress: addressSnapshotSchema.optional(),
   billingAddress: addressSnapshotSchema.optional(),
+  readyDate: isoDate.optional(),
+  delivery: deliverySchema.optional(),
 });
 
 export const cancelSchema = z.object({
@@ -262,13 +276,6 @@ export const stageSchema = z.object({
 });
 
 export const readyDateSchema = z.object({ readyDate: isoDate.nullable() });
-
-export const deliverySchema = z.object({
-  date: isoDate,
-  startMin: minutes,
-  durationMin: z.number().int().min(15).max(720),
-  technicianId: z.uuid("Elige un técnico"),
-});
 
 export const updateItemsSchema = z.object({
   items: itemsSchema,

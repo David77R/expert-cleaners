@@ -5,6 +5,8 @@ import { useActionState, useState, useTransition, type ComponentProps, type Form
 import { createServiceAction, updateServiceAction, type ServiceFormState } from "@/app/services/actions";
 import { Card, Field, INPUT } from "@/components/form-kit";
 import { Icon } from "@/components/icons";
+import { ServiceIcon } from "@/components/service-icon";
+import { SERVICE_ICONS, SERVICE_ICON_KEYS } from "@/domain/service-icons";
 import {
   MAX_SERVICE_FIELDS,
   emptyFieldDraft,
@@ -18,6 +20,9 @@ type Row = FieldDraft & { rid: number };
 function ServiceFormField(props: Omit<ComponentProps<typeof Field>, "prefix" | "name"> & { name: ServiceTextField }) {
   return <Field prefix="service" {...props} />;
 }
+
+const ICON_CHOICE =
+  "flex cursor-pointer flex-col items-center gap-1 rounded-md border border-hair bg-paper px-1.5 py-2 text-center text-ink transition-colors hover:bg-canvas has-[:checked]:border-brand has-[:checked]:bg-brand-soft has-[:checked]:text-brand-ink has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand/30";
 
 const ICON_BUTTON =
   "flex h-9 w-9 items-center justify-center rounded-md text-soft transition-colors hover:bg-canvas hover:text-ink disabled:pointer-events-none disabled:opacity-40";
@@ -106,6 +111,26 @@ export function ServiceForm({
             </>
           )}
         </ServiceFormField>
+        <fieldset className="flex flex-col gap-2 sm:col-span-2">
+          <legend className="text-sm font-medium">
+            Ícono
+            <span className="ml-1.5 font-normal text-muted">(si no eliges, se asigna según el nombre)</span>
+          </legend>
+          <div className="grid grid-cols-4 gap-2 sm:grid-cols-7 lg:grid-cols-9">
+            <label className={ICON_CHOICE} title="Automático">
+              <input type="radio" name="icon" value="" defaultChecked={values.icon === ""} className="sr-only" />
+              <span className="flex h-7 items-center text-xs font-semibold text-soft">Auto</span>
+              <span className="text-[10px] leading-tight text-muted">Automático</span>
+            </label>
+            {SERVICE_ICON_KEYS.map((key) => (
+              <label key={key} className={ICON_CHOICE} title={SERVICE_ICONS[key]}>
+                <input type="radio" name="icon" value={key} defaultChecked={values.icon === key} className="sr-only" />
+                <ServiceIcon icon={key} size={26} />
+                <span className="line-clamp-1 text-[10px] leading-tight text-muted">{SERVICE_ICONS[key]}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
         <div className="grid grid-cols-2 gap-4">
           <ServiceFormField name="price" label="Precio base" error={errors.price}>
             {(props) => (

@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { ServiceIcon } from "@/components/service-icon";
+import { serviceIconOf } from "@/domain/service-icons";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
 import type { Service } from "@/db/schema";
@@ -20,11 +22,16 @@ function ServiceRow({ service, muted = false }: { service: Service; muted?: bool
         href={`/services/${service.id}`}
         className="flex flex-wrap items-center justify-between gap-x-6 gap-y-1.5 px-5 py-3.5 transition-colors hover:bg-canvas/70"
       >
-        <span className="min-w-0">
-          <span className={`block truncate font-medium ${muted ? "text-soft" : ""}`}>{service.name}</span>
-          <span className="mt-0.5 flex flex-wrap gap-x-3 text-sm text-soft">
-            <span>{describeFieldCount(service.fields.length)}</span>
-            {service.twoAddresses && <span>Dos direcciones</span>}
+        <span className="flex min-w-0 items-center gap-3.5">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-brand-soft text-brand-ink">
+            <ServiceIcon icon={serviceIconOf(service)} size={24} />
+          </span>
+          <span className="min-w-0">
+            <span className={`block truncate font-medium ${muted ? "text-soft" : ""}`}>{service.name}</span>
+            <span className="mt-0.5 flex flex-wrap gap-x-3 text-sm text-soft">
+              <span>{describeFieldCount(service.fields.length)}</span>
+              {service.twoAddresses && <span>Dos direcciones</span>}
+            </span>
           </span>
         </span>
         <span className="flex items-baseline gap-5 text-sm tabular-nums">

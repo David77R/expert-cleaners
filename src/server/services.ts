@@ -50,6 +50,7 @@ export async function createService(db: Db, actor: Actor, raw: CreateServiceInpu
       slug,
       name: input.name,
       category: input.category,
+      icon: input.icon ?? null,
       description: input.description ?? null,
       basePriceCents: input.basePriceCents,
       durationMin: input.durationMin,

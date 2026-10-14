@@ -33,11 +33,13 @@ export function CustomerPicker({
   onSelect,
   onClear,
   error,
+  onCreateNew,
 }: {
   selected: PickerCustomer | null;
   onSelect: (customer: PickerCustomer) => void;
   onClear: () => void;
   error?: string;
+  onCreateNew?: () => void;
 }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PickerCustomer[]>([]);
@@ -119,9 +121,19 @@ export function CustomerPicker({
       {searching && status === "done" && results.length === 0 && (
         <p className="text-sm text-soft">
           Sin resultados para «{term}».{" "}
-          <Link href="/customers/new" className="font-medium text-brand-ink underline underline-offset-2">
-            Crear cliente nuevo
-          </Link>
+          {onCreateNew ? (
+            <button
+              type="button"
+              onClick={onCreateNew}
+              className="font-medium text-brand-ink underline underline-offset-2"
+            >
+              Crear cliente nuevo
+            </button>
+          ) : (
+            <Link href="/customers/new" className="font-medium text-brand-ink underline underline-offset-2">
+              Crear cliente nuevo
+            </Link>
+          )}
         </p>
       )}
       {searching && status === "done" && results.length > 0 && (

@@ -43,6 +43,13 @@
       "when": 1791986617316,
       "tag": "0005_delivery_and_stages",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791990066745,
+      "tag": "0006_service_icon",
+      "breakpoints": true
     }
   ]
 }

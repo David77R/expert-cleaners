@@ -1,6 +1,7 @@
 import type { ServiceField } from "@/db/schema";
 import { ITEM_PREFIX, itemKey, readItemValues, validateItems } from "./appointment-items";
 import { parseTimeInput } from "./appointment-panel";
+import { serviceIconOf, type ServiceIconKey } from "./service-icons";
 import { DEFAULT_STATE, coordinatesFrom } from "./customer-form";
 
 export type AppointmentFormValues = Record<string, string>;
@@ -18,6 +19,7 @@ export type PickerCustomer = {
 export type FormService = {
   id: string;
   slug?: string;
+  iconKey?: ServiceIconKey;
   name: string;
   category: string;
   basePriceCents: number;
@@ -25,10 +27,11 @@ export type FormService = {
   twoAddresses: boolean;
   fields: ServiceField[];
 };
-export function toFormService(row: FormService): FormService {
+export function toFormService(row: FormService & { icon?: string | null }): FormService {
   return {
     id: row.id,
     slug: row.slug,
+    iconKey: serviceIconOf(row),
     name: row.name,
     category: row.category,
     basePriceCents: row.basePriceCents,
