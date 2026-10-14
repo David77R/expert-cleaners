@@ -12,11 +12,12 @@ import { calendarHref } from "@/lib/calendar-links";
 import { AppShell } from "@/components/app-header";
 import { CustomerAvatar } from "@/components/customer-avatar";
 import { Icon } from "@/components/icons";
+import { MergeCustomerForm } from "@/components/merge-customer-form";
 import { NoteForm } from "@/components/note-form";
 import { deleteCustomerAction } from "@/app/customers/[id]/actions";
 import { StatusBadge } from "@/components/status-badge";
 import { getActor } from "@/server/auth";
-import { customersByIds, getCustomer } from "@/server/customers";
+import { customersByIds, getCustomer, possibleDuplicates } from "@/server/customers";
 
 const NOTE_DATE = new Intl.DateTimeFormat("es-US", {
   timeZone: "America/New_York",
@@ -50,7 +51,10 @@ export default async function CustomerPage({ params, searchParams }: PageProps<"
   const justCreated = first(query.nuevo) === "1";
   const alreadyExisted = first(query.existente) === "1";
   const deleteFailed = first(query.error) === "no-eliminado";
-  const canDelete = actor.role === "admin" && customer.appointmentCount === 0;
+  const merged = first(query.aviso) === "unido";
+  const isAdmin = actor.role === "admin";
+  const canDelete = isAdmin && customer.appointmentCount === 0;
+  const mergeCandidates = isAdmin ? await possibleDuplicates(getDb(), customer) : [];
   const duplicateIds = justCreated
     ? parseDuplicateIds(first(query.dup), (value) => z.uuid().safeParse(value).success).filter(
         (id) => id !== customer.id,
@@ -70,6 +74,12 @@ export default async function CustomerPage({ params, searchParams }: PageProps<"
         {deleteFailed && (
           <p role="alert" className="rounded-md bg-attention-soft px-4 py-3 text-sm font-medium text-attention">
             No se pudo eliminar: este cliente tiene citas registradas.
+          </p>
+        )}
+
+        {merged && (
+          <p role="status" className="rounded-md bg-success-soft px-4 py-3 text-sm font-medium text-success">
+            Clientes unidos. Las citas, direcciones y notas del repetido ahora están aquí.
           </p>
         )}
 
@@ -232,6 +242,21 @@ export default async function CustomerPage({ params, searchParams }: PageProps<"
                   </li>
                 ))}
               </ol>
+            )}
+            {isAdmin && (
+              <details className="group rounded-md border border-hair bg-paper">
+                <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold">
+                  Unir con otro cliente
+                  {mergeCandidates.length > 0 && (
+                    <span className="ml-auto mr-2 rounded-[3px] bg-warning-soft px-2 py-0.5 text-xs font-medium text-warning">
+                      {mergeCandidates.length} posible{mergeCandidates.length === 1 ? "" : "s"} repetido
+                      {mergeCandidates.length === 1 ? "" : "s"}
+                    </span>
+                  )}
+                  <Icon name="right" className="transition-transform group-open:rotate-90" />
+                </summary>
+                <MergeCustomerForm customerId={customer.id} customerCode={customer.code} candidates={mergeCandidates} />
+              </details>
             )}
             {canDelete && (
               <details className="group rounded-md border border-hair bg-paper">

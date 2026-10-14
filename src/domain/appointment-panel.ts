@@ -101,6 +101,8 @@ export function describeChange(
       return `Precio: ${fromValue} → ${toValue}`;
     case "duration":
       return `Duración: ${fromValue} → ${toValue} min`;
+    case "customer":
+      return `Cliente: ${fromValue} → ${toValue}`;
     case "address":
       return `Dirección: ${toValue ?? "otra dirección"}`;
     case "destination_address":

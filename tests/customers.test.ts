@@ -5,14 +5,17 @@ import { addresses as addressesTable } from "@/db/schema";
 import { AGENT_JOSUE } from "@/db/seed-data";
 import { DomainError } from "@/domain/appointment-rules";
 import { escapeLike, isValidPhone, phoneDigits } from "@/domain/customer-rules";
-import { createAppointment } from "@/server/appointments";
+import { createAppointment, getAppointment } from "@/server/appointments";
 import {
   addAddress,
   addCustomerNote,
   createCustomer,
   deleteAddress,
   deleteCustomer,
+  findCustomerByCode,
   getCustomer,
+  mergeCustomers,
+  possibleDuplicates,
   locateMissingAddresses,
   searchCustomers,
   updateAddress,
@@ -368,5 +371,62 @@ describe("eliminar cliente", () => {
     await expect(deleteCustomer(ctx.db, ADMIN, "00000000-0000-4000-8000-0000000000fe")).rejects.toMatchObject({
       code: "not_found",
     });
+  });
+});
+
+describe("unir clientes repetidos", () => {
+  const ADMIN = { id: AGENT_JOSUE.id, name: "Admin", role: "admin" as const };
+  const second = { line1: "77 Ocean Dr", unit: "", city: "Miami Beach", state: "FL", zip: "33139" };
+
+  it("mueve citas, direcciones y notas al cliente que se queda y borra el repetido", async () => {
+    const { customer: keep } = await createCustomer(
+      ctx.db,
+      newCustomer({ firstName: "Marta", lastName: "Gil", phone: "786 555 0901" }),
+    );
+    const { customer: dup, addresses: dupAddresses } = await createCustomer(
+      ctx.db,
+      newCustomer({
+        firstName: "Marta",
+        lastName: "Gil Ruiz",
+        phone: "(786) 555-0901",
+        email: "marta@correo.test",
+        notes: "Llamar antes",
+        addresses: [{ ...home, line1: home.line1.toUpperCase() }, second],
+      }),
+    );
+    await addCustomerNote(ctx.db, AGENT_JOSUE, dup.id, { text: "Nota del repetido" });
+    const { appointment } = await createAppointment(
+      ctx.db,
+      AGENT_JOSUE,
+      appointmentInput(ctx, { customerId: dup.id, addressId: dupAddresses[0].id, date: "2026-11-04" }),
+    );
+
+    expect((await possibleDuplicates(ctx.db, dup)).map((c) => c.id)).toContain(keep.id);
+    await expect(mergeCustomers(ctx.db, AGENT_JOSUE, dup.id, keep.id)).rejects.toMatchObject({ code: "forbidden" });
+
+    const result = await mergeCustomers(ctx.db, ADMIN, dup.id, keep.id);
+    expect(result.movedAppointments).toBe(1);
+    await expect(getCustomer(ctx.db, dup.id)).rejects.toMatchObject({ code: "not_found" });
+
+    const detail = await getCustomer(ctx.db, keep.id);
+    expect(detail.email).toBe("marta@correo.test");
+    expect(detail.notes).toBe("Llamar antes");
+    expect(detail.addresses.map((a) => a.line1).sort()).toEqual([home.line1, second.line1].sort());
+    expect(detail.history.map((n) => n.text)).toEqual(
+      expect.arrayContaining(["Nota del repetido", expect.stringContaining(dup.code)]),
+    );
+    const moved = await getAppointment(ctx.db, appointment.id);
+    expect(moved.customerId).toBe(keep.id);
+    expect(moved.address.customerId).toBe(keep.id);
+    expect(moved.history.some((h) => h.field === "customer" && h.toValue === keep.code)).toBe(true);
+  });
+
+  it("no une un cliente consigo mismo y busca por código", async () => {
+    await expect(mergeCustomers(ctx.db, ADMIN, ctx.customer.id, ctx.customer.id)).rejects.toMatchObject({
+      code: "same_customer",
+    });
+    expect((await findCustomerByCode(ctx.db, ctx.customer.code.toLowerCase()))?.id).toBe(ctx.customer.id);
+    expect((await findCustomerByCode(ctx.db, ctx.customer.code.replace("CLI-", "")))?.id).toBe(ctx.customer.id);
+    expect(await findCustomerByCode(ctx.db, "CLI-99999")).toBeNull();
   });
 });

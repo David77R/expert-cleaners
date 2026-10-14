@@ -18,7 +18,7 @@ import { geocodeIfNeeded } from "@/server/geocoding";
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 type Actor = schema.Actor;
 
-const { customers, addresses, customerNotes, appointments, services } = schema;
+const { customers, addresses, customerNotes, appointments, appointmentHistory, services } = schema;
 
 export type DuplicateMatch = { id: string; code: string; firstName: string; lastName: string };
 
@@ -316,4 +316,103 @@ export async function addCustomerNote(db: Db, actor: Actor, customerId: string, 
     .values({ customerId, authorId: actor.id, authorName: actor.name, text: input.text })
     .returning();
   return note;
+}
+
+export async function possibleDuplicates(db: Db, customer: schema.Customer): Promise<DuplicateMatch[]> {
+  return db
+    .select({ id: customers.id, code: customers.code, firstName: customers.firstName, lastName: customers.lastName })
+    .from(customers)
+    .where(
+      and(
+        ne(customers.id, customer.id),
+        or(
+          sql`${phoneDigitsSql} = ${phoneDigits(customer.phone)}`,
+          and(
+            sql`lower(trim(${customers.firstName})) = lower(${customer.firstName.trim()})`,
+            sql`lower(trim(${customers.lastName})) = lower(${customer.lastName.trim()})`,
+          ),
+        ),
+      ),
+    )
+    .orderBy(asc(customers.code))
+    .limit(10);
+}
+
+export async function findCustomerByCode(db: Db, code: string): Promise<schema.Customer | null> {
+  const clean = code.trim().toUpperCase();
+  const normalized = /^\d+$/.test(clean) ? `CLI-${clean}` : clean;
+  const [row] = await db.select().from(customers).where(eq(customers.code, normalized)).limit(1);
+  return row ?? null;
+}
+
+function addressKey(address: Pick<schema.Address, "line1" | "unit" | "zip">): string {
+  const clean = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return `${clean(address.line1)}|${clean(address.unit)}|${clean(address.zip)}`;
+}
+
+export async function mergeCustomers(db: Db, actor: Actor, sourceId: string, targetId: string) {
+  assertAdmin(actor);
+  if (sourceId === targetId) throw new DomainError("same_customer", "Elige un cliente distinto para unir");
+  return db.transaction(async (tx) => {
+    const source = await requireCustomer(tx, sourceId);
+    const target = await requireCustomer(tx, targetId);
+
+    const targetAddresses = await tx.select().from(addresses).where(eq(addresses.customerId, target.id));
+    const byKey = new Map(targetAddresses.map((address) => [addressKey(address), address.id]));
+    const sourceAddresses = await tx.select().from(addresses).where(eq(addresses.customerId, source.id));
+    for (const address of sourceAddresses) {
+      const existing = byKey.get(addressKey(address));
+      if (existing) {
+        await tx.update(appointments).set({ addressId: existing }).where(eq(appointments.addressId, address.id));
+        await tx.delete(addresses).where(eq(addresses.id, address.id));
+      } else {
+        await tx.update(addresses).set({ customerId: target.id }).where(eq(addresses.id, address.id));
+        byKey.set(addressKey(address), address.id);
+      }
+    }
+
+    const moved = await tx
+      .update(appointments)
+      .set({ customerId: target.id, updatedAt: new Date() })
+      .where(eq(appointments.customerId, source.id))
+      .returning({ id: appointments.id });
+    if (moved.length > 0) {
+      await tx.insert(appointmentHistory).values(
+        moved.map((row) => ({
+          appointmentId: row.id,
+          actorId: actor.id,
+          actorName: actor.name,
+          actorRole: actor.role,
+          field: "customer",
+          fromValue: source.code,
+          toValue: target.code,
+        })),
+      );
+    }
+
+    await tx.update(customerNotes).set({ customerId: target.id }).where(eq(customerNotes.customerId, source.id));
+
+    const notes = [target.notes, source.notes]
+      .map((note) => note?.trim() ?? "")
+      .filter((note, index, list) => note !== "" && list.indexOf(note) === index)
+      .join("\n");
+    await tx
+      .update(customers)
+      .set({
+        email: target.email ?? source.email,
+        notes: notes === "" ? null : notes,
+        allowMarketing: target.allowMarketing || source.allowMarketing,
+      })
+      .where(eq(customers.id, target.id));
+
+    await tx.insert(customerNotes).values({
+      customerId: target.id,
+      authorId: actor.id,
+      authorName: actor.name,
+      text: `Se unió el cliente ${source.code} (${source.firstName} ${source.lastName}, ${source.phone}) con ${moved.length} ${moved.length === 1 ? "cita" : "citas"}.`,
+    });
+
+    await tx.delete(customers).where(eq(customers.id, source.id));
+    return { target, movedAppointments: moved.length };
+  });
 }
