@@ -179,8 +179,12 @@ export function AddressAutocomplete({
                 <span className="block text-xs text-soft">
                   {[suggestion.city, suggestion.state, suggestion.zip].filter(Boolean).join(", ")}
                 </span>
-                {suggestion.approximate && (
-                  <span className="block text-[11px] text-muted">Calle encontrada con tu número</span>
+                {suggestion.verified ? (
+                  <span className="block text-[11px] font-semibold text-success">Dirección verificada</span>
+                ) : (
+                  suggestion.approximate && (
+                    <span className="block text-[11px] text-muted">Calle encontrada con tu número</span>
+                  )
                 )}
               </li>
             ))

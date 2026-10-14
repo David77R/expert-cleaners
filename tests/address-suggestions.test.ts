@@ -5,6 +5,8 @@ import {
   chainGeocoders,
   createCensusGeocoder,
   hasHouseNumber,
+  mergeVerified,
+  parseCensusSuggestions,
   pickCensusMatch,
   pickGeocodeResult,
   rankSuggestions,
@@ -299,5 +301,92 @@ describe("ubicación exacta con el Census", () => {
     });
     expect(fetchMock).not.toHaveBeenCalled();
     expect(result).toEqual({ lat: 1, lng: 2 });
+  });
+});
+
+describe("sugerencias verificadas con el Census", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  const miamiMatch = {
+    coordinates: { x: -80.2094, y: 25.8487 },
+    addressComponents: {
+      preDirection: "NW",
+      streetName: "80TH",
+      suffixType: "TER",
+      city: "MIAMI",
+      state: "FL",
+      zip: "33150",
+    },
+  };
+
+  it("arma la dirección verificada en formato legible", () => {
+    expect(parseCensusSuggestions({ result: { addressMatches: [miamiMatch] } }, "795")).toEqual([
+      {
+        label: "795 NW 80th Ter, Miami, FL 33150",
+        line1: "795 NW 80th Ter",
+        city: "Miami",
+        state: "FL",
+        zip: "33150",
+        lat: 25.8487,
+        lng: -80.2094,
+        verified: true,
+      },
+    ]);
+  });
+
+  it("pone primero la dirección que existe y descarta las calles donde ese número no existe", async () => {
+    vi.stubEnv("DATABASE_URL", "postgres://user:pass@localhost:5432/db");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon-key");
+    vi.stubEnv("ORS_API_KEY", "ors-key");
+    const street = (city: string, lng: number) =>
+      feature(
+        {
+          layer: "street",
+          street: "Northwest 80th Terrace",
+          locality: city,
+          region_a: "FL",
+          label: `NW 80th Ter, ${city}`,
+        },
+        [lng, 26.1],
+      );
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = new URL(String(input));
+      if (url.hostname.includes("openrouteservice")) {
+        return new Response(JSON.stringify({ features: [street("Sunrise", -80.3), street("Plantation", -80.25)] }));
+      }
+      if (url.pathname.endsWith("onelineaddress")) {
+        const address = url.searchParams.get("address") ?? "";
+        return new Response(
+          JSON.stringify({ result: { addressMatches: address.includes("Miami") ? [miamiMatch] : [] } }),
+        );
+      }
+      if (url.pathname.endsWith("/address")) {
+        return new Response(JSON.stringify({ result: { addressMatches: [] } }));
+      }
+      return new Response(JSON.stringify({ features: [] }));
+    });
+    const suggestions = await suggestAddresses("795 Northwest 80th Terrace");
+    expect(suggestions[0]).toMatchObject({ line1: "795 NW 80th Ter", city: "Miami", zip: "33150", verified: true });
+    expect(suggestions.some((s) => s.city === "Sunrise" || s.city === "Plantation")).toBe(false);
+  });
+
+  it("ordena varias verificadas por cercanía a Miami", () => {
+    const near = {
+      label: "a",
+      line1: "1 A St",
+      city: "Miami",
+      state: "FL",
+      zip: "33150",
+      lat: 25.85,
+      lng: -80.21,
+      verified: true,
+    };
+    const far = { ...near, label: "b", city: "Sunrise", lat: 26.15, lng: -80.3 };
+    expect(mergeVerified([far, near], []).map((s) => s.city)).toEqual(["Miami", "Sunrise"]);
   });
 });

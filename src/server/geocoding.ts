@@ -110,8 +110,77 @@ const CENSUS_URL = "https://geocoding.geo.census.gov/geocoder/locations/address"
 
 type CensusMatch = {
   coordinates?: { x?: number; y?: number };
-  addressComponents?: { zip?: string; city?: string; state?: string };
+  addressComponents?: {
+    zip?: string;
+    city?: string;
+    state?: string;
+    preDirection?: string;
+    preType?: string;
+    streetName?: string;
+    suffixType?: string;
+    suffixDirection?: string;
+  };
 };
+
+const CENSUS_ONELINE_URL = "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress";
+
+function titleWord(word: string): string {
+  const lower = word.toLowerCase();
+  return /^\d/.test(lower) ? lower : lower.charAt(0).toUpperCase() + lower.slice(1);
+}
+
+function titleCase(value: string): string {
+  return value.split(/\s+/).filter(Boolean).map(titleWord).join(" ");
+}
+
+export function parseCensusSuggestions(data: unknown, houseNumber: string): AddressSuggestion[] {
+  const matches = (data as { result?: { addressMatches?: CensusMatch[] } } | null)?.result?.addressMatches ?? [];
+  const suggestions: AddressSuggestion[] = [];
+  for (const match of matches) {
+    const { x, y } = match.coordinates ?? {};
+    const c = match.addressComponents ?? {};
+    if (typeof x !== "number" || typeof y !== "number" || !c.streetName) continue;
+    const street = [
+      (c.preDirection ?? "").toUpperCase(),
+      titleCase(c.preType ?? ""),
+      titleCase(c.streetName),
+      titleCase(c.suffixType ?? ""),
+      (c.suffixDirection ?? "").toUpperCase(),
+    ]
+      .filter(Boolean)
+      .join(" ");
+    const line1 = `${houseNumber} ${street}`;
+    const city = titleCase(c.city ?? "");
+    const state = (c.state ?? "").toUpperCase();
+    const zip = zip5(c.zip);
+    suggestions.push({
+      label: [line1, city, [state, zip].filter(Boolean).join(" ")].filter(Boolean).join(", "),
+      line1,
+      city,
+      state,
+      zip,
+      lat: y,
+      lng: x,
+      verified: true,
+    });
+  }
+  return suggestions;
+}
+
+async function requestCensusOneLine(address: string, timeoutMs: number): Promise<unknown> {
+  const url = new URL(CENSUS_ONELINE_URL);
+  url.searchParams.set("address", address);
+  url.searchParams.set("benchmark", "Public_AR_Current");
+  url.searchParams.set("format", "json");
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs), headers: { Accept: "application/json" } });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (error) {
+    console.error("Census geocoder failed", error);
+    return null;
+  }
+}
 
 export function hasHouseNumber(line1: string): boolean {
   return /^\s*\d+[A-Za-z]?(?:-\d+)?\s+\S/.test(line1);
@@ -140,7 +209,7 @@ export function pickCensusMatch(data: unknown, input: Pick<GeocodeInput, "zip" |
   };
 }
 
-async function requestCensus(input: GeocodeInput, withZip: boolean): Promise<unknown> {
+async function requestCensus(input: GeocodeInput, withZip: boolean, timeoutMs = 7000): Promise<unknown> {
   const url = new URL(CENSUS_URL);
   url.searchParams.set("street", input.line1.trim());
   if (input.city.trim()) url.searchParams.set("city", input.city.trim());
@@ -149,7 +218,7 @@ async function requestCensus(input: GeocodeInput, withZip: boolean): Promise<unk
   url.searchParams.set("benchmark", "Public_AR_Current");
   url.searchParams.set("format", "json");
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(7000), headers: { Accept: "application/json" } });
+    const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs), headers: { Accept: "application/json" } });
     if (!res.ok) {
       console.error(`Census geocoder ${res.status}: ${(await res.text()).slice(0, 300)}`);
       return null;
@@ -224,6 +293,7 @@ export type AddressSuggestion = {
   lat: number;
   lng: number;
   approximate?: boolean;
+  verified?: boolean;
   streetOnly?: boolean;
 };
 
@@ -447,6 +517,68 @@ function photonUrl(query: string): URL {
   return photon;
 }
 
+const SUGGEST_CENSUS_TIMEOUT_MS = 4500;
+const MAX_VERIFICATIONS = 4;
+
+function distanceToFocus(suggestion: Pick<AddressSuggestion, "lat" | "lng">): number {
+  return Math.hypot(suggestion.lat - MIAMI_FOCUS.lat, (suggestion.lng - MIAMI_FOCUS.lng) * 0.9);
+}
+
+async function censusFromQuery(query: string): Promise<AddressSuggestion[]> {
+  const house = splitHouseNumber(query);
+  if (!house) return [];
+  const hasPlace = query.includes(",");
+  const lines = hasPlace ? [query] : [`${query}, Miami, FL`, `${query}, FL`];
+  const results = await Promise.all(
+    lines.map((line) =>
+      requestCensusOneLine(line, SUGGEST_CENSUS_TIMEOUT_MS).then((data) => parseCensusSuggestions(data, house.number)),
+    ),
+  );
+  return results.flat();
+}
+
+export function mergeVerified(
+  verified: readonly AddressSuggestion[],
+  rest: readonly AddressSuggestion[],
+): AddressSuggestion[] {
+  const seen = new Set<string>();
+  const unique = [...verified]
+    .sort((a, b) => distanceToFocus(a) - distanceToFocus(b))
+    .filter((suggestion) => {
+      const key = `${suggestion.lat.toFixed(4)},${suggestion.lng.toFixed(4)}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  const labels = new Set(unique.map((suggestion) => suggestionKey(suggestion)));
+  return [...unique, ...rest.filter((suggestion) => !labels.has(suggestionKey(suggestion)))].slice(0, MAX_SUGGESTIONS);
+}
+
+async function verifyWithCensus(
+  houseNumber: string,
+  ranked: AddressSuggestion[],
+  direct: AddressSuggestion[],
+): Promise<AddressSuggestion[]> {
+  const candidates = ranked.filter((suggestion) => suggestion.approximate).slice(0, MAX_VERIFICATIONS);
+  const checks = await Promise.all(
+    candidates.map(async (candidate) => {
+      const data = await requestCensus(
+        { line1: candidate.line1, city: candidate.city, state: candidate.state || "FL", zip: "" },
+        false,
+        SUGGEST_CENSUS_TIMEOUT_MS,
+      );
+      return { candidate, found: parseCensusSuggestions(data, houseNumber) };
+    }),
+  );
+  const rejected = new Set(checks.filter((check) => check.found.length === 0).map((check) => check.candidate));
+  const verified = [...direct, ...checks.flatMap((check) => check.found)];
+  if (verified.length === 0) return ranked;
+  return mergeVerified(
+    verified,
+    ranked.filter((suggestion) => !rejected.has(suggestion) && !checks.some((check) => check.candidate === suggestion)),
+  );
+}
+
 export async function suggestAddresses(query: string): Promise<AddressSuggestion[]> {
   const textQuery = query.trim().replace(/\s+/g, " ");
   if (textQuery.length < 3) return [];
@@ -456,6 +588,7 @@ export async function suggestAddresses(query: string): Promise<AddressSuggestion
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.value;
 
   const { ORS_API_KEY } = env();
+  const censusDirect = censusFromQuery(textQuery);
   const [ors, photon] = await Promise.all([
     ORS_API_KEY
       ? fetchJson(orsSuggestionUrl(ORS_AUTOCOMPLETE_URL, ORS_API_KEY, textQuery), "OpenRouteService autocomplete").then(
@@ -473,6 +606,8 @@ export async function suggestAddresses(query: string): Promise<AddressSuggestion
     value = rankSuggestions(textQuery, [search]);
   }
 
+  const house = splitHouseNumber(textQuery);
+  if (house) value = await verifyWithCensus(house.number, value, await censusDirect);
   if (value.length > 0) {
     if (suggestionCache.size >= CACHE_LIMIT) suggestionCache.delete(suggestionCache.keys().next().value as string);
     suggestionCache.set(cacheKey, { at: Date.now(), value });
