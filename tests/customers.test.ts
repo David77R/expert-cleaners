@@ -1,5 +1,7 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { eq } from "drizzle-orm";
 import { ZodError } from "zod";
+import { addresses as addressesTable } from "@/db/schema";
 import { AGENT_JOSUE } from "@/db/seed-data";
 import { DomainError } from "@/domain/appointment-rules";
 import { escapeLike, isValidPhone, phoneDigits } from "@/domain/customer-rules";
@@ -10,11 +12,21 @@ import {
   createCustomer,
   deleteAddress,
   getCustomer,
+  locateMissingAddresses,
   searchCustomers,
   updateAddress,
   updateCustomer,
 } from "@/server/customers";
 import { appointmentInput, createTestDb } from "./helpers";
+
+vi.mock("@/server/geocoding", () => ({
+  geocodeIfNeeded: async <T extends { city: string; lat?: number | null; lng?: number | null }>(address: T) => {
+    if (address.lat != null && address.lng != null) return address;
+    const known: Record<string, [number, number]> = { Miami: [25.77, -80.19], Hialeah: [25.86, -80.28] };
+    const coords = known[address.city];
+    return coords ? { ...address, lat: coords[0], lng: coords[1] } : address;
+  },
+}));
 
 type Ctx = Awaited<ReturnType<typeof createTestDb>>;
 let ctx: Ctx;
@@ -268,5 +280,39 @@ describe("notas de cliente", () => {
     await expect(
       addCustomerNote(ctx.db, AGENT_JOSUE, "00000000-0000-4000-8000-0000000000ff", { text: "Hola" }),
     ).rejects.toMatchObject({ code: "not_found" });
+  });
+});
+
+describe("ubicación de direcciones para el mapa", () => {
+  it("ubica las direcciones al crear el cliente", async () => {
+    const { addresses } = await createCustomer(ctx.db, newCustomer({ phone: "786 555 0700" }));
+    expect(addresses[0]).toMatchObject({ lat: 25.77, lng: -80.19 });
+  });
+
+  it("vuelve a ubicar la dirección cuando cambia, pero no cuando solo cambian las notas", async () => {
+    const { customer, addresses } = await createCustomer(ctx.db, newCustomer({ phone: "786 555 0701" }));
+    const notesOnly = await updateAddress(ctx.db, customer.id, addresses[0].id, { notes: "Portón azul" });
+    expect(notesOnly).toMatchObject({ lat: 25.77, lng: -80.19 });
+
+    const moved = await updateAddress(ctx.db, customer.id, addresses[0].id, { city: "Hialeah" });
+    expect(moved).toMatchObject({ lat: 25.86, lng: -80.28 });
+
+    const unknown = await updateAddress(ctx.db, customer.id, addresses[0].id, { city: "Pueblo Desconocido" });
+    expect(unknown.lat).toBeNull();
+    expect(unknown.lng).toBeNull();
+  });
+
+  it("completa y guarda las coordenadas de direcciones guardadas antes de este cambio", async () => {
+    const { customer, addresses } = await createCustomer(ctx.db, newCustomer({ phone: "786 555 0702" }));
+    const [legacy] = await ctx.db
+      .update(addressesTable)
+      .set({ lat: null, lng: null })
+      .where(eq(addressesTable.id, addresses[0].id))
+      .returning();
+
+    const found = await locateMissingAddresses(ctx.db, [legacy, legacy]);
+    expect(found.get(legacy.id)).toEqual({ lat: 25.77, lng: -80.19 });
+    const [saved] = (await getCustomer(ctx.db, customer.id)).addresses;
+    expect(saved).toMatchObject({ lat: 25.77, lng: -80.19 });
   });
 });

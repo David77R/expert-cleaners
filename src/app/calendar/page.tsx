@@ -19,6 +19,7 @@ import { MonthView } from "@/components/month-view";
 import { WeekView } from "@/components/week-view";
 import { getAppointment, getDay, getRange } from "@/server/appointments";
 import { getActor } from "@/server/auth";
+import { locateMissingAddresses } from "@/server/customers";
 import { panelPhotos } from "@/server/photos";
 import { listRouteDraftsForDay } from "@/server/route-drafts";
 import { getPhotoStorage } from "@/server/storage";
@@ -77,6 +78,17 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
     }));
 
     const activeMapAppointments = mapData.appointments.filter((a) => a.status !== "cancelled");
+    const unlocated = activeMapAppointments.filter((a) => a.address.lat == null || a.address.lng == null);
+    if (unlocated.length > 0) {
+      const located = await locateMissingAddresses(
+        db,
+        unlocated.map((a) => a.address),
+      );
+      for (const appointment of unlocated) {
+        const coords = located.get(appointment.address.id);
+        if (coords) appointment.address = { ...appointment.address, ...coords };
+      }
+    }
     mapStops = activeMapAppointments
       .filter((a) => a.address.lat != null && a.address.lng != null)
       .map((a) => ({

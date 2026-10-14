@@ -60,6 +60,7 @@ function definedOnly<T extends Record<string, unknown>>(value: T): Partial<T> {
 
 export async function createCustomer(db: Db, raw: CreateCustomerInput) {
   const input = createCustomerSchema.parse(raw);
+  const located = await Promise.all(input.addresses.map((address) => geocodeIfNeeded(address)));
   return db.transaction(async (tx) => {
     const code = await nextCode(tx);
     const [customer] = await tx
@@ -78,7 +79,7 @@ export async function createCustomer(db: Db, raw: CreateCustomerInput) {
     const created = await tx
       .insert(addresses)
       .values(
-        input.addresses.map((a) => ({
+        located.map((a) => ({
           customerId: customer.id,
           line1: a.line1,
           unit: a.unit,
@@ -180,7 +181,7 @@ export async function getCustomer(db: Db, id: string) {
 }
 
 export async function addAddress(db: Db, customerId: string, raw: unknown) {
-  const input = addressSnapshotSchema.parse(raw);
+  const input = await geocodeIfNeeded(addressSnapshotSchema.parse(raw));
   await requireCustomer(db, customerId);
   const [address] = await db
     .insert(addresses)
@@ -199,11 +200,47 @@ export async function addAddress(db: Db, customerId: string, raw: unknown) {
   return address;
 }
 
+const LOCATION_FIELDS = ["line1", "unit", "city", "state", "zip"] as const;
+
 export async function updateAddress(db: Db, customerId: string, addressId: string, raw: unknown) {
   const input = updateAddressSchema.parse(raw);
-  await requireAddress(db, customerId, addressId);
-  const [address] = await db.update(addresses).set(definedOnly(input)).where(eq(addresses.id, addressId)).returning();
+  const current = await requireAddress(db, customerId, addressId);
+  const patch: Record<string, unknown> = definedOnly(input);
+
+  const moved = LOCATION_FIELDS.some((field) => input[field] !== undefined && input[field] !== current[field]);
+  const coordsGiven = input.lat !== undefined || input.lng !== undefined;
+  if (moved && !coordsGiven) {
+    const located = await geocodeIfNeeded({
+      line1: input.line1 ?? current.line1,
+      unit: input.unit ?? current.unit,
+      city: input.city ?? current.city,
+      state: input.state ?? current.state,
+      zip: input.zip ?? current.zip,
+      lat: null,
+      lng: null,
+    });
+    patch.lat = located.lat ?? null;
+    patch.lng = located.lng ?? null;
+  }
+
+  const [address] = await db.update(addresses).set(patch).where(eq(addresses.id, addressId)).returning();
   return address;
+}
+
+export async function locateMissingAddresses(
+  db: Db,
+  rows: { id: string; line1: string; unit: string | null; city: string; state: string; zip: string }[],
+  limit = 10,
+): Promise<Map<string, { lat: number; lng: number }>> {
+  const found = new Map<string, { lat: number; lng: number }>();
+  const unique = [...new Map(rows.map((row) => [row.id, row])).values()].slice(0, limit);
+  for (const row of unique) {
+    const located = await geocodeIfNeeded({ ...row, unit: row.unit ?? undefined, lat: null, lng: null });
+    if (located.lat == null || located.lng == null) continue;
+    await db.update(addresses).set({ lat: located.lat, lng: located.lng }).where(eq(addresses.id, row.id));
+    found.set(row.id, { lat: located.lat, lng: located.lng });
+  }
+  return found;
 }
 
 export async function deleteAddress(db: Db, customerId: string, addressId: string) {

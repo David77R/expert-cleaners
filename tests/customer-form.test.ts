@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { ZodError } from "zod";
 import {
   customerFieldErrors,
@@ -10,6 +10,10 @@ import {
 import { createCustomerSchema } from "@/domain/schemas";
 import { createCustomer, customersByIds } from "@/server/customers";
 import { createTestDb } from "./helpers";
+
+vi.mock("@/server/geocoding", () => ({
+  geocodeIfNeeded: async (address: unknown) => address,
+}));
 
 function formData(entries: Record<string, string>): FormData {
   const data = new FormData();
