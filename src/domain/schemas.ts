@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { STAGE_KEYS } from "./delivery";
 import { MAX_ITEMS } from "./appointment-items";
 import { CANCEL_REASONS } from "./appointment-rules";
 import { isValidPhone } from "./customer-rules";
@@ -227,6 +228,20 @@ export const rescheduleSchema = z.object({
 
 export const setAddressSchema = z.object({ addressId: z.uuid("Elige una dirección") });
 
+export const stageSchema = z.object({
+  stage: z.enum(STAGE_KEYS, "Etapa no válida"),
+  done: z.boolean(),
+});
+
+export const readyDateSchema = z.object({ readyDate: isoDate.nullable() });
+
+export const deliverySchema = z.object({
+  date: isoDate,
+  startMin: minutes,
+  durationMin: z.number().int().min(15).max(720),
+  technicianId: z.uuid("Elige un técnico"),
+});
+
 export const updateItemsSchema = z.object({
   items: itemsSchema,
   durationMin: z.number().int().min(15).max(720).optional(),
@@ -270,7 +285,7 @@ export const routeDraftSaveSchema = z.object({
   date: isoDate,
   mode: z.enum(["tech", "service"]),
   groupKey: z.string().trim().min(1),
-  stopIds: z.array(z.uuid()).min(2),
+  stopIds: z.array(z.string().regex(/^[0-9a-f-]{36}(:entrega)?$/i, "Parada no válida")).min(2),
 });
 
 export const routeDraftDeleteSchema = z.object({

@@ -21,6 +21,8 @@ export function CalendarToolbar({
   tech,
   technicians,
   mapa,
+  entregas,
+  deliveryCount,
 }: {
   view: CalendarView;
   date: string;
@@ -28,10 +30,13 @@ export function CalendarToolbar({
   tech: string | null;
   technicians: CalendarTechnician[];
   mapa: boolean;
+  entregas: boolean;
+  deliveryCount: number;
 }) {
   const heading = viewHeading(view, date);
-  const previous = calendarHref({ view, date: shiftAnchor(view, date, -1), tech });
-  const next = calendarHref({ view, date: shiftAnchor(view, date, 1), tech });
+  const previous = calendarHref({ view, date: shiftAnchor(view, date, -1), tech, entregas });
+  const next = calendarHref({ view, date: shiftAnchor(view, date, 1), tech, entregas });
+  const toggleHref = calendarHref({ view, date, tech, mapa, entregas: !entregas });
   const atToday = view === "day" ? date === today : false;
   const newAppointmentParams = new URLSearchParams({ date });
   if (tech) newAppointmentParams.set("tech", tech);
@@ -50,7 +55,7 @@ export function CalendarToolbar({
               <Icon name="left" />
             </Link>
             <Link
-              href={calendarHref({ view, date: today, tech })}
+              href={calendarHref({ view, date: today, tech, entregas })}
               aria-current={atToday ? "date" : undefined}
               className={`flex h-10 items-center border-x border-hair px-4 text-sm font-semibold transition-colors ${
                 atToday ? "bg-brand-soft text-brand-ink" : "text-ink hover:bg-canvas"
@@ -75,6 +80,27 @@ export function CalendarToolbar({
 
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           <Link
+            href={toggleHref}
+            scroll={false}
+            aria-pressed={entregas}
+            className={`flex items-center gap-2 rounded-md border px-3.5 py-2.5 text-sm font-semibold transition-colors ${
+              entregas
+                ? "border-brand bg-brand-soft text-brand-ink"
+                : "border-dashed border-hair bg-paper text-soft hover:text-ink"
+            }`}
+          >
+            <span
+              aria-hidden="true"
+              className={`flex h-4 w-4 items-center justify-center rounded-[3px] border text-[10px] ${
+                entregas ? "border-brand bg-brand text-white" : "border-hair"
+              }`}
+            >
+              {entregas ? "✓" : ""}
+            </span>
+            Entregas
+            <span className="font-display tabular-nums text-muted">{deliveryCount}</span>
+          </Link>
+          <Link
             href={newAppointmentHref}
             className="flex items-center gap-2 rounded-md bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
           >
@@ -87,7 +113,7 @@ export function CalendarToolbar({
               return (
                 <Link
                   key={option}
-                  href={calendarHref({ view: option, date, tech })}
+                  href={calendarHref({ view: option, date, tech, entregas })}
                   aria-current={current ? "true" : undefined}
                   className={`-mb-px border-b-[3px] px-4 py-2.5 text-sm font-semibold transition-colors ${
                     current ? "border-brand text-ink" : "border-transparent text-muted hover:text-ink"
@@ -98,7 +124,7 @@ export function CalendarToolbar({
               );
             })}
             <Link
-              href={calendarHref({ view: "day", date, tech, mapa: true })}
+              href={calendarHref({ view: "day", date, tech, mapa: true, entregas })}
               aria-current={mapa ? "true" : undefined}
               className={`-mb-px flex items-center gap-1.5 border-b-[3px] px-4 py-2.5 text-sm font-semibold transition-colors ${
                 mapa ? "border-brand text-ink" : "border-transparent text-muted hover:text-ink"
@@ -113,7 +139,7 @@ export function CalendarToolbar({
 
       <div className="flex flex-wrap items-center gap-x-1 gap-y-2" role="group" aria-label="Filtrar por técnico">
         <Link
-          href={calendarHref({ view, date })}
+          href={calendarHref({ view, date, entregas })}
           aria-current={tech === null ? "true" : undefined}
           className={`border-b-2 px-3 py-1.5 text-sm font-medium transition-colors ${
             tech === null ? "border-ink text-ink" : "border-transparent text-muted hover:text-ink"
@@ -126,7 +152,7 @@ export function CalendarToolbar({
           return (
             <Link
               key={technician.id}
-              href={calendarHref({ view, date, tech: technician.id })}
+              href={calendarHref({ view, date, tech: technician.id, entregas })}
               aria-current={current ? "true" : undefined}
               className={`flex items-center gap-2 border-b-2 px-3 py-1.5 text-sm font-medium transition-colors ${
                 current ? "text-ink" : "border-transparent text-muted hover:text-ink"

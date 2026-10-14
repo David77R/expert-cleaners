@@ -1,8 +1,21 @@
 import { z } from "zod";
-import { cancelSchema, moveSchema, rescheduleSchema, addressSnapshotSchema, updateItemsSchema } from "@/domain/schemas";
+import {
+  addressSnapshotSchema,
+  cancelSchema,
+  deliverySchema,
+  moveSchema,
+  readyDateSchema,
+  rescheduleSchema,
+  stageSchema,
+  updateItemsSchema,
+} from "@/domain/schemas";
 import {
   advanceInvoice,
   cancelAppointment,
+  clearDelivery,
+  scheduleDelivery,
+  setReadyDate,
+  setStage,
   completeAppointment,
   confirmAppointment,
   markPaid,
@@ -31,6 +44,10 @@ export const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("update_notes"), notes: z.string() }),
   z.object({ action: z.literal("set_address"), addressId: z.string() }),
   z.object({ action: z.literal("update_items") }).extend(updateItemsSchema.shape),
+  z.object({ action: z.literal("set_stage") }).extend(stageSchema.shape),
+  z.object({ action: z.literal("set_ready_date") }).extend(readyDateSchema.shape),
+  z.object({ action: z.literal("schedule_delivery") }).extend(deliverySchema.shape),
+  z.object({ action: z.literal("clear_delivery") }),
 ]);
 
 export type AppointmentAction = z.infer<typeof actionSchema>;
@@ -62,5 +79,13 @@ export async function runAction(db: Db, actor: Actor, id: string, raw: unknown):
       return setAppointmentAddress(db, actor, id, { addressId: input.addressId });
     case "update_items":
       return updateAppointmentItems(db, actor, id, input);
+    case "set_stage":
+      return setStage(db, actor, id, input);
+    case "set_ready_date":
+      return setReadyDate(db, actor, id, input);
+    case "schedule_delivery":
+      return scheduleDelivery(db, actor, id, input);
+    case "clear_delivery":
+      return clearDelivery(db, actor, id);
   }
 }

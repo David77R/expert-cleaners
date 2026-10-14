@@ -157,3 +157,9 @@ export function serviceLabel(appointment: {
   if (items.length <= 1) return items[0]?.service.name ?? appointment.service.name;
   return `${items[0].service.name} +${items.length - 1}`;
 }
+
+export function orderSummary(items: readonly { service: { name: string } }[]): string[] {
+  const counts = new Map<string, number>();
+  for (const item of items) counts.set(item.service.name, (counts.get(item.service.name) ?? 0) + 1);
+  return [...counts.entries()].map(([name, total]) => `${name} x ${total}`);
+}

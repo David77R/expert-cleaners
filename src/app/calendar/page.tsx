@@ -6,6 +6,8 @@ import { DomainError } from "@/domain/appointment-rules";
 import { parseView, summarize, viewRange } from "@/domain/calendar-view";
 import { minutesNowIn, todayIn } from "@/domain/date-rules";
 import { serviceLabel } from "@/domain/appointment-items";
+import { asDeliveryEntry, deliveryKey } from "@/domain/delivery";
+import type { CalendarAppointment } from "@/components/calendar-types";
 import { toFormService } from "@/domain/appointment-form";
 import { isoDate } from "@/domain/schemas";
 import { AppShell } from "@/components/app-header";
@@ -19,7 +21,7 @@ import { MapViewLoader } from "@/components/map-view-loader";
 import type { MapRouteDraft, MapServiceOption, MapStop, MapTechnicianOption } from "@/components/map-view";
 import { MonthView } from "@/components/month-view";
 import { WeekView } from "@/components/week-view";
-import { getAppointment, getDay, getRange } from "@/server/appointments";
+import { getAppointment, getDay, getDeliveries, getRange } from "@/server/appointments";
 import { getActor } from "@/server/auth";
 import { locateMissingAddresses } from "@/server/customers";
 import { panelPhotos } from "@/server/photos";
@@ -41,6 +43,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
   const date = parsedDate.data;
   const view = parseView(first(params.view));
   const mapa = first(params.mapa) === "1";
+  const entregas = first(params.entregas) === "1";
   const nowMin = date === today ? minutesNowIn() : null;
 
   const db = getDb();
@@ -48,12 +51,24 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
   const requested = z.uuid().safeParse(first(params.tech));
   const tech = requested.success && allTechnicians.some((t) => t.id === requested.data) ? requested.data : null;
   const visibleTechnicians = tech ? allTechnicians.filter((t) => t.id === tech) : allTechnicians;
-  const nav = { view, date, tech };
+  const nav = { view, date, tech, entregas };
 
   const data =
     view === "day" || mapa
       ? await getDay(db, date, tech ?? undefined)
       : await getRange(db, { ...viewRange(view, date), technicianId: tech ?? undefined });
+  const deliveryRange = view === "day" || mapa ? { from: date, to: date } : viewRange(view, date);
+  const deliveryRows = await getDeliveries(
+    db,
+    deliveryRange.from,
+    deliveryRange.to,
+    mapa ? undefined : (tech ?? undefined),
+  );
+  const deliveryEntries: CalendarAppointment[] = deliveryRows.flatMap((row) => {
+    const entry = asDeliveryEntry(row);
+    return entry ? [entry] : [];
+  });
+  const entries: CalendarAppointment[] = entregas ? [...data.appointments, ...deliveryEntries] : data.appointments;
   const summary = summarize(data.appointments, data.overlapIds);
   // En el Mapa no mostramos el aviso de "citas con solape": ese indicador es de choques de
   // horario del día normal, no de rutas, y ahí solo estorba la vista. Más adelante lo
@@ -91,25 +106,56 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
         if (coords) appointment.address = { ...appointment.address, ...coords };
       }
     }
-    mapStops = activeMapAppointments
-      .filter((a) => a.address.lat != null && a.address.lng != null)
-      .map((a) => ({
-        id: a.id,
-        code: a.code,
-        startMin: a.startMin,
-        durationMin: a.durationMin,
-        customerName: `${a.customer.firstName} ${a.customer.lastName}`,
-        lat: a.address.lat as number,
-        lng: a.address.lng as number,
-        technicianId: a.technician.id,
-        technicianName: a.technician.name,
-        technicianColor: a.technician.color,
-        serviceId: a.service.id,
-        serviceName: serviceLabel(a),
-        address: `${a.address.line1}${a.address.unit ? ` ${a.address.unit}` : ""}, ${a.address.city}, ${a.address.state} ${a.address.zip}`,
-        notes: a.notes,
-      }));
+    const toStop = (a: (typeof activeMapAppointments)[number]) => ({
+      id: a.id,
+      code: a.code,
+      startMin: a.startMin,
+      durationMin: a.durationMin,
+      customerName: `${a.customer.firstName} ${a.customer.lastName}`,
+      lat: a.address.lat as number,
+      lng: a.address.lng as number,
+      technicianId: a.technician.id,
+      technicianName: a.technician.name,
+      technicianColor: a.technician.color,
+      serviceId: a.service.id,
+      serviceName: serviceLabel(a),
+      address: `${a.address.line1}${a.address.unit ? ` ${a.address.unit}` : ""}, ${a.address.city}, ${a.address.state} ${a.address.zip}`,
+      notes: a.notes,
+    });
+    mapStops = activeMapAppointments.filter((a) => a.address.lat != null && a.address.lng != null).map(toStop);
     missingCoords = activeMapAppointments.length - mapStops.length;
+
+    if (entregas) {
+      const unlocatedDeliveries = deliveryRows.filter(
+        (a) => !a.destinationAddress && (a.address.lat == null || a.address.lng == null),
+      );
+      if (unlocatedDeliveries.length > 0) {
+        const located = await locateMissingAddresses(
+          db,
+          unlocatedDeliveries.map((a) => a.address),
+        );
+        for (const row of unlocatedDeliveries) {
+          const coords = located.get(row.address.id);
+          if (coords) row.address = { ...row.address, ...coords };
+        }
+      }
+      for (const row of deliveryRows) {
+        const entry = asDeliveryEntry(row);
+        const place = row.destinationAddress ?? row.address;
+        if (!entry || place.lat == null || place.lng == null) {
+          missingCoords += 1;
+          continue;
+        }
+        mapStops.push({
+          ...toStop(entry),
+          id: deliveryKey(row.id),
+          kind: "delivery",
+          lat: place.lat,
+          lng: place.lng,
+          address: `${place.line1}${place.unit ? ` ${place.unit}` : ""}, ${place.city}, ${place.state} ${place.zip}`,
+        });
+      }
+    }
   }
 
   const requestedAppointment = z.uuid().safeParse(first(params.appt));
@@ -136,13 +182,22 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
           selected ? "2xl:pr-[26rem]" : ""
         }`}
       >
-        <CalendarToolbar view={view} date={date} today={today} tech={tech} technicians={allTechnicians} mapa={mapa} />
+        <CalendarToolbar
+          view={view}
+          date={date}
+          today={today}
+          tech={tech}
+          technicians={allTechnicians}
+          mapa={mapa}
+          entregas={entregas}
+          deliveryCount={deliveryEntries.length}
+        />
         <CalendarSummary summary={summaryForDisplay} />
 
         {mapa && (
           <>
             <MapViewLoader
-              key={date}
+              key={`${date}-${entregas ? "entregas" : "citas"}`}
               date={date}
               stops={mapStops}
               technicians={mapTechnicians}
@@ -160,7 +215,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
 
         {!mapa && view === "day" && (
           <DayGrid
-            appointments={data.appointments}
+            appointments={entries}
             overlapIds={data.overlapIds}
             technicians={visibleTechnicians}
             nav={nav}
@@ -177,13 +232,13 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
           <WeekView
             nav={nav}
             today={today}
-            appointments={data.appointments}
+            appointments={entries}
             overlapIds={data.overlapIds}
             selectedId={selectedId}
           />
         )}
         {!mapa && view === "month" && (
-          <MonthView nav={nav} today={today} appointments={data.appointments} overlapIds={data.overlapIds} />
+          <MonthView nav={nav} today={today} appointments={entries} overlapIds={data.overlapIds} />
         )}
 
         <CalendarLegend technicians={allTechnicians} />

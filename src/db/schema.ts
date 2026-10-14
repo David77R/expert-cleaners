@@ -1,4 +1,5 @@
 import { relations } from "drizzle-orm";
+import type { AppointmentStages } from "@/domain/delivery";
 import {
   boolean,
   date,
@@ -163,6 +164,12 @@ export const appointments = pgTable(
     notes: text("notes").notNull().default(""),
     specs: jsonb("specs").$type<Record<string, string | number>>().notNull().default({}),
     alerts: jsonb("alerts").$type<AppointmentAlert[]>().notNull().default([]),
+    readyDate: date("ready_date", { mode: "string" }),
+    stages: jsonb("stages").$type<AppointmentStages>().notNull().default({}),
+    deliveryDate: date("delivery_date", { mode: "string" }),
+    deliveryStartMin: integer("delivery_start_min"),
+    deliveryDurationMin: integer("delivery_duration_min"),
+    deliveryTechnicianId: uuid("delivery_technician_id").references(() => technicians.id),
     cancellationReason: text("cancellation_reason"),
     rescheduleReason: text("reschedule_reason"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -172,6 +179,7 @@ export const appointments = pgTable(
     index("appointments_date_tech_idx").on(t.date, t.technicianId),
     index("appointments_customer_idx").on(t.customerId),
     index("appointments_status_idx").on(t.status),
+    index("appointments_delivery_date_idx").on(t.deliveryDate),
   ],
 );
 
@@ -261,7 +269,16 @@ export const appointmentsRelations = relations(appointments, ({ one, many }) => 
   customer: one(customers, { fields: [appointments.customerId], references: [customers.id] }),
   address: one(addresses, { fields: [appointments.addressId], references: [addresses.id] }),
   service: one(services, { fields: [appointments.serviceId], references: [services.id] }),
-  technician: one(technicians, { fields: [appointments.technicianId], references: [technicians.id] }),
+  technician: one(technicians, {
+    fields: [appointments.technicianId],
+    references: [technicians.id],
+    relationName: "appointment_technician",
+  }),
+  deliveryTechnician: one(technicians, {
+    fields: [appointments.deliveryTechnicianId],
+    references: [technicians.id],
+    relationName: "delivery_technician",
+  }),
   agent: one(profiles, { fields: [appointments.agentId], references: [profiles.id] }),
   items: many(appointmentItems),
   history: many(appointmentHistory),

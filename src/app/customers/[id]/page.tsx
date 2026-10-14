@@ -3,19 +3,15 @@ import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { getDb } from "@/db/client";
 import { DomainError } from "@/domain/appointment-rules";
-import { formatDayLabel } from "@/domain/calendar-view";
-import { formatMinutes } from "@/domain/appointment-rules";
 import { parseDuplicateIds } from "@/domain/customer-form";
 import { formatPhone } from "@/domain/customer-rules";
-import { formatMoney } from "@/domain/invoice";
-import { calendarHref } from "@/lib/calendar-links";
 import { AppShell } from "@/components/app-header";
 import { CustomerAvatar } from "@/components/customer-avatar";
 import { Icon } from "@/components/icons";
+import { CustomerAppointmentsTable } from "@/components/customer-appointments-table";
 import { MergeCustomerForm } from "@/components/merge-customer-form";
 import { NoteForm } from "@/components/note-form";
 import { deleteCustomerAction } from "@/app/customers/[id]/actions";
-import { StatusBadge } from "@/components/status-badge";
 import { getActor } from "@/server/auth";
 import { customersByIds, getCustomer, possibleDuplicates } from "@/server/customers";
 
@@ -179,44 +175,6 @@ export default async function CustomerPage({ params, searchParams }: PageProps<"
                 ))}
               </ul>
             </section>
-
-            <section className="flex flex-col gap-3">
-              <h2 className="font-display text-lg font-semibold">
-                Citas recientes <span className="text-sm font-normal text-muted">({customer.appointmentCount})</span>
-              </h2>
-              {customer.appointments.length === 0 ? (
-                <p className="rounded-md border border-dashed border-hair bg-paper px-4 py-8 text-center text-sm text-muted">
-                  Este cliente todavía no tiene citas.
-                </p>
-              ) : (
-                <ul className="overflow-hidden rounded-md border border-hair bg-paper">
-                  {customer.appointments.map((appointment) => (
-                    <li key={appointment.id} className="border-b border-hair last:border-b-0">
-                      <Link
-                        href={calendarHref({ view: "day", date: appointment.date })}
-                        className="flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-3 transition-colors hover:bg-brand-soft/40"
-                      >
-                        <span className="flex w-28 shrink-0 flex-col leading-tight">
-                          <span className="text-sm font-semibold">{formatDayLabel(appointment.date)}</span>
-                          <span className="flex items-center gap-1 text-xs tabular-nums text-muted">
-                            <Icon name="clock" size={11} />
-                            {formatMinutes(appointment.startMin)}
-                          </span>
-                        </span>
-                        <span className="flex min-w-0 flex-1 flex-col leading-tight">
-                          <span className="truncate text-sm font-medium">{appointment.serviceName}</span>
-                          <span className="text-xs text-muted">{appointment.code}</span>
-                        </span>
-                        <StatusBadge status={appointment.status} compact />
-                        <span className="w-20 text-right text-sm font-medium tabular-nums">
-                          {formatMoney(appointment.priceCents)}
-                        </span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
           </div>
 
           <aside className="flex min-w-0 flex-col gap-4">
@@ -283,6 +241,26 @@ export default async function CustomerPage({ params, searchParams }: PageProps<"
             )}
           </aside>
         </div>
+
+        <section className="flex flex-col gap-3">
+          <h2 className="font-display text-lg font-semibold">
+            Citas{" "}
+            <span className="text-sm font-normal text-muted">
+              ({customer.appointmentCount}
+              {customer.appointmentCount > customer.appointments.length
+                ? `, se muestran las ${customer.appointments.length} más recientes`
+                : ""}
+              )
+            </span>
+          </h2>
+          {customer.appointments.length === 0 ? (
+            <p className="rounded-md border border-dashed border-hair bg-paper px-4 py-8 text-center text-sm text-muted">
+              Este cliente todavía no tiene citas.
+            </p>
+          ) : (
+            <CustomerAppointmentsTable rows={customer.appointments} />
+          )}
+        </section>
       </main>
     </AppShell>
   );

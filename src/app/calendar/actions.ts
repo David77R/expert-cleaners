@@ -67,3 +67,19 @@ export async function moveAppointmentAction(
   revalidatePath("/calendar");
   return result;
 }
+
+export async function stageAction(id: string, previous: ActionState, formData: FormData) {
+  return run(id, previous, "set_stage", formData);
+}
+
+export async function readyDateAction(id: string, previous: ActionState, formData: FormData) {
+  return run(id, previous, "set_ready_date", formData);
+}
+
+export async function deliveryAction(id: string, previous: ActionState, formData: FormData) {
+  return run(id, previous, "schedule_delivery", formData);
+}
+
+export async function clearDeliveryAction(id: string, previous: ActionState, formData: FormData) {
+  return run(id, previous, "clear_delivery", formData);
+}

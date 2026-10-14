@@ -2,6 +2,7 @@ import Link from "next/link";
 import { serviceLabel } from "@/domain/appointment-items";
 import { WEEKDAY_SHORT, isInSameMonth, monthWeeks } from "@/domain/calendar-view";
 import { formatMinutes } from "@/domain/appointment-rules";
+import { entryKey } from "@/domain/delivery";
 import { calendarHref } from "@/lib/calendar-links";
 import { Icon } from "@/components/icons";
 import type { CalendarAppointment, CalendarNav } from "@/components/calendar-types";
@@ -33,6 +34,7 @@ export function MonthView({
     if (appointment.status === "cancelled") continue;
     byDate.set(appointment.date, [...(byDate.get(appointment.date) ?? []), appointment]);
   }
+  for (const list of byDate.values()) list.sort((a, b) => a.startMin - b.startMin);
 
   return (
     <div className="overflow-hidden rounded-md border border-hair bg-paper">
@@ -57,7 +59,7 @@ export function MonthView({
           return (
             <Link
               key={date}
-              href={calendarHref({ view: "day", date, tech })}
+              href={calendarHref({ view: "day", date, tech, entregas: nav.entregas })}
               aria-label={`${Number(date.slice(8, 10))}: ${items.length} citas`}
               className={`flex min-h-[78px] min-w-0 flex-col gap-1 border-hair p-1.5 transition-colors hover:bg-brand-soft/50 sm:min-h-[116px] sm:p-2 ${
                 index % 7 !== 6 ? "border-r" : ""
@@ -96,14 +98,19 @@ export function MonthView({
                   <span className="hidden min-w-0 flex-col gap-0.5 sm:flex">
                     {chips.map((appointment) => (
                       <span
-                        key={appointment.id}
-                        className="truncate rounded-[3px] border-l-[4px] px-1.5 py-0.5 text-[11px] leading-tight text-ink"
+                        key={entryKey(appointment)}
+                        className={`truncate rounded-[3px] border-l-[4px] px-1.5 py-0.5 text-[11px] leading-tight text-ink ${
+                          appointment.kind === "delivery" ? "border border-dashed border-brand/50 border-l-[4px]" : ""
+                        }`}
                         style={{
                           borderLeftColor: appointment.technician.color,
                           backgroundColor: `${appointment.technician.color}1f`,
                         }}
                       >
                         <span className="font-semibold tabular-nums">{shortTime(appointment.startMin)}</span>{" "}
+                        {appointment.kind === "delivery" && (
+                          <span className="font-semibold text-brand-ink">Entrega · </span>
+                        )}
                         {serviceLabel(appointment)}
                       </span>
                     ))}

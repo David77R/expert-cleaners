@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { WEEKDAY_LONG, weekDates, weekdayIndex } from "@/domain/calendar-view";
+import { entryKey } from "@/domain/delivery";
 import { calendarHref } from "@/lib/calendar-links";
 import { AppointmentTicket } from "@/components/appointment-ticket";
 import { Icon } from "@/components/icons";
@@ -26,13 +27,13 @@ export function WeekView({
   return (
     <div className="grid grid-cols-1 divide-y divide-hair overflow-hidden rounded-md border border-hair bg-paper md:grid-cols-2 md:divide-y-0 lg:grid-cols-7 lg:divide-x">
       {dates.map((date) => {
-        const dayAppointments = appointments.filter((a) => a.date === date);
-        const active = dayAppointments.filter((a) => a.status !== "cancelled").length;
+        const dayAppointments = appointments.filter((a) => a.date === date).sort((a, b) => a.startMin - b.startMin);
+        const active = dayAppointments.filter((a) => a.status !== "cancelled" && a.kind !== "delivery").length;
         const isToday = date === today;
         const hasOverlap = dayAppointments.some((a) => overlap.has(a.id));
         const visible = dayAppointments.slice(0, MAX_PER_DAY);
         const hidden = dayAppointments.length - visible.length;
-        const dayHref = calendarHref({ view: "day", date, tech: nav.tech });
+        const dayHref = calendarHref({ view: "day", date, tech: nav.tech, entregas: nav.entregas });
         const weekday = WEEKDAY_LONG[weekdayIndex(date)];
 
         return (
@@ -77,11 +78,11 @@ export function WeekView({
             ) : (
               <ul className="flex flex-col gap-2">
                 {visible.map((appointment) => (
-                  <li key={appointment.id}>
+                  <li key={entryKey(appointment)}>
                     <AppointmentTicket
                       appointment={appointment}
                       nav={nav}
-                      conflicting={overlap.has(appointment.id)}
+                      conflicting={appointment.kind !== "delivery" && overlap.has(appointment.id)}
                       selected={appointment.id === selectedId}
                       detail="full"
                     />

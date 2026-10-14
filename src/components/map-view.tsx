@@ -22,6 +22,7 @@ export type MapStop = {
   serviceName: string;
   address: string;
   notes: string;
+  kind?: "delivery";
 };
 
 export type MapTechnicianOption = { id: string; name: string; color: string };
@@ -40,11 +41,13 @@ const DRAFT_ROUTE_COLOR = "#7c3aed";
 const DEFAULT_CENTER: [number, number] = [25.7617, -80.1918]; // Miami-Dade
 const DEFAULT_ZOOM = 10;
 
-function numberedIcon(order: number, color: string, draggable = false): L.DivIcon {
+function numberedIcon(order: number, color: string, draggable = false, delivery = false): L.DivIcon {
   const textColor = readableOn(color);
   const border = draggable ? "border:2px dashed #fff;cursor:grab" : "border:2px solid #fff;cursor:pointer";
+  const shape = delivery ? "rounded-[5px] rotate-45" : "rounded-full";
+  const label = delivery ? `<span class="-rotate-45">${order}</span>` : `${order}`;
   return L.divIcon({
-    html: `<div style="background:${color};color:${textColor};${border}" class="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold shadow-md">${order}</div>`,
+    html: `<div style="background:${color};color:${textColor};${border}" class="flex h-7 w-7 items-center justify-center ${shape} text-[11px] font-bold shadow-md">${label}</div>`,
     className: "",
     iconSize: [28, 28],
     iconAnchor: [14, 14],
@@ -450,7 +453,7 @@ export function MapView({
           <Marker
             key={stop.id}
             position={[stop.lat, stop.lng]}
-            icon={numberedIcon(index + 1, group.color, isEditingThis)}
+            icon={numberedIcon(index + 1, group.color, isEditingThis, stop.kind === "delivery")}
             draggable={isEditingThis}
             eventHandlers={{
               click: () => setSelectedStop(stop),
@@ -460,6 +463,7 @@ export function MapView({
             <Tooltip direction="top" offset={[0, -16]} opacity={1}>
               <div className="text-xs">
                 <p className="font-semibold">
+                  {stop.kind === "delivery" && "Entrega · "}
                   {stop.code} — {stop.customerName}
                 </p>
                 <p className="text-muted">{stop.serviceName}</p>
@@ -828,7 +832,14 @@ export function MapView({
           <div className="relative flex w-full max-w-md flex-col gap-4 rounded-lg border border-hair bg-white p-5 shadow-lg">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="font-display text-lg font-semibold">{selectedStop.code}</p>
+                <p className="font-display text-lg font-semibold">
+                  {selectedStop.code}
+                  {selectedStop.kind === "delivery" && (
+                    <span className="ml-2 rounded-[3px] bg-brand-soft px-1.5 py-0.5 align-middle text-[11px] font-bold uppercase tracking-wide text-brand-ink">
+                      Entrega
+                    </span>
+                  )}
+                </p>
                 <p className="text-sm text-muted">{selectedStop.serviceName}</p>
               </div>
               <button

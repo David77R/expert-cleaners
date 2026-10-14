@@ -20,10 +20,14 @@ import {
   setAddressSchema,
   addressSnapshotSchema,
   updateItemsSchema,
+  stageSchema,
+  readyDateSchema,
+  deliverySchema,
   type CreateAppointmentInput,
 } from "@/domain/schemas";
 import { fieldsForService, itemsTotal, summarizeItems, type ItemInput } from "@/domain/appointment-items";
 import { formatAddress, formatMoney } from "@/domain/invoice";
+import { hasDelivery } from "@/domain/delivery";
 import { geocodeIfNeeded } from "@/server/geocoding";
 
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
@@ -468,6 +472,96 @@ export async function updateAppointmentItems(db: Db, actor: Actor, id: string, r
   });
 }
 
+function assertEditable(current: AppointmentRow) {
+  if (current.status === "cancelled") {
+    throw new DomainError("cancelled", "Una cita cancelada no se puede modificar");
+  }
+}
+
+export async function setStage(db: Db, actor: Actor, id: string, raw: unknown): Promise<Mutation> {
+  const { stage, done } = stageSchema.parse(raw);
+  return db.transaction(async (tx) => {
+    const current = await load(tx, id);
+    assertEditable(current);
+    if (Boolean(current.stages[stage]) === done) return { appointment: current, conflicts: [] };
+    const stages = { ...current.stages };
+    if (done) stages[stage] = { at: new Date().toISOString(), by: actor.name };
+    else delete stages[stage];
+    const updated = await persist(tx, actor, current, { stages }, [
+      { field: "stage", from: stage, to: done ? "done" : "undone" },
+    ]);
+    return { appointment: updated, conflicts: [] };
+  });
+}
+
+export async function setReadyDate(db: Db, actor: Actor, id: string, raw: unknown): Promise<Mutation> {
+  const { readyDate } = readyDateSchema.parse(raw);
+  return db.transaction(async (tx) => {
+    const current = await load(tx, id);
+    assertEditable(current);
+    if (current.readyDate === readyDate) return { appointment: current, conflicts: [] };
+    const updated = await persist(tx, actor, current, { readyDate }, [
+      { field: "ready_date", from: current.readyDate, to: readyDate },
+    ]);
+    return { appointment: updated, conflicts: [] };
+  });
+}
+
+function deliveryLabel(date: string, startMin: number): string {
+  return `${date} ${formatMinutes(startMin)}`;
+}
+
+export async function scheduleDelivery(db: Db, actor: Actor, id: string, raw: unknown): Promise<Mutation> {
+  const input = deliverySchema.parse(raw);
+  return db.transaction(async (tx) => {
+    const current = await load(tx, id);
+    assertEditable(current);
+    if (input.date < current.date) {
+      throw new DomainError("delivery_before_service", "La entrega no puede ser antes de la fecha de la cita");
+    }
+    const [tech] = await tx.select().from(technicians).where(eq(technicians.id, input.technicianId)).limit(1);
+    if (!tech || !tech.active) throw new DomainError("technician_unavailable", "El técnico no está activo");
+
+    const previous = hasDelivery(current) ? deliveryLabel(current.deliveryDate, current.deliveryStartMin) : null;
+    const updated = await persist(
+      tx,
+      actor,
+      current,
+      {
+        deliveryDate: input.date,
+        deliveryStartMin: input.startMin,
+        deliveryDurationMin: input.durationMin,
+        deliveryTechnicianId: input.technicianId,
+      },
+      [{ field: "delivery", from: previous, to: deliveryLabel(input.date, input.startMin) }],
+    );
+    const conflicts = await conflictsFor(tx, {
+      id: current.id,
+      technicianId: input.technicianId,
+      date: input.date,
+      startMin: input.startMin,
+      durationMin: input.durationMin,
+      status: current.status,
+    });
+    return { appointment: updated, conflicts };
+  });
+}
+
+export async function clearDelivery(db: Db, actor: Actor, id: string): Promise<Mutation> {
+  return db.transaction(async (tx) => {
+    const current = await load(tx, id);
+    if (!hasDelivery(current)) return { appointment: current, conflicts: [] };
+    const updated = await persist(
+      tx,
+      actor,
+      current,
+      { deliveryDate: null, deliveryStartMin: null, deliveryDurationMin: null, deliveryTechnicianId: null },
+      [{ field: "delivery", from: deliveryLabel(current.deliveryDate, current.deliveryStartMin), to: null }],
+    );
+    return { appointment: updated, conflicts: [] };
+  });
+}
+
 export async function updateNotes(db: Db, actor: Actor, id: string, notes: string): Promise<Mutation> {
   return db.transaction(async (tx) => {
     const current = await load(tx, id);
@@ -507,6 +601,7 @@ export async function getDay(db: Db, date: string, technicianId?: string) {
       address: true,
       service: true,
       technician: true,
+      deliveryTechnician: true,
       items: { orderBy: [asc(appointmentItems.position)], with: { service: true } },
     },
     orderBy: [asc(appointments.startMin)],
@@ -526,6 +621,7 @@ export async function getRange(db: Db, raw: unknown) {
       address: true,
       service: true,
       technician: true,
+      deliveryTechnician: true,
       items: { orderBy: [asc(appointmentItems.position)], with: { service: true } },
     },
     orderBy: [asc(appointments.date), asc(appointments.startMin)],
@@ -538,6 +634,27 @@ export async function getRange(db: Db, raw: unknown) {
   return { appointments: rows, overlapIds: overlapIdsOf(rows), countsByDate };
 }
 
+export async function getDeliveries(db: Db, from: string, to: string, technicianId?: string) {
+  const conditions = [
+    gte(appointments.deliveryDate, from),
+    lte(appointments.deliveryDate, to),
+    ne(appointments.status, "cancelled"),
+  ];
+  if (technicianId) conditions.push(eq(appointments.deliveryTechnicianId, technicianId));
+  return db.query.appointments.findMany({
+    where: and(...conditions),
+    with: {
+      customer: true,
+      address: true,
+      service: true,
+      technician: true,
+      deliveryTechnician: true,
+      items: { orderBy: [asc(appointmentItems.position)], with: { service: true } },
+    },
+    orderBy: [asc(appointments.deliveryDate), asc(appointments.deliveryStartMin)],
+  });
+}
+
 export async function getAppointment(db: Db, id: string) {
   const row = await db.query.appointments.findFirst({
     where: eq(appointments.id, id),
@@ -546,6 +663,7 @@ export async function getAppointment(db: Db, id: string) {
       address: true,
       service: true,
       technician: true,
+      deliveryTechnician: true,
       items: { orderBy: [asc(appointmentItems.position)], with: { service: true } },
       agent: true,
       photos: true,

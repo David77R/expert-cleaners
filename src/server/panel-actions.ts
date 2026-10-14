@@ -16,7 +16,11 @@ export type PanelAction =
   | "reschedule"
   | "update_notes"
   | "set_address"
-  | "update_items";
+  | "update_items"
+  | "set_stage"
+  | "set_ready_date"
+  | "schedule_delivery"
+  | "clear_delivery";
 
 export type ActionResult = { ok: true; notice?: string } | { ok: false; error: string };
 
@@ -41,6 +45,18 @@ export function payloadFromForm(action: PanelAction, form: FormData): Record<str
       return { action, notes: text(form, "notes").trim() };
     case "set_address":
       return { action, addressId: text(form, "addressId") };
+    case "set_stage":
+      return { action, stage: text(form, "stage"), done: text(form, "done") === "1" };
+    case "set_ready_date":
+      return { action, readyDate: text(form, "readyDate") || null };
+    case "schedule_delivery":
+      return {
+        action,
+        date: text(form, "deliveryDate"),
+        startMin: parseTimeInput(text(form, "deliveryTime")) ?? undefined,
+        durationMin: Number(text(form, "deliveryDuration")),
+        technicianId: text(form, "deliveryTechnicianId"),
+      };
     case "update_items": {
       const values = readAppointmentForm(form);
       return {
@@ -66,6 +82,8 @@ function friendlyIssue(issue: ZodIssue): string {
       return "Elige un técnico válido";
     case "addressId":
       return "Elige una dirección";
+    case "readyDate":
+      return "Elige una fecha válida";
     case "items":
       return issue.path.includes("priceCents")
         ? "Revisa los precios: deben ser números positivos"
@@ -90,6 +108,13 @@ export async function executeAction(
   try {
     const result = await runAction(db, actor, appointmentId, payload);
     const kind = (payload as { action?: string })?.action;
+    if (kind === "schedule_delivery" && result.conflicts.length > 0) {
+      const count = result.conflicts.length;
+      return {
+        ok: true,
+        notice: `Entrega programada. Se solapa con ${count} ${count === 1 ? "cita" : "citas"} del técnico: revisa el horario.`,
+      };
+    }
     if ((kind === "reschedule" || kind === "move") && result.conflicts.length > 0) {
       const count = result.conflicts.length;
       return {

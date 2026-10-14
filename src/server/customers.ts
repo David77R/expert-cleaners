@@ -18,7 +18,7 @@ import { geocodeIfNeeded } from "@/server/geocoding";
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 type Actor = schema.Actor;
 
-const { customers, addresses, customerNotes, appointments, appointmentHistory, services } = schema;
+const { customers, addresses, customerNotes, appointments, appointmentHistory } = schema;
 
 export type DuplicateMatch = { id: string; code: string; firstName: string; lastName: string };
 
@@ -185,21 +185,19 @@ export async function getCustomer(db: Db, id: string) {
   });
   if (!row) throw new DomainError("not_found", "El cliente no existe");
 
-  const recentAppointments = await db
-    .select({
-      id: appointments.id,
-      code: appointments.code,
-      date: appointments.date,
-      startMin: appointments.startMin,
-      status: appointments.status,
-      priceCents: appointments.priceCents,
-      serviceName: services.name,
-    })
-    .from(appointments)
-    .innerJoin(services, eq(services.id, appointments.serviceId))
-    .where(eq(appointments.customerId, id))
-    .orderBy(desc(appointments.date), desc(appointments.startMin))
-    .limit(20);
+  const recentAppointments = await db.query.appointments.findMany({
+    where: eq(appointments.customerId, id),
+    with: {
+      address: true,
+      service: true,
+      agent: true,
+      technician: true,
+      deliveryTechnician: true,
+      items: { orderBy: [asc(schema.appointmentItems.position)], with: { service: true } },
+    },
+    orderBy: [desc(appointments.date), desc(appointments.startMin)],
+    limit: 50,
+  });
 
   const [{ total }] = await db.select({ total: count() }).from(appointments).where(eq(appointments.customerId, id));
 

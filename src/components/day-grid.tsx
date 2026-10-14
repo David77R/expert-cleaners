@@ -4,6 +4,7 @@ import { initialsOf, layoutSlots, offShiftRanges, readableOn } from "@/domain/ca
 import { AppointmentTicket } from "@/components/appointment-ticket";
 import { DragTicket } from "@/components/drag-ticket";
 import { isDraggable } from "@/domain/drag-target";
+import { entryKey } from "@/domain/delivery";
 import { END_HOUR, HOUR_PX, START_HOUR, toPx } from "@/lib/day-grid";
 import type { CalendarAppointment, CalendarNav, CalendarTechnician } from "@/components/calendar-types";
 
@@ -37,7 +38,9 @@ export function DayGrid({
       >
         <div className="border-b border-hair" />
         {technicians.map((technician) => {
-          const count = appointments.filter((a) => a.technicianId === technician.id && a.status !== "cancelled").length;
+          const count = appointments.filter(
+            (a) => a.technicianId === technician.id && a.status !== "cancelled" && a.kind !== "delivery",
+          ).length;
           return (
             <div
               key={technician.id}
@@ -86,7 +89,7 @@ export function DayGrid({
 
         {technicians.map((technician) => {
           const own = appointments.filter((a) => a.technicianId === technician.id);
-          const layout = layoutSlots(own);
+          const layout = layoutSlots(own.map((a) => ({ ...a, id: entryKey(a) })));
           const off = offShiftRanges(technician, nav.date, START_HOUR * 60, END_HOUR * 60);
           return (
             <div
@@ -116,12 +119,13 @@ export function DayGrid({
                 </div>
               ))}
               {own.map((appointment) => {
-                const { column, columns } = layout.get(appointment.id) ?? { column: 0, columns: 1 };
+                const key = entryKey(appointment);
+                const { column, columns } = layout.get(key) ?? { column: 0, columns: 1 };
                 const height = Math.max((appointment.durationMin / 60) * HOUR_PX - 3, 46);
                 const detail = columns > 1 ? "minimal" : height >= 84 ? "full" : height >= 58 ? "medium" : "minimal";
                 return (
                   <DragTicket
-                    key={appointment.id}
+                    key={key}
                     appointmentId={appointment.id}
                     code={appointment.code}
                     serviceName={serviceLabel(appointment)}
@@ -129,7 +133,7 @@ export function DayGrid({
                     durationMin={appointment.durationMin}
                     technicianId={appointment.technicianId}
                     technicians={laneNames}
-                    draggable={isDraggable(appointment.status)}
+                    draggable={appointment.kind !== "delivery" && isDraggable(appointment.status)}
                     className="absolute z-10"
                     style={{
                       top: toPx(appointment.startMin) + 1,
@@ -141,7 +145,7 @@ export function DayGrid({
                     <AppointmentTicket
                       appointment={appointment}
                       nav={nav}
-                      conflicting={overlap.has(appointment.id)}
+                      conflicting={appointment.kind !== "delivery" && overlap.has(appointment.id)}
                       selected={appointment.id === selectedId}
                       detail={detail}
                       className="h-full w-full"

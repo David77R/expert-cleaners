@@ -13,7 +13,14 @@ import {
   setAppointmentAddress,
   setDestinationAddress,
   updateAppointmentItems,
+  setStage,
+  setReadyDate,
+  scheduleDelivery,
+  clearDelivery,
+  getDeliveries,
 } from "@/server/appointments";
+import { asDeliveryEntry, appointmentIdFromKey, currentStage, deliveryKey } from "@/domain/delivery";
+import { describeChange } from "@/domain/appointment-panel";
 import { addresses } from "@/db/schema";
 import { AGENT_JOSUE } from "@/db/seed-data";
 import { DomainError } from "@/domain/appointment-rules";
@@ -332,5 +339,98 @@ describe("varios servicios por cita", () => {
     expect(changed.appointment.destinationAddress?.unit).toBe("");
     const back = await updateAppointmentItems(ctx.db, AGENT_JOSUE, appointment.id, { items: [sofaItem] });
     expect(back.appointment.destinationAddress).toBeNull();
+  });
+});
+
+describe("etapas, listo en y entregas", () => {
+  it("marca y desmarca etapas con quién y cuándo", async () => {
+    const { appointment } = await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date: "2026-12-01" }));
+    const picked = await setStage(ctx.db, AGENT_JOSUE, appointment.id, { stage: "pickedUp", done: true });
+    expect(picked.appointment.stages.pickedUp?.by).toBe(AGENT_JOSUE.name);
+    const again = await setStage(ctx.db, AGENT_JOSUE, appointment.id, { stage: "pickedUp", done: true });
+    expect(again.appointment.stages.pickedUp?.at).toBe(picked.appointment.stages.pickedUp?.at);
+    const cleaned = await setStage(ctx.db, AGENT_JOSUE, appointment.id, { stage: "cleaned", done: true });
+    expect(currentStage(cleaned.appointment.stages)).toBe("cleaned");
+    const undone = await setStage(ctx.db, AGENT_JOSUE, appointment.id, { stage: "cleaned", done: false });
+    expect(undone.appointment.stages.cleaned).toBeUndefined();
+
+    const detail = await getAppointment(ctx.db, appointment.id);
+    const stageEntries = detail.history.filter((h) => h.field === "stage");
+    expect(stageEntries).toHaveLength(3);
+    expect(describeChange(stageEntries[0])).toBe("Limpiado: desmarcado");
+    await expect(setStage(ctx.db, AGENT_JOSUE, appointment.id, { stage: "otra", done: true })).rejects.toBeInstanceOf(
+      Error,
+    );
+  });
+
+  it("guarda y quita la fecha de listo", async () => {
+    const { appointment } = await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date: "2026-12-02" }));
+    const set = await setReadyDate(ctx.db, AGENT_JOSUE, appointment.id, { readyDate: "2026-12-04" });
+    expect(set.appointment.readyDate).toBe("2026-12-04");
+    const cleared = await setReadyDate(ctx.db, AGENT_JOSUE, appointment.id, { readyDate: null });
+    expect(cleared.appointment.readyDate).toBeNull();
+  });
+
+  it("programa la entrega otro día y aparece en las entregas de ese día", async () => {
+    const { appointment } = await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date: "2026-12-03" }));
+    await expect(
+      scheduleDelivery(ctx.db, AGENT_JOSUE, appointment.id, {
+        date: "2026-12-02",
+        startMin: 600,
+        durationMin: 60,
+        technicianId: ctx.techs[1].id,
+      }),
+    ).rejects.toMatchObject({ code: "delivery_before_service" });
+
+    const scheduled = await scheduleDelivery(ctx.db, AGENT_JOSUE, appointment.id, {
+      date: "2026-12-05",
+      startMin: 600,
+      durationMin: 45,
+      technicianId: ctx.techs[1].id,
+    });
+    expect(scheduled.appointment.deliveryDate).toBe("2026-12-05");
+
+    const deliveries = await getDeliveries(ctx.db, "2026-12-05", "2026-12-05");
+    expect(deliveries.map((d) => d.id)).toContain(appointment.id);
+    const entry = asDeliveryEntry(deliveries.find((d) => d.id === appointment.id)!);
+    expect(entry).toMatchObject({ kind: "delivery", date: "2026-12-05", startMin: 600, durationMin: 45 });
+    expect(entry?.technician.id).toBe(ctx.techs[1].id);
+    expect(await getDeliveries(ctx.db, "2026-12-05", "2026-12-05", ctx.techs[0].id)).toHaveLength(0);
+    expect((await getDay(ctx.db, "2026-12-05")).appointments.map((a) => a.id)).not.toContain(appointment.id);
+
+    await clearDelivery(ctx.db, AGENT_JOSUE, appointment.id);
+    expect(await getDeliveries(ctx.db, "2026-12-05", "2026-12-05")).toHaveLength(0);
+    const detail = await getAppointment(ctx.db, appointment.id);
+    expect(detail.history.filter((h) => h.field === "delivery").map((h) => describeChange(h))).toEqual([
+      "Entrega quitada",
+      "Entrega: 2026-12-05 10:00 AM",
+    ]);
+  });
+
+  it("avisa si la entrega choca con otra cita del técnico y oculta las canceladas", async () => {
+    await createAppointment(
+      ctx.db,
+      AGENT_JOSUE,
+      appointmentInput(ctx, { date: "2026-12-08", startMin: 540, technicianId: ctx.techs[2].id }),
+    );
+    const { appointment } = await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date: "2026-12-07" }));
+    const scheduled = await scheduleDelivery(ctx.db, AGENT_JOSUE, appointment.id, {
+      date: "2026-12-08",
+      startMin: 570,
+      durationMin: 60,
+      technicianId: ctx.techs[2].id,
+    });
+    expect(scheduled.conflicts.length).toBeGreaterThan(0);
+    await cancelAppointment(ctx.db, AGENT_JOSUE, appointment.id, { reason: "weather" });
+    expect(await getDeliveries(ctx.db, "2026-12-08", "2026-12-08")).toHaveLength(0);
+    await expect(
+      setStage(ctx.db, AGENT_JOSUE, appointment.id, { stage: "pickedUp", done: true }),
+    ).rejects.toMatchObject({ code: "cancelled" });
+  });
+
+  it("las claves de entrega se distinguen de la cita", () => {
+    const key = deliveryKey("11111111-1111-4111-8111-111111111111");
+    expect(key).toBe("11111111-1111-4111-8111-111111111111:entrega");
+    expect(appointmentIdFromKey(key)).toBe("11111111-1111-4111-8111-111111111111");
   });
 });

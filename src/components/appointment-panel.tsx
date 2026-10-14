@@ -1,5 +1,4 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
 import { CANCEL_REASON_LABELS, describeChange, minutesToTimeInput, panelActions } from "@/domain/appointment-panel";
 import { CANCEL_REASONS } from "@/domain/appointment-rules";
 import { formatDayLabel, formatRange, initialsOf, readableOn } from "@/domain/calendar-view";
@@ -23,15 +22,14 @@ import { ActionForm } from "@/components/action-form";
 import type { CalendarNav, CalendarTechnician } from "@/components/calendar-types";
 import { Icon } from "@/components/icons";
 import { PanelItemsForm } from "@/components/panel-items-form";
+import { AppointmentDeliverySection } from "@/components/appointment-delivery";
+import { Expandable, FIELD, Row, Section } from "@/components/panel-kit";
 import { PhotoGallery } from "@/components/photo-gallery";
 import { StatusBadge } from "@/components/status-badge";
 import type { getAppointment } from "@/server/appointments";
 import type { PanelPhotos } from "@/server/photos";
 
 type Detail = Awaited<ReturnType<typeof getAppointment>>;
-
-const FIELD =
-  "w-full rounded-md border border-hair bg-paper px-3 py-2 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20";
 
 const HISTORY_TIME = new Intl.DateTimeFormat("es-US", {
   timeZone: "America/New_York",
@@ -40,40 +38,6 @@ const HISTORY_TIME = new Intl.DateTimeFormat("es-US", {
   hour: "numeric",
   minute: "2-digit",
 });
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="flex flex-col gap-2.5 border-t border-hair px-5 py-4">
-      <h3 className="text-sm font-semibold">{title}</h3>
-      {children}
-    </section>
-  );
-}
-
-function Row({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex items-baseline justify-between gap-4 text-sm">
-      <dt className="shrink-0 text-soft">{label}</dt>
-      <dd className="min-w-0 text-right font-medium">{children}</dd>
-    </div>
-  );
-}
-
-function Expandable({ title, tone, children }: { title: string; tone?: "danger"; children: ReactNode }) {
-  return (
-    <details className="group rounded-md border border-hair bg-paper open:shadow-sm">
-      <summary
-        className={`flex cursor-pointer list-none items-center justify-between px-3.5 py-2.5 text-sm font-semibold ${
-          tone === "danger" ? "text-attention" : "text-ink"
-        }`}
-      >
-        {title}
-        <Icon name="right" className="transition-transform group-open:rotate-90" />
-      </summary>
-      <div className="border-t border-hair px-3.5 py-3">{children}</div>
-    </details>
-  );
-}
 
 export function AppointmentPanel({
   appointment,
@@ -332,6 +296,8 @@ export function AppointmentPanel({
             </Expandable>
           )}
         </Section>
+
+        <AppointmentDeliverySection appointment={appointment} technicians={technicians} nav={nav} />
 
         <Section title="Notas de la cita">
           <ActionForm action={notesAction.bind(null, id)} submit="Guardar notas" pendingText="Guardando…">

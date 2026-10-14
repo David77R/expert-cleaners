@@ -1,5 +1,6 @@
 import type { AppointmentStatus } from "@/db/schema";
 import { canTransition } from "./appointment-rules";
+import { STAGE_LABELS, isStageKey } from "./delivery";
 
 export const CANCEL_REASON_LABELS: Record<string, string> = {
   customer_cancelled: "El cliente canceló",
@@ -101,6 +102,12 @@ export function describeChange(
       return `Precio: ${fromValue} → ${toValue}`;
     case "duration":
       return `Duración: ${fromValue} → ${toValue} min`;
+    case "stage":
+      return `${isStageKey(fromValue) ? STAGE_LABELS[fromValue] : "Etapa"}: ${toValue === "done" ? "marcado" : "desmarcado"}`;
+    case "ready_date":
+      return toValue ? `Listo en: ${toValue}` : "Fecha de listo quitada";
+    case "delivery":
+      return toValue ? `Entrega: ${toValue}` : "Entrega quitada";
     case "customer":
       return `Cliente: ${fromValue} → ${toValue}`;
     case "address":

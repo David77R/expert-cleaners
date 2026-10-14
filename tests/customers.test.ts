@@ -223,7 +223,8 @@ describe("detalle de cliente", () => {
     expect(detail.history[0].text).toBe("Segunda nota");
     expect(detail.history[0].authorName).toBe(AGENT_JOSUE.name);
     expect(detail.appointments.length).toBeGreaterThan(0);
-    expect(detail.appointments[0].serviceName).toBeDefined();
+    expect(detail.appointments[0].service.name).toBeDefined();
+    expect(detail.appointments[0].agent.name).toBe(AGENT_JOSUE.name);
   });
 
   it("falla con not_found si no existe", async () => {
