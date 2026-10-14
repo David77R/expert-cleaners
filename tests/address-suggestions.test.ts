@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { parseSuggestions, pickGeocodeResult } from "@/server/geocoding";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { parsePhotonSuggestions, parseSuggestions, pickGeocodeResult, suggestAddresses } from "@/server/geocoding";
 
 function feature(properties: Record<string, unknown>, coordinates: [number, number] = [-80.22, 25.76]) {
   return { geometry: { coordinates }, properties };
@@ -94,5 +94,62 @@ describe("elegir el resultado de geocodificación", () => {
   it("no falla con respuestas vacías", () => {
     expect(pickGeocodeResult(null, { zip: "33134" })).toBeNull();
     expect(pickGeocodeResult({ features: [] }, { zip: "" })).toBeNull();
+  });
+});
+
+describe("sugerencias de respaldo", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("lee sugerencias de Photon con el estado en dos letras", () => {
+    const [first] = parsePhotonSuggestions({
+      features: [
+        {
+          geometry: { coordinates: [-80.26, 25.75] },
+          properties: {
+            housenumber: "405",
+            street: "Alhambra Circle",
+            city: "Coral Gables",
+            state: "Florida",
+            postcode: "33134",
+            countrycode: "US",
+          },
+        },
+        { geometry: { coordinates: [-3.7, 40.4] }, properties: { name: "Madrid", countrycode: "ES" } },
+      ],
+    });
+    expect(first).toEqual({
+      label: "405 Alhambra Circle, Coral Gables, FL 33134",
+      line1: "405 Alhambra Circle",
+      city: "Coral Gables",
+      state: "FL",
+      zip: "33134",
+      lat: 25.75,
+      lng: -80.26,
+    });
+  });
+
+  it("si el servicio principal no responde, busca en el respaldo", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes("photon")) {
+        return new Response(
+          JSON.stringify({
+            features: [
+              {
+                geometry: { coordinates: [-80.19, 25.76] },
+                properties: { housenumber: "1200", street: "Brickell Ave", city: "Miami", state: "Florida" },
+              },
+            ],
+          }),
+        );
+      }
+      return new Response("error", { status: 503 });
+    });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const suggestions = await suggestAddresses("1200 Brick");
+    expect(suggestions.map((s) => s.line1)).toEqual(["1200 Brickell Ave"]);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("photon"))).toBe(true);
   });
 });

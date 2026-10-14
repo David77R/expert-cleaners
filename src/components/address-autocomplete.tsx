@@ -4,7 +4,7 @@ import { useId, useRef, useState, type ChangeEvent, type KeyboardEvent } from "r
 import type { FieldControlProps } from "@/components/form-kit";
 import type { AddressSuggestion } from "@/server/geocoding";
 
-const MIN_CHARS = 4;
+const MIN_CHARS = 3;
 const DEBOUNCE_MS = 300;
 
 function fillField(form: HTMLFormElement | null, name: string, value: string) {

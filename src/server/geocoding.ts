@@ -157,7 +157,7 @@ export function parseSuggestions(data: unknown): AddressSuggestion[] {
       label: text(p.label) || line1,
       line1,
       city: text(p.locality) || text(p.localadmin) || text(p.county),
-      state: text(p.region_a).toUpperCase(),
+      state: stateCode(text(p.region_a) || text(p.region)),
       zip: text(p.postalcode),
       lat,
       lng,
@@ -169,25 +169,143 @@ export function parseSuggestions(data: unknown): AddressSuggestion[] {
   return suggestions;
 }
 
-export async function suggestAddresses(query: string): Promise<AddressSuggestion[]> {
-  const textQuery = query.trim();
-  if (textQuery.length < 3) return [];
-  const { ORS_API_KEY } = env();
-  if (!ORS_API_KEY) return [];
+const PHOTON_URL = "https://photon.komoot.io/api/";
+const SOUTH_FLORIDA_BBOX = "-81.9,24.4,-79.9,27.3";
 
-  const url = new URL(ORS_AUTOCOMPLETE_URL);
-  url.searchParams.set("api_key", ORS_API_KEY);
-  url.searchParams.set("text", textQuery);
+const US_STATES: Record<string, string> = {
+  alabama: "AL",
+  alaska: "AK",
+  arizona: "AZ",
+  arkansas: "AR",
+  california: "CA",
+  colorado: "CO",
+  connecticut: "CT",
+  delaware: "DE",
+  "district of columbia": "DC",
+  florida: "FL",
+  georgia: "GA",
+  hawaii: "HI",
+  idaho: "ID",
+  illinois: "IL",
+  indiana: "IN",
+  iowa: "IA",
+  kansas: "KS",
+  kentucky: "KY",
+  louisiana: "LA",
+  maine: "ME",
+  maryland: "MD",
+  massachusetts: "MA",
+  michigan: "MI",
+  minnesota: "MN",
+  mississippi: "MS",
+  missouri: "MO",
+  montana: "MT",
+  nebraska: "NE",
+  nevada: "NV",
+  "new hampshire": "NH",
+  "new jersey": "NJ",
+  "new mexico": "NM",
+  "new york": "NY",
+  "north carolina": "NC",
+  "north dakota": "ND",
+  ohio: "OH",
+  oklahoma: "OK",
+  oregon: "OR",
+  pennsylvania: "PA",
+  "rhode island": "RI",
+  "south carolina": "SC",
+  "south dakota": "SD",
+  tennessee: "TN",
+  texas: "TX",
+  utah: "UT",
+  vermont: "VT",
+  virginia: "VA",
+  washington: "WA",
+  "west virginia": "WV",
+  wisconsin: "WI",
+  wyoming: "WY",
+  "puerto rico": "PR",
+};
+
+function stateCode(value: string): string {
+  const clean = value.trim();
+  if (/^[A-Za-z]{2}$/.test(clean)) return clean.toUpperCase();
+  return US_STATES[clean.toLowerCase()] ?? clean;
+}
+
+export function parsePhotonSuggestions(data: unknown): AddressSuggestion[] {
+  const features = (data as { features?: PeliasFeature[] } | null)?.features ?? [];
+  const suggestions: AddressSuggestion[] = [];
+  for (const feature of features) {
+    const p = feature.properties ?? {};
+    if (text(p.countrycode) && text(p.countrycode).toUpperCase() !== "US") continue;
+    const [lng, lat] = feature.geometry?.coordinates ?? [];
+    if (typeof lat !== "number" || typeof lng !== "number") continue;
+    const street = [text(p.housenumber), text(p.street)].filter(Boolean).join(" ");
+    const line1 = street || text(p.name);
+    if (!line1) continue;
+    const city = text(p.city) || text(p.district) || text(p.county);
+    const state = stateCode(text(p.state));
+    const zip = text(p.postcode);
+    const label = [line1, city, [state, zip].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+    if (suggestions.some((s) => s.label === label)) continue;
+    suggestions.push({ label, line1, city, state, zip, lat, lng });
+    if (suggestions.length === MAX_SUGGESTIONS) break;
+  }
+  return suggestions;
+}
+
+async function fetchJson(url: URL, source: string): Promise<unknown> {
+  try {
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(6000),
+      headers: { Accept: "application/json", "User-Agent": "expert-cleaners/1.0" },
+    });
+    if (!res.ok) {
+      console.error(`${source} ${res.status}: ${(await res.text()).slice(0, 300)}`);
+      return null;
+    }
+    return await res.json();
+  } catch (error) {
+    console.error(`${source} failed`, error);
+    return null;
+  }
+}
+
+function orsSuggestionUrl(base: string, apiKey: string, query: string): URL {
+  const url = new URL(base);
+  url.searchParams.set("api_key", apiKey);
+  url.searchParams.set("text", query);
   url.searchParams.set("boundary.country", "US");
   url.searchParams.set("focus.point.lat", String(MIAMI_FOCUS.lat));
   url.searchParams.set("focus.point.lon", String(MIAMI_FOCUS.lng));
   url.searchParams.set("layers", "address,street,venue");
+  url.searchParams.set("size", String(MAX_SUGGESTIONS));
+  return url;
+}
 
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
-    if (!res.ok) return [];
-    return parseSuggestions(await res.json());
-  } catch {
-    return [];
+export async function suggestAddresses(query: string): Promise<AddressSuggestion[]> {
+  const textQuery = query.trim();
+  if (textQuery.length < 3) return [];
+
+  const { ORS_API_KEY } = env();
+  if (ORS_API_KEY) {
+    const auto = parseSuggestions(
+      await fetchJson(orsSuggestionUrl(ORS_AUTOCOMPLETE_URL, ORS_API_KEY, textQuery), "OpenRouteService autocomplete"),
+    );
+    if (auto.length > 0) return auto;
+    const search = parseSuggestions(
+      await fetchJson(orsSuggestionUrl(ORS_GEOCODE_URL, ORS_API_KEY, textQuery), "OpenRouteService search"),
+    );
+    if (search.length > 0) return search;
   }
+
+  const photon = new URL(PHOTON_URL);
+  photon.searchParams.set("q", textQuery);
+  photon.searchParams.set("limit", String(MAX_SUGGESTIONS * 2));
+  photon.searchParams.set("lang", "en");
+  photon.searchParams.set("lat", String(MIAMI_FOCUS.lat));
+  photon.searchParams.set("lon", String(MIAMI_FOCUS.lng));
+  photon.searchParams.set("bbox", SOUTH_FLORIDA_BBOX);
+  return parsePhotonSuggestions(await fetchJson(photon, "Photon"));
 }
