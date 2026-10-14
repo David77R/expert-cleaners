@@ -3,7 +3,13 @@ import { CANCEL_REASON_LABELS, describeChange, minutesToTimeInput, panelActions 
 import { CANCEL_REASONS } from "@/domain/appointment-rules";
 import { formatDayLabel, formatRange, initialsOf, readableOn } from "@/domain/calendar-view";
 import { formatPhone } from "@/domain/customer-rules";
-import { centsToDollars, fieldsForService, serviceLabel } from "@/domain/appointment-items";
+import {
+  centsToDollars,
+  describeDetails,
+  fieldsForService,
+  serviceLabel,
+  type ItemDetails,
+} from "@/domain/appointment-items";
 import type { FormService } from "@/domain/appointment-form";
 import { describeSpecs, formatAddress, formatMoney } from "@/domain/invoice";
 import { calendarHref } from "@/lib/calendar-links";
@@ -63,6 +69,7 @@ export function AppointmentPanel({
             id: appointment.id,
             service: appointment.service,
             specs: appointment.specs,
+            details: {} as ItemDetails,
             priceCents: appointment.priceCents,
           },
         ];
@@ -244,12 +251,29 @@ export function AppointmentPanel({
                   <span className="font-medium">{item.service.name}</span>
                   <span className="tabular-nums">{formatMoney(item.priceCents)}</span>
                 </div>
-                {describeSpecs(item.specs, fieldsForService(item.service)).length > 0 && (
+                {[...describeSpecs(item.specs, fieldsForService(item.service)), ...describeDetails(item.details)]
+                  .length > 0 && (
                   <p className="mt-1 text-xs text-soft">
-                    {describeSpecs(item.specs, fieldsForService(item.service))
+                    {[...describeSpecs(item.specs, fieldsForService(item.service)), ...describeDetails(item.details)]
                       .map((spec) => `${spec.label}: ${spec.value}`)
                       .join(" · ")}
                   </p>
+                )}
+                {photos.photos.some((photo) => photo.itemId === item.id) && (
+                  <ul className="mt-2 flex flex-wrap gap-1.5">
+                    {photos.photos
+                      .filter((photo) => photo.itemId === item.id)
+                      .map((photo) => (
+                        <li
+                          key={photo.id}
+                          className="h-12 w-12 overflow-hidden rounded-md border border-hair bg-canvas"
+                        >
+                          <a href={photo.url} target="_blank" rel="noreferrer" aria-label="Ver foto">
+                            <img src={photo.url} alt="" loading="lazy" className="h-full w-full object-cover" />
+                          </a>
+                        </li>
+                      ))}
+                  </ul>
                 )}
               </li>
             ))}
@@ -288,6 +312,9 @@ export function AppointmentPanel({
                     serviceId: item.service.id,
                     price: centsToDollars(item.priceCents),
                     specs: Object.fromEntries(Object.entries(item.specs).map(([key, value]) => [key, String(value)])),
+                    details: Object.fromEntries(
+                      Object.entries(item.details ?? {}).map(([key, value]) => [key, String(value)]),
+                    ),
                   }))}
                   durationMin={appointment.durationMin}
                   hasDestination={appointment.destinationAddress !== null}

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { ServiceField } from "@/db/schema";
 import {
   SOFA_DIMENSIONS,
+  cleanDetails,
+  describeDetails,
   fieldsForService,
   isSofaService,
   itemsPayloadFromValues,
@@ -58,6 +60,8 @@ describe("lectura de artículos", () => {
     "items.0.price": "",
     "items.0.spec.seats": "3",
     "items.0.spec.sofaLength": "84",
+    "items.0.detail.color": " Gris ",
+    "items.0.detail.size": "  ",
     notes: "x",
   };
 
@@ -65,6 +69,7 @@ describe("lectura de artículos", () => {
     const items = readItemValues(values);
     expect(items.map((item) => item.serviceId)).toEqual(["sofa", "carpet"]);
     expect(items[0].specs).toEqual({ seats: "3", sofaLength: "84" });
+    expect(items[0].details).toEqual({ color: " Gris ", size: "  " });
   });
 
   it("valida y convierte cada artículo", () => {
@@ -72,8 +77,8 @@ describe("lectura de artículos", () => {
     const { inputs, errors } = validateItems(readItemValues(values), find);
     expect(errors).toEqual({});
     expect(inputs).toEqual([
-      { serviceId: "sofa", specs: { seats: 3, sofaLength: 84 } },
-      { serviceId: "carpet", specs: { length: 12 }, priceCents: 8000 },
+      { serviceId: "sofa", specs: { seats: 3, sofaLength: 84 }, details: { color: "Gris" } },
+      { serviceId: "carpet", specs: { length: 12 }, details: {}, priceCents: 8000 },
     ]);
   });
 
@@ -94,8 +99,8 @@ describe("lectura de artículos", () => {
   it("arma el pedido del panel sin conocer los servicios", () => {
     expect(itemsPayloadFromValues({ ...values, durationMin: "90" })).toEqual({
       items: [
-        { serviceId: "sofa", specs: { seats: 3, sofaLength: 84 } },
-        { serviceId: "carpet", specs: { length: 12 }, priceCents: 8000 },
+        { serviceId: "sofa", specs: { seats: 3, sofaLength: 84 }, details: { color: "Gris" } },
+        { serviceId: "carpet", specs: { length: 12 }, details: {}, priceCents: 8000 },
       ],
       durationMin: 90,
     });
@@ -111,5 +116,19 @@ describe("textos", () => {
     };
     expect(serviceLabel(appointment)).toBe("Sofá +1");
     expect(serviceLabel({ service: { name: "Sofá" }, items: [] })).toBe("Sofá");
+  });
+});
+
+describe("detalles del artículo", () => {
+  it("limpia los detalles vacíos y los describe en orden", () => {
+    expect(cleanDetails({ color: " Beige ", size: "", dimensions: '84" x 36"', notes: "  ", otro: "x" })).toEqual({
+      color: "Beige",
+      dimensions: '84" x 36"',
+    });
+    expect(describeDetails({ notes: "Mancha de vino", color: "Gris" })).toEqual([
+      { label: "Color", value: "Gris" },
+      { label: "Notas", value: "Mancha de vino" },
+    ]);
+    expect(describeDetails(null)).toEqual([]);
   });
 });

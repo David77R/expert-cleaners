@@ -19,8 +19,16 @@ export type InvoiceSource = {
 export type InvoiceSourceItem = {
   service: { name: string; fields: readonly ServiceField[] };
   specs: Record<string, string | number>;
+  details?: Partial<Record<"color" | "size" | "dimensions" | "notes", string>>;
   priceCents: number;
 };
+
+const DETAIL_ORDER = [
+  ["color", "Color"],
+  ["size", "Tamaño"],
+  ["dimensions", "Dimensiones"],
+  ["notes", "Notas"],
+] as const;
 
 export type InvoiceLine = { name: string; specs: { label: string; value: string }[]; priceCents: number };
 
@@ -78,7 +86,13 @@ export function buildInvoice(source: InvoiceSource): InvoiceData {
       : [{ service: source.service, specs: source.specs, priceCents: source.priceCents }];
   const lines = items.map((item) => ({
     name: item.service.name,
-    specs: describeSpecs(item.specs, item.service.fields),
+    specs: [
+      ...describeSpecs(item.specs, item.service.fields),
+      ...DETAIL_ORDER.filter(([key]) => "details" in item && item.details?.[key]).map(([key, label]) => ({
+        label,
+        value: ("details" in item && item.details?.[key]) || "",
+      })),
+    ],
     priceCents: item.priceCents,
   }));
   return {

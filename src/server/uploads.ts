@@ -4,6 +4,10 @@ import { MAX_PHOTO_BYTES } from "@/domain/photo-rules";
 const MULTIPART_OVERHEAD_BYTES = 64 * 1024;
 
 export async function readPhotoUpload(request: Request): Promise<Uint8Array> {
+  return (await readPhotoUploadForm(request)).bytes;
+}
+
+export async function readPhotoUploadForm(request: Request): Promise<{ bytes: Uint8Array; itemId: string | null }> {
   const declared = Number(request.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > MAX_PHOTO_BYTES + MULTIPART_OVERHEAD_BYTES) {
     throw new DomainError("photo_too_large", `La foto supera el máximo de ${MAX_PHOTO_BYTES / (1024 * 1024)} MB`);
@@ -23,5 +27,9 @@ export async function readPhotoUpload(request: Request): Promise<Uint8Array> {
   if (file.size > MAX_PHOTO_BYTES) {
     throw new DomainError("photo_too_large", `La foto supera el máximo de ${MAX_PHOTO_BYTES / (1024 * 1024)} MB`);
   }
-  return new Uint8Array(await file.arrayBuffer());
+  const itemId = form.get("itemId");
+  return {
+    bytes: new Uint8Array(await file.arrayBuffer()),
+    itemId: typeof itemId === "string" && itemId.trim() !== "" ? itemId.trim() : null,
+  };
 }

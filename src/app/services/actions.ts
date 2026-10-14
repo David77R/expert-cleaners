@@ -48,15 +48,15 @@ export async function createServiceAction(previous: ServiceFormState, formData: 
   const errors = validateServiceForm(values);
   if (hasErrors(errors)) return { values, errors };
 
-  let created: Awaited<ReturnType<typeof createService>>;
   try {
-    created = await createService(getDb(), actor, createServiceInputFromForm(values));
+    await createService(getDb(), actor, createServiceInputFromForm(values));
   } catch (error) {
     return failure(error, values, "No se pudo crear el servicio. Inténtalo de nuevo.");
   }
 
   revalidatePath("/services");
-  redirect(`/services?aviso=creado&id=${created.id}`);
+  revalidatePath("/orders/new");
+  redirect("/orders/new?aviso=servicio-creado");
 }
 
 export async function updateServiceAction(
@@ -80,6 +80,7 @@ export async function updateServiceAction(
   }
 
   revalidatePath("/services");
+  revalidatePath("/orders/new");
   revalidatePath("/appointments/new");
-  redirect(`/services?aviso=actualizado&id=${id}`);
+  redirect("/orders/new?aviso=servicio-actualizado");
 }

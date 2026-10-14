@@ -8,12 +8,13 @@ import { MAX_PHOTOS_PER_APPOINTMENT, photoStoragePath, validatePhoto } from "@/d
 import type { Db } from "@/server/appointments";
 import type { PhotoStorage } from "@/server/storage";
 
-const { appointments, appointmentPhotos, appointmentHistory, profiles } = schema;
+const { appointments, appointmentItems, appointmentPhotos, appointmentHistory, profiles } = schema;
 
 const idSchema = z.uuid();
 
 export type PhotoView = {
   id: string;
+  itemId: string | null;
   url: string;
   contentType: string;
   sizeBytes: number;
@@ -35,6 +36,7 @@ async function loadAppointment(db: Db, appointmentId: string) {
 async function toView(storage: PhotoStorage, row: schema.Photo, uploadedByName: string | null): Promise<PhotoView> {
   return {
     id: row.id,
+    itemId: row.itemId,
     url: await storage.signedUrl(row.storagePath),
     contentType: row.contentType,
     sizeBytes: row.sizeBytes,
@@ -50,11 +52,21 @@ export async function uploadPhoto(
   actor: schema.Actor,
   rawAppointmentId: string,
   bytes: Uint8Array,
+  rawItemId: string | null = null,
 ): Promise<PhotoView> {
   const appointmentId = idSchema.parse(rawAppointmentId);
   const appointment = await loadAppointment(db, appointmentId);
   if (appointment.status === "cancelled") {
     throw new DomainError("cancelled", "No se pueden agregar fotos a una cita cancelada");
+  }
+  const itemId = rawItemId === null ? null : idSchema.parse(rawItemId);
+  if (itemId) {
+    const [item] = await db
+      .select({ id: appointmentItems.id })
+      .from(appointmentItems)
+      .where(and(eq(appointmentItems.id, itemId), eq(appointmentItems.appointmentId, appointmentId)))
+      .limit(1);
+    if (!item) throw new DomainError("item_mismatch", "El artículo no pertenece a esta cita");
   }
 
   const { contentType, sizeBytes } = validatePhoto(bytes);
@@ -75,7 +87,7 @@ export async function uploadPhoto(
     const row = await db.transaction(async (tx) => {
       const [created] = await tx
         .insert(appointmentPhotos)
-        .values({ id: photoId, appointmentId, storagePath, contentType, sizeBytes, uploadedBy: actor.id })
+        .values({ id: photoId, appointmentId, itemId, storagePath, contentType, sizeBytes, uploadedBy: actor.id })
         .returning();
       await tx.insert(appointmentHistory).values({
         appointmentId,
@@ -109,6 +121,7 @@ export async function listPhotos(db: Db, storage: PhotoStorage, rawAppointmentId
 
 export type PanelPhoto = {
   id: string;
+  itemId: string | null;
   url: string;
   sizeBytes: number;
   uploadedByName: string | null;
@@ -130,6 +143,7 @@ export async function panelPhotos(
       available: true,
       photos: list.map((photo) => ({
         id: photo.id,
+        itemId: photo.itemId,
         url: photo.url,
         sizeBytes: photo.sizeBytes,
         uploadedByName: photo.uploadedByName,

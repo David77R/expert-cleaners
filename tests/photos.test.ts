@@ -1,14 +1,14 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ZodError } from "zod";
-import { appointmentPhotos } from "@/db/schema";
+import { appointmentItems, appointmentPhotos } from "@/db/schema";
 import { AGENT_JOSUE, AGENT_JUANCHO } from "@/db/seed-data";
 import { MAX_PHOTO_BYTES, MAX_PHOTOS_PER_APPOINTMENT, detectPhotoType, photoStoragePath } from "@/domain/photo-rules";
 import { createAppointment, getAppointment } from "@/server/appointments";
 import { runAction } from "@/server/actions";
 import { deletePhoto, listPhotos, panelPhotos, uploadPhoto } from "@/server/photos";
 import { createSupabasePhotoStorage } from "@/server/storage";
-import { readPhotoUpload } from "@/server/uploads";
+import { readPhotoUpload, readPhotoUploadForm } from "@/server/uploads";
 import { appointmentInput, createTestDb } from "./helpers";
 import { createMemoryStorage, jpeg, png, textFile, webp } from "./photo-helpers";
 
@@ -65,6 +65,30 @@ describe("subir fotos", () => {
     const detail = await getAppointment(ctx.db, appointment.id);
     expect(detail.photos).toHaveLength(1);
     expect(detail.history.some((entry) => entry.field === "photo" && entry.toValue === "added")).toBe(true);
+  });
+
+  it("liga la foto a un artículo de la misma cita y la conserva al editar los artículos", async () => {
+    const storage = createMemoryStorage();
+    const appointment = await newAppointment();
+    const other = await newAppointment();
+    const [item] = await ctx.db
+      .select()
+      .from(appointmentItems)
+      .where(eq(appointmentItems.appointmentId, appointment.id));
+    const [foreign] = await ctx.db.select().from(appointmentItems).where(eq(appointmentItems.appointmentId, other.id));
+
+    const photo = await uploadPhoto(ctx.db, storage, AGENT_JOSUE, appointment.id, jpeg(), item.id);
+    expect(photo.itemId).toBe(item.id);
+    await expect(uploadPhoto(ctx.db, storage, AGENT_JOSUE, appointment.id, jpeg(), foreign.id)).rejects.toMatchObject({
+      code: "item_mismatch",
+    });
+
+    await runAction(ctx.db, AGENT_JOSUE, appointment.id, {
+      action: "update_items",
+      items: [{ serviceId: item.serviceId, specs: item.specs, details: { color: "Azul" }, priceCents: 999 }],
+    });
+    const listed = await listPhotos(ctx.db, storage, appointment.id);
+    expect(listed[0].itemId).toBe(item.id);
   });
 
   it("acepta JPG, PNG y WebP", async () => {
@@ -288,6 +312,16 @@ describe("lectura de la subida HTTP", () => {
     form.set("file", new File([jpeg(32)], "foto.jpg", { type: "image/jpeg" }));
     const bytes = await readPhotoUpload(uploadRequest(form));
     expect(bytes.byteLength).toBe(32);
+  });
+
+  it("lee el artículo opcional junto con la foto", async () => {
+    const form = new FormData();
+    form.set("file", new File([jpeg(32)], "foto.jpg", { type: "image/jpeg" }));
+    form.set("itemId", " 11111111-1111-4111-8111-111111111111 ");
+    expect((await readPhotoUploadForm(uploadRequest(form))).itemId).toBe("11111111-1111-4111-8111-111111111111");
+    const plain = new FormData();
+    plain.set("file", new File([jpeg(32)], "foto.jpg", { type: "image/jpeg" }));
+    expect((await readPhotoUploadForm(uploadRequest(plain))).itemId).toBeNull();
   });
 
   it("exige el campo file y un cuerpo multipart", async () => {

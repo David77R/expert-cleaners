@@ -218,9 +218,19 @@ export const serviceListSchema = z.object({
 
 const specsSchema = z.record(z.string(), z.union([z.string(), z.number()]));
 
+const detailText = (max: number) => z.string().trim().max(max, `Máximo ${max} caracteres`).optional();
+
+export const itemDetailsSchema = z.object({
+  color: detailText(40),
+  size: detailText(40),
+  dimensions: detailText(80),
+  notes: detailText(500),
+});
+
 export const appointmentItemSchema = z.object({
   serviceId: z.uuid("Elige un servicio"),
   specs: specsSchema.default({}),
+  details: itemDetailsSchema.default({}),
   priceCents: z.number().int().min(0, "El precio no puede ser negativo").max(10_000_000).optional(),
 });
 

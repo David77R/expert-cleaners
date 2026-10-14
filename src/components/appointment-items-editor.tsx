@@ -5,11 +5,15 @@ import { INPUT } from "@/components/form-kit";
 import { Icon } from "@/components/icons";
 import {
   MAX_ITEMS,
+  DETAIL_LABELS,
+  SIZE_OPTIONS,
   centsToDollars,
+  itemDetailKey,
   fieldsForService,
   itemKey,
   itemSpecKey,
   parseDollars,
+  type DetailKey,
   type ItemValues,
 } from "@/domain/appointment-items";
 import type { FormService } from "@/domain/appointment-form";
@@ -79,6 +83,10 @@ export function AppointmentItemsEditor({
 
   function setSpec(index: number, key: string, value: string) {
     update(rows.map((row, i) => (i === index ? { ...row, specs: { ...row.specs, [key]: value } } : row)));
+  }
+
+  function setDetail(index: number, key: DetailKey, value: string) {
+    update(rows.map((row, i) => (i === index ? { ...row, details: { ...row.details, [key]: value } } : row)));
   }
 
   function addRow() {
@@ -221,6 +229,42 @@ export function AppointmentItemsEditor({
                     </div>
                   );
                 })}
+              </div>
+            )}
+            {service && (
+              <div className={compact ? "grid gap-2" : "grid gap-2 sm:grid-cols-3"}>
+                {(["color", "size", "dimensions"] as const).map((detail) => (
+                  <label key={detail} className="flex flex-col gap-1 text-xs font-medium text-soft">
+                    {DETAIL_LABELS[detail]}
+                    <input
+                      name={itemDetailKey(index, detail)}
+                      value={row.details?.[detail] ?? ""}
+                      onChange={(event) => setDetail(index, detail, event.target.value)}
+                      list={detail === "size" ? `${base}-sizes` : undefined}
+                      maxLength={detail === "dimensions" ? 80 : 40}
+                      placeholder={detail === "dimensions" ? '84" x 36"' : detail === "size" ? "Mediano" : "Gris"}
+                      className={`${INPUT} py-2`}
+                    />
+                  </label>
+                ))}
+                <datalist id={`${base}-sizes`}>
+                  {SIZE_OPTIONS.map((option) => (
+                    <option key={option} value={option} />
+                  ))}
+                </datalist>
+                <label
+                  className={`flex flex-col gap-1 text-xs font-medium text-soft ${compact ? "" : "sm:col-span-3"}`}
+                >
+                  Notas del artículo
+                  <input
+                    name={itemDetailKey(index, "notes")}
+                    value={row.details?.notes ?? ""}
+                    onChange={(event) => setDetail(index, "notes", event.target.value)}
+                    maxLength={500}
+                    placeholder="Manchas, material, daños previos…"
+                    className={`${INPUT} py-2`}
+                  />
+                </label>
               </div>
             )}
           </div>

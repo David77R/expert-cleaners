@@ -387,7 +387,7 @@ export function ServiceForm({
       )}
 
       <div className="flex items-center justify-end gap-3">
-        <Link href="/services" className="rounded-md px-4 py-2 text-sm font-semibold text-soft hover:bg-canvas">
+        <Link href="/orders/new" className="rounded-md px-4 py-2 text-sm font-semibold text-soft hover:bg-canvas">
           Cancelar
         </Link>
         <button

@@ -461,3 +461,63 @@ describe("crear el pedido con la entrega programada", () => {
     ).rejects.toMatchObject({ code: "delivery_before_service" });
   });
 });
+
+describe("detalles por artículo", () => {
+  it("guarda color, tamaño, dimensiones y notas, y conserva el id del artículo al editar", async () => {
+    const { appointment } = await createAppointment(ctx.db, AGENT_JOSUE, {
+      ...appointmentInput(ctx, { date: "2026-12-15" }),
+      serviceId: undefined,
+      items: [
+        {
+          serviceId: ctx.services.sofa.id,
+          specs: { sofaType: "Tela", seats: 3 },
+          details: { color: " Beige ", size: "Grande", dimensions: '84" x 36"', notes: "Mancha de café" },
+        },
+      ],
+    });
+    const before = await getAppointment(ctx.db, appointment.id);
+    expect(before.items[0].details).toEqual({
+      color: "Beige",
+      size: "Grande",
+      dimensions: '84" x 36"',
+      notes: "Mancha de café",
+    });
+
+    await updateAppointmentItems(ctx.db, AGENT_JOSUE, appointment.id, {
+      items: [
+        {
+          serviceId: ctx.services.sofa.id,
+          specs: { sofaType: "Tela", seats: 3 },
+          details: { color: "Gris" },
+        },
+        { serviceId: ctx.services.sofa.id, specs: { sofaType: "Cuero", seats: 1 } },
+      ],
+    });
+    const after = await getAppointment(ctx.db, appointment.id);
+    expect(after.items[0].id).toBe(before.items[0].id);
+    expect(after.items[0].details).toEqual({ color: "Gris" });
+    expect(after.items).toHaveLength(2);
+    expect(after.history.some((entry) => entry.field === "items")).toBe(true);
+
+    await updateAppointmentItems(ctx.db, AGENT_JOSUE, appointment.id, {
+      items: [{ serviceId: ctx.services.sofa.id, specs: { sofaType: "Tela", seats: 3 }, details: { color: "Gris" } }],
+    });
+    const trimmed = await getAppointment(ctx.db, appointment.id);
+    expect(trimmed.items.map((item) => item.id)).toEqual([before.items[0].id]);
+  });
+
+  it("rechaza detalles demasiado largos", async () => {
+    await expect(
+      createAppointment(ctx.db, AGENT_JOSUE, {
+        ...appointmentInput(ctx, { date: "2026-12-15" }),
+        items: [
+          {
+            serviceId: ctx.services.sofa.id,
+            specs: { sofaType: "Tela", seats: 1 },
+            details: { color: "x".repeat(41) },
+          },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(Error);
+  });
+});

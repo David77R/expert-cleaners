@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
 import { technicians as techniciansTable } from "@/db/schema";
@@ -8,10 +9,11 @@ import { OrderBuilder } from "@/components/order-builder";
 import { getActor } from "@/server/auth";
 import { listServices } from "@/server/services";
 
-export default async function NewOrderPage() {
+export default async function NewOrderPage({ searchParams }: PageProps<"/orders/new">) {
   const actor = await getActor();
   if (!actor) redirect("/login");
 
+  const aviso = (await searchParams).aviso;
   const db = getDb();
   const services = (await listServices(db)).map(toFormService);
   const technicians: FormTechnician[] = (await db.select().from(techniciansTable))
@@ -33,8 +35,23 @@ export default async function NewOrderPage() {
           <p className="text-sm text-soft">
             Toca los servicios para armar el ticket, elige el cliente y programa la recogida y la entrega.
           </p>
+          {actor.role === "admin" && (
+            <Link href="/services" className="w-fit text-xs font-semibold text-brand-ink hover:underline">
+              Ver todos los servicios, incluidos los inactivos
+            </Link>
+          )}
         </div>
-        <OrderBuilder services={services} technicians={technicians} today={todayIn()} />
+        {(aviso === "servicio-creado" || aviso === "servicio-actualizado") && (
+          <p role="status" className="rounded-md bg-success-soft px-4 py-3 text-sm font-medium text-success">
+            {aviso === "servicio-creado" ? "Servicio creado." : "Servicio actualizado."}
+          </p>
+        )}
+        <OrderBuilder
+          services={services}
+          technicians={technicians}
+          today={todayIn()}
+          isAdmin={actor.role === "admin"}
+        />
       </main>
     </AppShell>
   );

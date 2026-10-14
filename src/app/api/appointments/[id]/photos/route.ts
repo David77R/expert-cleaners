@@ -4,7 +4,7 @@ import { requireActor } from "@/server/auth";
 import { handle } from "@/server/http";
 import { listPhotos, uploadPhoto } from "@/server/photos";
 import { getPhotoStorage } from "@/server/storage";
-import { readPhotoUpload } from "@/server/uploads";
+import { readPhotoUploadForm } from "@/server/uploads";
 
 export function GET(_request: Request, ctx: RouteContext<"/api/appointments/[id]/photos">) {
   return handle(async () => {
@@ -18,8 +18,8 @@ export function POST(request: Request, ctx: RouteContext<"/api/appointments/[id]
   return handle(async () => {
     const actor = await requireActor();
     const { id } = await ctx.params;
-    const bytes = await readPhotoUpload(request);
-    const photo = await uploadPhoto(getDb(), getPhotoStorage(), actor, id, bytes);
+    const { bytes, itemId } = await readPhotoUploadForm(request);
+    const photo = await uploadPhoto(getDb(), getPhotoStorage(), actor, id, bytes, itemId);
     return NextResponse.json({ photo }, { status: 201 });
   });
 }

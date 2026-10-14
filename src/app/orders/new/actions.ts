@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { ZodError } from "zod";
+import { asc, eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
+import { appointmentItems } from "@/db/schema";
 import type { PickerCustomer } from "@/domain/appointment-form";
 import { DomainError } from "@/domain/appointment-rules";
 import {
@@ -19,7 +21,8 @@ import { getActor } from "@/server/auth";
 import { createCustomer } from "@/server/customers";
 
 export type OrderResult =
-  { ok: true; id: string; code: string; date: string; conflicts: number } | { ok: false; error: string };
+  | { ok: true; id: string; code: string; date: string; conflicts: number; itemIds: string[] }
+  | { ok: false; error: string };
 
 export async function scheduleOrderAction(payload: CreateAppointmentInput): Promise<OrderResult> {
   const actor = await getActor();
@@ -30,7 +33,13 @@ export async function scheduleOrderAction(payload: CreateAppointmentInput): Prom
     return { ok: false, error: "Faltan datos del pedido: revisa cliente, servicios, fecha, hora y técnico." };
   }
   try {
-    const { appointment, conflicts } = await createAppointment(getDb(), actor, parsed.data);
+    const db = getDb();
+    const { appointment, conflicts } = await createAppointment(db, actor, parsed.data);
+    const items = await db
+      .select({ id: appointmentItems.id })
+      .from(appointmentItems)
+      .where(eq(appointmentItems.appointmentId, appointment.id))
+      .orderBy(asc(appointmentItems.position));
     revalidatePath("/calendar");
     revalidatePath(`/customers/${appointment.customerId}`);
     return {
@@ -39,6 +48,7 @@ export async function scheduleOrderAction(payload: CreateAppointmentInput): Prom
       code: appointment.code,
       date: appointment.date,
       conflicts: conflicts.length,
+      itemIds: items.map((item) => item.id),
     };
   } catch (error) {
     if (error instanceof DomainError) return { ok: false, error: error.message };

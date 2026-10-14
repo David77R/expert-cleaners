@@ -1,4 +1,5 @@
 import { relations } from "drizzle-orm";
+import type { ItemDetails } from "@/domain/appointment-items";
 import type { AppointmentStages } from "@/domain/delivery";
 import {
   boolean,
@@ -195,6 +196,7 @@ export const appointmentItems = pgTable(
       .notNull()
       .references(() => services.id),
     specs: jsonb("specs").$type<Record<string, string | number>>().notNull().default({}),
+    details: jsonb("details").$type<ItemDetails>().notNull().default({}),
     priceCents: integer("price_cents").notNull(),
     position: smallint("position").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -227,6 +229,7 @@ export const appointmentPhotos = pgTable("appointment_photos", {
   appointmentId: uuid("appointment_id")
     .notNull()
     .references(() => appointments.id, { onDelete: "cascade" }),
+  itemId: uuid("item_id").references(() => appointmentItems.id, { onDelete: "set null" }),
   storagePath: text("storage_path").notNull(),
   contentType: text("content_type").notNull(),
   sizeBytes: integer("size_bytes").notNull(),

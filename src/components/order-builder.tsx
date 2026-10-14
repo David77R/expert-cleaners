@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, useTransition, type FormEvent } from "react";
+import { useState, useTransition, type FormEvent } from "react";
 import { scheduleOrderAction } from "@/app/orders/new/actions";
 import { AddressAutocomplete } from "@/components/address-autocomplete";
 import { CustomerPicker } from "@/components/customer-picker";
@@ -10,13 +10,19 @@ import { Icon } from "@/components/icons";
 import { Modal } from "@/components/modal";
 import { QuickCustomerForm } from "@/components/quick-customer-form";
 import { ServiceIcon } from "@/components/service-icon";
+import { preparePhoto } from "@/lib/image-resize";
+import { MAX_PHOTOS_PER_APPOINTMENT } from "@/domain/photo-rules";
+import { TicketLineExtras, TicketPhotoStrip, swatchFor, type TicketPhoto } from "@/components/ticket-line-extras";
 import {
   centsToDollars,
+  cleanDetails,
   fieldsForService,
   itemKey,
   itemSpecKey,
   parseDollars,
   validateItems,
+  type DetailKey,
+  type ItemDetails,
   type ItemErrors,
 } from "@/domain/appointment-items";
 import { minutesToTimeInput, parseTimeInput } from "@/domain/appointment-panel";
@@ -34,7 +40,17 @@ import { addDays, confirmationMessage, whatsappHref } from "@/domain/order";
 import { guessServiceIcon } from "@/domain/service-icons";
 import { calendarHref } from "@/lib/calendar-links";
 
-type Line = { uid: number; serviceId: string; price: string; specs: Record<string, string>; open: boolean };
+type Line = {
+  uid: number;
+  serviceId: string;
+  price: string;
+  specs: Record<string, string>;
+  details: ItemDetails;
+  photos: TicketPhoto[];
+  open: boolean;
+};
+
+type PhotoUpload = { total: number; done: number; failed: number };
 
 type Visit = { date: string; startMin: number; durationMin: number; technicianId: string };
 
@@ -45,7 +61,17 @@ type Schedule = {
   destination: ReturnType<typeof destinationFromValues> | null;
 };
 
-type Done = { id: string; code: string; date: string; conflicts: number; message: string; phone: string };
+type Done = {
+  id: string;
+  code: string;
+  date: string;
+  conflicts: number;
+  message: string;
+  phone: string;
+  photos: PhotoUpload | null;
+};
+
+let photoSequence = 0;
 
 const FIELD = `${INPUT} py-2`;
 const LABEL = "flex flex-col gap-1 text-xs font-medium text-soft";
@@ -318,15 +344,17 @@ export function OrderBuilder({
   services,
   technicians,
   today,
+  isAdmin = false,
 }: {
   services: FormService[];
   technicians: FormTechnician[];
   today: string;
+  isAdmin?: boolean;
 }) {
   const categories = [...new Set(services.map((service) => service.category))];
-  const [category, setCategory] = useState(categories[0] ?? "");
+  const [filters, setFilters] = useState<string[]>([]);
   const [lines, setLines] = useState<Line[]>([]);
-  const nextUid = useRef(1);
+
   const [customer, setCustomer] = useState<PickerCustomer | null>(null);
   const [addressId, setAddressId] = useState("");
   const [notes, setNotes] = useState("");
@@ -339,7 +367,16 @@ export function OrderBuilder({
   const [pending, startTransition] = useTransition();
 
   const byId = new Map(services.map((service) => [service.id, service]));
-  const visible = services.filter((service) => service.category === category);
+  const shownCategories = filters.length === 0 ? categories : categories.filter((name) => filters.includes(name));
+  const photoCount = lines.reduce((sum, line) => sum + line.photos.length, 0);
+
+  function toggleFilter(name: string | null) {
+    if (name === null) return setFilters([]);
+    setFilters((current) => {
+      const next = current.includes(name) ? current.filter((item) => item !== name) : [...current, name];
+      return next.length === categories.length ? [] : next;
+    });
+  }
   const totalCents = lines.reduce((sum, line) => sum + lineCents(line, byId.get(line.serviceId)), 0);
   const needsDestination = lines.some((line) => byId.get(line.serviceId)?.twoAddresses);
   const suggestedDuration = Math.min(
@@ -348,12 +385,18 @@ export function OrderBuilder({
   );
 
   function addService(service: FormService) {
-    const uid = nextUid.current;
-    nextUid.current += 1;
     const hasRequired = fieldsForService(service).some((field) => field.required);
     setLines((current) => [
       ...current.map((line) => ({ ...line, open: false })),
-      { uid, serviceId: service.id, price: centsToDollars(service.basePriceCents), specs: {}, open: hasRequired },
+      {
+        uid: current.reduce((max, line) => Math.max(max, line.uid), 0) + 1,
+        serviceId: service.id,
+        price: centsToDollars(service.basePriceCents),
+        specs: {},
+        details: {},
+        photos: [],
+        open: hasRequired,
+      },
     ]);
     setDone(null);
   }
@@ -363,8 +406,60 @@ export function OrderBuilder({
   }
 
   function removeLine(uid: number) {
+    lines.find((line) => line.uid === uid)?.photos.forEach((photo) => URL.revokeObjectURL(photo.url));
     setLines((current) => current.filter((line) => line.uid !== uid));
     setItemErrors({});
+  }
+
+  function setDetail(uid: number, key: DetailKey, value: string) {
+    setLines((current) =>
+      current.map((line) => (line.uid === uid ? { ...line, details: { ...line.details, [key]: value } } : line)),
+    );
+  }
+
+  function addPhotos(uid: number, files: File[]) {
+    const added = files.map((file) => {
+      photoSequence += 1;
+      return { key: photoSequence, file, url: URL.createObjectURL(file) };
+    });
+    setLines((current) =>
+      current.map((line) => (line.uid === uid ? { ...line, photos: [...line.photos, ...added] } : line)),
+    );
+  }
+
+  function removePhoto(uid: number, key: number) {
+    setLines((current) =>
+      current.map((line) => {
+        if (line.uid !== uid) return line;
+        line.photos.filter((photo) => photo.key === key).forEach((photo) => URL.revokeObjectURL(photo.url));
+        return { ...line, photos: line.photos.filter((photo) => photo.key !== key) };
+      }),
+    );
+  }
+
+  async function uploadPhotos(appointmentId: string, itemIds: string[], pending: Line[]) {
+    const jobs = pending.flatMap((line, index) =>
+      line.photos.map((photo) => ({ photo, itemId: itemIds[index] ?? null })),
+    );
+    if (jobs.length === 0) return;
+    let done = 0;
+    let failed = 0;
+    const report = () =>
+      setDone((current) => (current ? { ...current, photos: { total: jobs.length, done, failed } } : current));
+    report();
+    for (const job of jobs) {
+      try {
+        const body = new FormData();
+        body.set("file", await preparePhoto(job.photo.file), "foto");
+        if (job.itemId) body.set("itemId", job.itemId);
+        const response = await fetch(`/api/appointments/${appointmentId}/photos`, { method: "POST", body });
+        if (!response.ok) throw new Error(String(response.status));
+        done += 1;
+      } catch {
+        failed += 1;
+      }
+      report();
+    }
   }
 
   function chooseCustomer(next: PickerCustomer) {
@@ -374,6 +469,7 @@ export function OrderBuilder({
   }
 
   function reset() {
+    lines.forEach((line) => line.photos.forEach((photo) => URL.revokeObjectURL(photo.url)));
     setLines([]);
     setCustomer(null);
     setAddressId("");
@@ -409,6 +505,7 @@ export function OrderBuilder({
 
     const chosen = customer;
     const plan = schedule;
+    const sent = lines;
     const payload = {
       customerId: chosen.id,
       addressId,
@@ -416,7 +513,7 @@ export function OrderBuilder({
       date: plan.pickup.date,
       startMin: plan.pickup.startMin,
       durationMin: plan.pickup.durationMin,
-      items: inputs,
+      items: inputs.map((input, index) => ({ ...input, details: cleanDetails(lines[index]?.details ?? {}) })),
       notes: notes.trim(),
       ...(plan.readyDate ? { readyDate: plan.readyDate } : {}),
       ...(plan.destination ? { destinationAddress: plan.destination } : {}),
@@ -448,6 +545,7 @@ export function OrderBuilder({
         date: result.date,
         conflicts: result.conflicts,
         phone: chosen.phone,
+        photos: null,
         message: confirmationMessage({
           customerName: chosen.firstName,
           code: result.code,
@@ -457,57 +555,104 @@ export function OrderBuilder({
           totalCents,
         }),
       });
+      await uploadPhotos(result.id, result.itemIds, sent);
     });
   }
 
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_25rem]">
       <section className="flex min-w-0 flex-col gap-4">
-        <div role="tablist" aria-label="Categorías" className="flex flex-wrap gap-1 border-b border-hair">
-          {categories.map((name) => (
-            <button
-              key={name}
-              type="button"
-              role="tab"
-              aria-selected={name === category}
-              onClick={() => setCategory(name)}
-              className={`-mb-px border-b-[3px] px-4 py-2.5 text-sm font-semibold uppercase tracking-wide transition-colors ${
-                name === category ? "border-brand text-ink" : "border-transparent text-muted hover:text-ink"
-              }`}
+        <div role="group" aria-label="Filtrar por categoría" className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            aria-pressed={filters.length === 0}
+            onClick={() => toggleFilter(null)}
+            className={`rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors ${
+              filters.length === 0
+                ? "border-brand bg-brand text-white"
+                : "border-hair bg-paper text-soft hover:text-ink"
+            }`}
+          >
+            Todos
+          </button>
+          {categories.map((name) => {
+            const on = filters.includes(name);
+            return (
+              <button
+                key={name}
+                type="button"
+                aria-pressed={on}
+                onClick={() => toggleFilter(name)}
+                className={`rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors ${
+                  on ? "border-brand bg-brand-soft text-brand-ink" : "border-hair bg-paper text-soft hover:text-ink"
+                }`}
+              >
+                {name}
+              </button>
+            );
+          })}
+          {isAdmin && (
+            <Link
+              href="/services/new?volver=pedido"
+              className="ml-auto flex items-center gap-1.5 rounded-full border border-dashed border-brand/50 px-4 py-1.5 text-sm font-semibold text-brand-ink hover:bg-brand-soft/50"
             >
-              {name}
-            </button>
-          ))}
+              <Icon name="plus" size={14} />
+              Nuevo servicio
+            </Link>
+          )}
         </div>
 
-        {visible.length === 0 ? (
+        {services.length === 0 ? (
           <p className="rounded-md border border-dashed border-hair bg-paper px-4 py-10 text-center text-sm text-muted">
-            Todavía no hay servicios activos. El súper admin puede crearlos en Servicios.
+            {isAdmin
+              ? "Todavía no hay servicios. Crea el primero con «Nuevo servicio»."
+              : "Todavía no hay servicios activos. Pídele al súper admin que los cree."}
           </p>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
-            {visible.map((service) => {
-              const count = lines.filter((line) => line.serviceId === service.id).length;
-              return (
-                <button
-                  key={service.id}
-                  type="button"
-                  onClick={() => addService(service)}
-                  className="group relative flex aspect-square flex-col items-center justify-center gap-2.5 rounded-md border border-hair bg-paper p-3 text-center shadow-[0_1px_0_rgba(18,24,31,0.04)] transition-all hover:-translate-y-0.5 hover:border-brand/50 hover:shadow-md"
-                >
-                  {count > 0 && (
-                    <span className="font-display absolute right-2 top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-brand px-1.5 text-xs font-bold text-white">
-                      {count}
-                    </span>
-                  )}
-                  <span className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-soft text-brand-ink transition-colors group-hover:bg-brand group-hover:text-white">
-                    <ServiceIcon icon={service.iconKey ?? guessServiceIcon(service)} size={30} />
-                  </span>
-                  <span className="line-clamp-2 text-sm font-medium leading-tight">{service.name}</span>
-                </button>
-              );
-            })}
-          </div>
+          shownCategories.map((name) => (
+            <div key={name} className="flex flex-col gap-2.5">
+              {shownCategories.length > 1 && (
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">{name}</h2>
+              )}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
+                {services
+                  .filter((service) => service.category === name)
+                  .map((service) => {
+                    const count = lines.filter((line) => line.serviceId === service.id).length;
+                    return (
+                      <div key={service.id} className="group relative">
+                        <button
+                          type="button"
+                          onClick={() => addService(service)}
+                          className="flex aspect-square w-full flex-col items-center justify-center gap-2.5 rounded-md border border-hair bg-paper p-3 text-center shadow-[0_1px_0_rgba(18,24,31,0.04)] transition-all hover:-translate-y-0.5 hover:border-brand/50 hover:shadow-md"
+                        >
+                          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-soft text-brand-ink transition-colors group-hover:bg-brand group-hover:text-white">
+                            <ServiceIcon icon={service.iconKey ?? guessServiceIcon(service)} size={30} />
+                          </span>
+                          <span className="line-clamp-2 text-sm font-medium leading-tight">{service.name}</span>
+                          <span className="text-xs tabular-nums text-muted">{formatMoney(service.basePriceCents)}</span>
+                        </button>
+                        {count > 0 && (
+                          <span className="font-display pointer-events-none absolute right-2 top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-brand px-1.5 text-xs font-bold text-white">
+                            {count}
+                          </span>
+                        )}
+                        {isAdmin && (
+                          <Link
+                            href={`/services/${service.id}?volver=pedido`}
+                            aria-label={`Editar ${service.name}`}
+                            title="Editar servicio"
+                            className="absolute left-2 top-2 flex h-7 w-7 items-center justify-center rounded-md bg-paper/90 text-soft opacity-0 shadow-sm transition-opacity hover:text-ink focus:opacity-100 group-hover:opacity-100"
+                          >
+                            <Icon name="wrench" size={13} />
+                          </Link>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          ))
         )}
       </section>
 
@@ -519,6 +664,15 @@ export function OrderBuilder({
               {done.conflicts > 0 && (
                 <span className="text-xs text-warning">
                   Tiene conflicto con {done.conflicts} {done.conflicts === 1 ? "cita" : "citas"} del técnico.
+                </span>
+              )}
+              {done.photos && (
+                <span className={`text-xs ${done.photos.failed > 0 ? "text-attention" : "text-success"}`}>
+                  {done.photos.done + done.photos.failed < done.photos.total
+                    ? `Subiendo fotos ${done.photos.done + done.photos.failed + 1} de ${done.photos.total}…`
+                    : done.photos.failed > 0
+                      ? `${done.photos.failed} ${done.photos.failed === 1 ? "foto no se pudo subir" : "fotos no se pudieron subir"}; agrégalas desde la cita.`
+                      : `${done.photos.total} ${done.photos.total === 1 ? "foto guardada" : "fotos guardadas"} en la cita.`}
                 </span>
               )}
             </div>
@@ -634,13 +788,11 @@ export function OrderBuilder({
                               className="shrink-0 text-brand-ink"
                             />
                             <span className="truncate text-sm font-medium">{service.name}</span>
-                            {fields.length > 0 && (
-                              <Icon
-                                name="down"
-                                size={14}
-                                className={`shrink-0 text-muted transition-transform ${line.open ? "rotate-180" : ""}`}
-                              />
-                            )}
+                            <Icon
+                              name="down"
+                              size={14}
+                              className={`shrink-0 text-muted transition-transform ${line.open ? "rotate-180" : ""}`}
+                            />
                           </button>
                           <span className="relative w-24 shrink-0">
                             <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted">
@@ -664,49 +816,90 @@ export function OrderBuilder({
                             <Icon name="close" size={14} />
                           </button>
                         </div>
-                        {line.open && fields.length > 0 && (
-                          <div className="grid grid-cols-2 gap-2 border-t border-hair px-2.5 py-2.5">
-                            {fields.map((field) => {
-                              const key = itemSpecKey(index, field.key);
-                              const value = line.specs[field.key] ?? "";
-                              const set = (next: string) =>
-                                updateLine(line.uid, { specs: { ...line.specs, [field.key]: next } });
-                              return (
-                                <label key={field.key} className={LABEL}>
-                                  <span>
-                                    {field.label}
-                                    {field.required && <span className="text-attention"> *</span>}
-                                  </span>
-                                  {field.type === "select" ? (
-                                    <select
-                                      value={value}
-                                      onChange={(event) => set(event.target.value)}
-                                      aria-invalid={Boolean(itemErrors[key])}
-                                      className={FIELD}
-                                    >
-                                      <option value="">Elige</option>
-                                      {(field.options ?? []).map((option) => (
-                                        <option key={option} value={option}>
-                                          {option}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  ) : (
-                                    <input
-                                      type="number"
-                                      inputMode="decimal"
-                                      min={0}
-                                      step="any"
-                                      value={value}
-                                      onChange={(event) => set(event.target.value)}
-                                      aria-invalid={Boolean(itemErrors[key])}
-                                      className={FIELD}
+                        {!line.open && (line.photos.length > 0 || Object.values(line.details).some(Boolean)) && (
+                          <div className="flex flex-col gap-1.5 px-2.5 pb-2">
+                            <span className="flex flex-wrap items-center gap-1.5 text-[11px] text-soft">
+                              {line.details.color && (
+                                <span className="flex items-center gap-1 rounded-full bg-paper px-2 py-0.5">
+                                  {swatchFor(line.details.color) && (
+                                    <span
+                                      className="h-2.5 w-2.5 rounded-full border border-ink/20"
+                                      style={{ backgroundColor: swatchFor(line.details.color) ?? undefined }}
                                     />
                                   )}
-                                  {itemErrors[key] && <span className="text-attention">{itemErrors[key]}</span>}
-                                </label>
-                              );
-                            })}
+                                  {line.details.color}
+                                </span>
+                              )}
+                              {line.details.size && (
+                                <span className="rounded-full bg-paper px-2 py-0.5">{line.details.size}</span>
+                              )}
+                              {line.details.dimensions && (
+                                <span className="rounded-full bg-paper px-2 py-0.5">{line.details.dimensions}</span>
+                              )}
+                              {line.details.notes && (
+                                <span className="max-w-full truncate rounded-full bg-paper px-2 py-0.5">
+                                  {line.details.notes}
+                                </span>
+                              )}
+                            </span>
+                            <TicketPhotoStrip photos={line.photos} />
+                          </div>
+                        )}
+                        {line.open && (
+                          <div className="flex flex-col gap-3 border-t border-hair px-2.5 py-2.5">
+                            {fields.length > 0 && (
+                              <div className="grid grid-cols-2 gap-2">
+                                {fields.map((field) => {
+                                  const key = itemSpecKey(index, field.key);
+                                  const value = line.specs[field.key] ?? "";
+                                  const set = (next: string) =>
+                                    updateLine(line.uid, { specs: { ...line.specs, [field.key]: next } });
+                                  return (
+                                    <label key={field.key} className={LABEL}>
+                                      <span>
+                                        {field.label}
+                                        {field.required && <span className="text-attention"> *</span>}
+                                      </span>
+                                      {field.type === "select" ? (
+                                        <select
+                                          value={value}
+                                          onChange={(event) => set(event.target.value)}
+                                          aria-invalid={Boolean(itemErrors[key])}
+                                          className={FIELD}
+                                        >
+                                          <option value="">Elige</option>
+                                          {(field.options ?? []).map((option) => (
+                                            <option key={option} value={option}>
+                                              {option}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      ) : (
+                                        <input
+                                          type="number"
+                                          inputMode="decimal"
+                                          min={0}
+                                          step="any"
+                                          value={value}
+                                          onChange={(event) => set(event.target.value)}
+                                          aria-invalid={Boolean(itemErrors[key])}
+                                          className={FIELD}
+                                        />
+                                      )}
+                                      {itemErrors[key] && <span className="text-attention">{itemErrors[key]}</span>}
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            <TicketLineExtras
+                              details={line.details}
+                              photos={line.photos}
+                              photoRoom={MAX_PHOTOS_PER_APPOINTMENT - photoCount}
+                              onDetail={(key, value) => setDetail(line.uid, key, value)}
+                              onAddPhotos={(files) => addPhotos(line.uid, files)}
+                              onRemovePhoto={(key) => removePhoto(line.uid, key)}
+                            />
                           </div>
                         )}
                         {itemErrors[priceKey] && (

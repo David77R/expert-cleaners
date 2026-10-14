@@ -25,7 +25,14 @@ import {
   deliverySchema,
   type CreateAppointmentInput,
 } from "@/domain/schemas";
-import { fieldsForService, itemsTotal, summarizeItems, type ItemInput } from "@/domain/appointment-items";
+import {
+  cleanDetails,
+  fieldsForService,
+  itemsTotal,
+  summarizeItems,
+  type ItemDetails,
+  type ItemInput,
+} from "@/domain/appointment-items";
 import { formatAddress, formatMoney } from "@/domain/invoice";
 import { hasDelivery } from "@/domain/delivery";
 import { geocodeIfNeeded } from "@/server/geocoding";
@@ -42,6 +49,7 @@ const { appointments, appointmentHistory, appointmentItems, addresses, services,
 type ResolvedItem = {
   serviceId: string;
   specs: Record<string, string | number>;
+  details: ItemDetails;
   priceCents: number;
   service: schema.Service;
 };
@@ -129,7 +137,13 @@ async function resolveItems(
         `Faltan especificaciones de ${service.name}: ${missing.map((m) => m.label).join(", ")}`,
       );
     }
-    return { serviceId: service.id, specs: item.specs, priceCents: item.priceCents ?? service.basePriceCents, service };
+    return {
+      serviceId: service.id,
+      specs: item.specs,
+      details: cleanDetails(item.details ?? {}),
+      priceCents: item.priceCents ?? service.basePriceCents,
+      service,
+    };
   });
 }
 
@@ -144,34 +158,43 @@ async function currentItems(tx: Tx, current: AppointmentRow): Promise<ResolvedIt
     return rows.map(({ item, service }) => ({
       serviceId: item.serviceId,
       specs: item.specs,
+      details: item.details,
       priceCents: item.priceCents,
       service,
     }));
   }
   const [service] = await tx.select().from(services).where(eq(services.id, current.serviceId)).limit(1);
-  return service ? [{ serviceId: service.id, specs: current.specs, priceCents: current.priceCents, service }] : [];
+  return service
+    ? [{ serviceId: service.id, specs: current.specs, details: {}, priceCents: current.priceCents, service }]
+    : [];
 }
 
 async function saveItems(tx: Tx, appointmentId: string, items: readonly ResolvedItem[]) {
-  await tx.delete(appointmentItems).where(eq(appointmentItems.appointmentId, appointmentId));
-  await tx.insert(appointmentItems).values(
-    items.map((item, position) => ({
-      appointmentId,
+  const existing = await tx
+    .select({ id: appointmentItems.id })
+    .from(appointmentItems)
+    .where(eq(appointmentItems.appointmentId, appointmentId))
+    .orderBy(asc(appointmentItems.position), asc(appointmentItems.createdAt));
+  for (const [position, item] of items.entries()) {
+    const values = {
       serviceId: item.serviceId,
       specs: item.specs,
+      details: item.details,
       priceCents: item.priceCents,
       position,
-    })),
-  );
+    };
+    const current = existing[position];
+    if (current) await tx.update(appointmentItems).set(values).where(eq(appointmentItems.id, current.id));
+    else await tx.insert(appointmentItems).values({ appointmentId, ...values });
+  }
+  const leftover = existing.slice(items.length).map((row) => row.id);
+  if (leftover.length > 0) await tx.delete(appointmentItems).where(inArray(appointmentItems.id, leftover));
 }
 
-function itemSignature(items: readonly Pick<ResolvedItem, "serviceId" | "specs" | "priceCents">[]): string {
+function itemSignature(items: readonly Pick<ResolvedItem, "serviceId" | "specs" | "details" | "priceCents">[]): string {
+  const sorted = (value: object) => Object.entries(value).sort(([a], [b]) => a.localeCompare(b));
   return JSON.stringify(
-    items.map((item) => [
-      item.serviceId,
-      item.priceCents,
-      Object.entries(item.specs).sort(([a], [b]) => a.localeCompare(b)),
-    ]),
+    items.map((item) => [item.serviceId, item.priceCents, sorted(item.specs), sorted(item.details ?? {})]),
   );
 }
 

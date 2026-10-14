@@ -40,6 +40,7 @@ export async function getInvoice(db: Db, appointmentId: string) {
     items: row.items.map((item) => ({
       service: { name: item.service.name, fields: fieldsForService(item.service) },
       specs: item.specs,
+      details: item.details,
       priceCents: item.priceCents,
     })),
     generatedAt: generation?.createdAt ?? row.updatedAt,

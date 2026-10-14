@@ -95,7 +95,9 @@ describe("entrada de la cita", () => {
     expect(itemErrors).toEqual({});
     expect(input.startMin).toBe(570);
     expect(input.durationMin).toBe(60);
-    expect(input.items).toEqual([{ serviceId: ctx.services.sofa.id, specs: { sofaType: "Tela", seats: 3 } }]);
+    expect(input.items).toEqual([
+      { serviceId: ctx.services.sofa.id, specs: { sofaType: "Tela", seats: 3 }, details: {} },
+    ]);
     expect(input.notes).toBe("Hay un perro");
     expect(input.destinationAddress).toBeUndefined();
     expect(createAppointmentSchema.safeParse(input).success).toBe(true);

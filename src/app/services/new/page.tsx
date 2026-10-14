@@ -17,10 +17,10 @@ export default async function NewServicePage() {
   const categories = [...new Set(services.map((service) => service.category))].sort((a, b) => a.localeCompare(b, "es"));
 
   return (
-    <AppShell active="services" actor={actor}>
+    <AppShell active="orders" actor={actor}>
       <main className="mx-auto flex w-full max-w-[88rem] flex-1 flex-col gap-6 px-4 py-6 md:px-8">
-        <Link href="/services" className="flex w-fit items-center gap-1 text-sm font-medium text-soft hover:text-ink">
-          <Icon name="left" /> Todos los servicios
+        <Link href="/orders/new" className="flex w-fit items-center gap-1 text-sm font-medium text-soft hover:text-ink">
+          <Icon name="left" /> Volver a Nuevo pedido
         </Link>
         <div className="flex flex-col gap-1.5">
           <h1 className="font-display text-2xl font-semibold tracking-tight">Nuevo servicio</h1>
