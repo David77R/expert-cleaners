@@ -83,7 +83,7 @@ export default async function ServicesPage({ searchParams }: PageProps<"/service
       : null;
 
   return (
-    <AppShell active="orders" actor={actor}>
+    <AppShell active="services" actor={actor}>
       <main className="mx-auto flex w-full max-w-[88rem] flex-1 flex-col gap-6 px-4 py-6 md:px-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="flex flex-col gap-1.5">
