@@ -170,6 +170,19 @@ describe("reprogramar y mover", () => {
     );
   });
 
+  it("reprogramar puede cambiar la hora de salida", async () => {
+    const { appointment } = await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date: "2026-11-19" }));
+    const { appointment: moved } = await rescheduleAppointment(ctx.db, AGENT_JOSUE, appointment.id, {
+      date: "2026-11-19",
+      startMin: 540,
+      durationMin: 150,
+      reason: "Termina más tarde",
+    });
+    expect(moved.durationMin).toBe(150);
+    const detail = await getAppointment(ctx.db, appointment.id);
+    expect(detail.history.map((h) => h.field)).toContain("duration");
+  });
+
   it("mover (drag & drop) devuelve advertencia de conflicto y la guarda igual", async () => {
     const date = "2026-11-18";
     await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date, startMin: 540 }));

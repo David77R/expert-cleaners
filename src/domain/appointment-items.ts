@@ -2,7 +2,7 @@ import type { ServiceField } from "@/db/schema";
 import { formatMoney } from "./invoice";
 import { slugify } from "./service-rules";
 
-export const MAX_ITEMS = 10;
+export const MAX_ITEMS = 100;
 
 export const DETAIL_KEYS = ["color", "size", "dimensions", "notes"] as const;
 export type DetailKey = (typeof DETAIL_KEYS)[number];

@@ -91,7 +91,15 @@ export function createOrsGeocoder(apiKey: string): Geocoder {
       free.searchParams.set("layers", "address,venue,street");
       free.searchParams.set("focus.point.lat", String(SERVICE_AREA.lat));
       free.searchParams.set("focus.point.lon", String(SERVICE_AREA.lng));
-      return pickGeocodeResult(await requestFeatures(free), input);
+      const second = pickGeocodeResult(await requestFeatures(free), input);
+      if (second || !input.zip.trim()) return second;
+
+      const noZip = withServiceArea(new URL(ORS_STRUCTURED_URL), apiKey);
+      noZip.searchParams.set("address", input.line1.trim());
+      noZip.searchParams.set("locality", input.city.trim());
+      noZip.searchParams.set("region", input.state.trim());
+      noZip.searchParams.set("country", "US");
+      return pickGeocodeResult(await requestFeatures(noZip), { zip: "" });
     },
   };
 }

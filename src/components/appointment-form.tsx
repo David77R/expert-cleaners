@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useState, useTransition, type ComponentProps, type FormEvent } from "react";
 import { createAppointmentAction, type AppointmentFormState } from "@/app/appointments/new/actions";
 import { AddressAutocomplete } from "@/components/address-autocomplete";
+import { TimeRange } from "@/components/time-range-fields";
 import { AppointmentItemsEditor, itemsDuration, type EditorItem } from "@/components/appointment-items-editor";
 import { CustomerPicker } from "@/components/customer-picker";
 import { Card, Field, INPUT } from "@/components/form-kit";
@@ -67,6 +68,7 @@ export function AppointmentForm({
   );
   const [technicianId, setTechnicianId] = useState(initialValues.technicianId ?? "");
   const [duration, setDuration] = useState(initialValues.durationMin ?? "");
+  const [time, setTime] = useState(initialValues.time ?? "");
 
   const needsDestination = items.some((item) => item.service?.twoAddresses);
 
@@ -253,28 +255,16 @@ export function AppointmentForm({
             <input {...props} name="date" type="date" defaultValue={values.date ?? ""} required className={INPUT} />
           )}
         </AppointmentField>
-        <AppointmentField name="time" label="Hora de inicio" error={errors.time}>
-          {(props) => (
-            <input {...props} name="time" type="time" defaultValue={values.time ?? ""} required className={INPUT} />
-          )}
-        </AppointmentField>
-        <AppointmentField name="durationMin" label="Duración (minutos)" error={errors.durationMin}>
-          {(props) => (
-            <input
-              {...props}
-              name="durationMin"
-              type="number"
-              inputMode="numeric"
-              min={0}
-              max={720}
-              step={1}
-              value={duration}
-              onChange={(event) => setDuration(event.target.value)}
-              required
-              className={INPUT}
-            />
-          )}
-        </AppointmentField>
+        <TimeRange
+          start={time}
+          duration={duration}
+          onStart={setTime}
+          onDuration={setDuration}
+          startError={errors.time}
+          durationError={errors.durationMin}
+          inputClassName={INPUT}
+          labelClassName="flex flex-col gap-1.5 text-sm font-medium"
+        />
       </Card>
 
       <Card title="Notas de la cita">

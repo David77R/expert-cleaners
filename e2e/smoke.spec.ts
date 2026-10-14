@@ -33,7 +33,7 @@ async function createSofaAppointment(
   await page.getByPlaceholder("Buscar por nombre, teléfono o código").fill("Molina");
   await page.getByText("Andrés Molina").click();
 
-  await page.getByRole("radio", { name: /Limpieza de Sofás/ }).click();
+  await page.getByRole("button", { name: /Agregar Limpieza de Sofás/ }).click();
   await page.getByLabel("Tipo de sofá").selectOption("Tela");
   await page.getByLabel("Número de asientos").fill(seats);
 

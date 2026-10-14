@@ -7,6 +7,7 @@ import { parseDuplicateIds } from "@/domain/customer-form";
 import { formatPhone } from "@/domain/customer-rules";
 import { AppShell } from "@/components/app-header";
 import { CustomerAvatar } from "@/components/customer-avatar";
+import { BackLink } from "@/components/back-link";
 import { Icon } from "@/components/icons";
 import { CustomerAddresses } from "@/components/customer-addresses";
 import { CustomerAppointmentsTable } from "@/components/customer-appointments-table";
@@ -66,9 +67,7 @@ export default async function CustomerPage({ params, searchParams }: PageProps<"
   return (
     <AppShell active="customers" actor={actor}>
       <main className="mx-auto flex w-full max-w-[88rem] flex-1 flex-col gap-6 px-4 py-6 md:px-8">
-        <Link href="/customers" className="flex w-fit items-center gap-1 text-sm font-medium text-soft hover:text-ink">
-          <Icon name="left" /> Todos los clientes
-        </Link>
+        <BackLink fallback="/customers" />
 
         {(deleteFailed || confirmMissing) && (
           <p role="alert" className="rounded-md bg-attention-soft px-4 py-3 text-sm font-medium text-attention">

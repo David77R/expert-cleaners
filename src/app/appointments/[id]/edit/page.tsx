@@ -7,11 +7,12 @@ import { services as servicesTable, technicians as techniciansTable } from "@/db
 import { addressAction, itemsAction, notesAction, rescheduleAction } from "@/app/calendar/actions";
 import { ActionForm } from "@/components/action-form";
 import { AppShell } from "@/components/app-header";
-import { Icon } from "@/components/icons";
+import { BackLink } from "@/components/back-link";
 import { FIELD } from "@/components/panel-kit";
 import { PanelItemsForm } from "@/components/panel-items-form";
 import { PhotoGallery } from "@/components/photo-gallery";
 import { StatusBadge } from "@/components/status-badge";
+import { TimeRangeField } from "@/components/time-range-fields";
 import { centsToDollars, serviceLabel } from "@/domain/appointment-items";
 import { toFormService } from "@/domain/appointment-form";
 import { minutesToTimeInput, panelActions } from "@/domain/appointment-panel";
@@ -94,9 +95,7 @@ export default async function EditAppointmentPage({ params, searchParams }: Page
   return (
     <AppShell active="calendar" actor={actor}>
       <main className="mx-auto flex w-full max-w-[88rem] flex-1 flex-col gap-6 px-4 py-6 md:px-8">
-        <Link href={back} className="flex w-fit items-center gap-1 text-sm font-medium text-soft hover:text-ink">
-          <Icon name="left" /> Volver
-        </Link>
+        <BackLink fallback={back} />
 
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="flex flex-col gap-1.5">
@@ -159,6 +158,7 @@ export default async function EditAppointmentPage({ params, searchParams }: Page
                       ),
                     }))}
                     durationMin={appointment.durationMin}
+                    showDuration={false}
                     hasDestination={appointment.destinationAddress !== null}
                   />
                 </ActionForm>
@@ -193,23 +193,22 @@ export default async function EditAppointmentPage({ params, searchParams }: Page
 
           <div className="flex flex-col gap-6">
             {actions.reschedule && (
-              <Card title="Fecha, hora y técnico">
+              <Card
+                title="Fecha, horario y técnico"
+                hint="Cambia la hora de inicio, la de salida, el día o el técnico."
+              >
                 <ActionForm action={rescheduleAction.bind(null, id)} submit="Guardar horario" pendingText="Guardando…">
+                  <label className="flex flex-col gap-1 text-xs font-medium text-soft">
+                    Fecha
+                    <input type="date" name="date" required defaultValue={appointment.date} className={FIELD} />
+                  </label>
                   <div className="grid grid-cols-2 gap-3">
-                    <label className="flex flex-col gap-1 text-xs font-medium text-soft">
-                      Fecha
-                      <input type="date" name="date" required defaultValue={appointment.date} className={FIELD} />
-                    </label>
-                    <label className="flex flex-col gap-1 text-xs font-medium text-soft">
-                      Hora
-                      <input
-                        type="time"
-                        name="time"
-                        required
-                        defaultValue={minutesToTimeInput(appointment.startMin)}
-                        className={FIELD}
-                      />
-                    </label>
+                    <TimeRangeField
+                      defaultStart={minutesToTimeInput(appointment.startMin)}
+                      defaultDuration={appointment.durationMin}
+                      inputClassName={FIELD}
+                      labelClassName="flex flex-col gap-1 text-xs font-medium text-soft"
+                    />
                   </div>
                   <label className="flex flex-col gap-1 text-xs font-medium text-soft">
                     Técnico

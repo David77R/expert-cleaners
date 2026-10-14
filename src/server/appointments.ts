@@ -344,6 +344,9 @@ export async function rescheduleAppointment(db: Db, actor: Actor, id: string, ra
     ];
     if (technicianId !== current.technicianId)
       changes.push({ field: "technician", from: current.technicianId, to: technicianId });
+    const durationMin = input.durationMin ?? current.durationMin;
+    if (durationMin !== current.durationMin)
+      changes.push({ field: "duration", from: String(current.durationMin), to: String(durationMin) });
     changes.push(
       { field: "status", from: current.status, to: "rescheduled" },
       { field: "reschedule_reason", from: null, to: reason },
@@ -352,7 +355,14 @@ export async function rescheduleAppointment(db: Db, actor: Actor, id: string, ra
       tx,
       actor,
       current,
-      { status: "rescheduled", date: input.date, startMin: input.startMin, technicianId, rescheduleReason: reason },
+      {
+        status: "rescheduled",
+        date: input.date,
+        startMin: input.startMin,
+        durationMin,
+        technicianId,
+        rescheduleReason: reason,
+      },
       changes,
     );
     return { appointment: updated, conflicts: await conflictsFor(tx, toBlock(updated)) };

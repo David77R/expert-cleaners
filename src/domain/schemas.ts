@@ -274,6 +274,7 @@ export const cancelSchema = z.object({
 export const rescheduleSchema = z.object({
   date: isoDate,
   startMin: minutes,
+  durationMin: z.number().int().min(0).max(720).optional(),
   technicianId: z.uuid().optional(),
   reason: z.string().trim().min(1, "El motivo es obligatorio"),
 });

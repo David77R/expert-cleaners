@@ -21,6 +21,7 @@ export function PanelItemsForm({
   durationMin,
   hasDestination,
   compact = true,
+  showDuration = true,
 }: {
   appointmentId: string;
   services: FormService[];
@@ -28,6 +29,7 @@ export function PanelItemsForm({
   durationMin: number;
   hasDestination: boolean;
   compact?: boolean;
+  showDuration?: boolean;
 }) {
   const [needsDestination, setNeedsDestination] = useState(false);
   const idPrefix = `panel-${appointmentId}`;
@@ -60,20 +62,22 @@ export function PanelItemsForm({
           ))}
         </fieldset>
       )}
-      <label htmlFor={`${idPrefix}-duration`} className="flex flex-col gap-1.5 text-sm font-medium">
-        Duración (minutos)
-        <input
-          id={`${idPrefix}-duration`}
-          name="durationMin"
-          type="number"
-          inputMode="numeric"
-          min={0}
-          max={720}
-          step={1}
-          defaultValue={durationMin}
-          className={INPUT}
-        />
-      </label>
+      {showDuration && (
+        <label htmlFor={`${idPrefix}-duration`} className="flex flex-col gap-1.5 text-sm font-medium">
+          Duración (minutos)
+          <input
+            id={`${idPrefix}-duration`}
+            name="durationMin"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={720}
+            step={1}
+            defaultValue={durationMin}
+            className={INPUT}
+          />
+        </label>
+      )}
     </div>
   );
 }

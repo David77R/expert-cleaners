@@ -38,6 +38,7 @@ export function payloadFromForm(action: PanelAction, form: FormData): Record<str
         action,
         date: text(form, "date"),
         startMin: parseTimeInput(text(form, "time")) ?? undefined,
+        ...(text(form, "durationMin").trim() === "" ? {} : { durationMin: Number(text(form, "durationMin")) }),
         technicianId: text(form, "technicianId") || undefined,
         reason: text(form, "reason"),
       };

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { describeDuration, durationBetween, endTimeFor } from "@/components/time-range-fields";
 import { addDays, confirmationMessage, whatsappHref } from "@/domain/order";
 import { guessServiceIcon, serviceIconOf } from "@/domain/service-icons";
 
@@ -81,5 +82,26 @@ describe("íconos de servicios", () => {
     expect(guessServiceIcon({ name: "Básico", category: "Limpieza residencial" })).toBe("house");
     expect(serviceIconOf({ name: "Sofa", icon: "car" })).toBe("car");
     expect(serviceIconOf({ name: "Sofa", icon: "inventado" })).toBe("sofa");
+  });
+});
+
+describe("hora de inicio y de salida", () => {
+  it("calcula la salida desde el inicio y la duración", () => {
+    expect(endTimeFor("09:00", "150")).toBe("11:30");
+    expect(endTimeFor("09:00", "0")).toBe("09:00");
+    expect(endTimeFor("", "60")).toBe("");
+    expect(endTimeFor("23:30", "60")).toBe("");
+  });
+
+  it("calcula la duración entre dos horas", () => {
+    expect(durationBetween("09:00", "11:15")).toBe(135);
+    expect(durationBetween("09:00", "09:00")).toBe(0);
+    expect(durationBetween("10:00", "09:00")).toBeNull();
+  });
+
+  it("describe la duración en horas y minutos", () => {
+    expect(describeDuration(45)).toBe("45 min");
+    expect(describeDuration(120)).toBe("2 h");
+    expect(describeDuration(135)).toBe("2 h 15 min");
   });
 });

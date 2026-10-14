@@ -28,6 +28,7 @@ import { ActionForm } from "@/components/action-form";
 import type { CalendarNav, CalendarTechnician } from "@/components/calendar-types";
 import { Icon } from "@/components/icons";
 import { PanelItemsForm } from "@/components/panel-items-form";
+import { TimeRangeField } from "@/components/time-range-fields";
 import { AppointmentDeliverySection } from "@/components/appointment-delivery";
 import { Expandable, FIELD, Row, Section } from "@/components/panel-kit";
 import { PhotoGallery } from "@/components/photo-gallery";
@@ -366,21 +367,17 @@ export function AppointmentPanel({
                     pendingText="Guardando…"
                     tone="primary"
                   >
+                    <label className="flex flex-col gap-1 text-xs font-medium text-soft">
+                      Fecha
+                      <input type="date" name="date" required defaultValue={appointment.date} className={FIELD} />
+                    </label>
                     <div className="grid grid-cols-2 gap-2">
-                      <label className="flex flex-col gap-1 text-xs font-medium text-soft">
-                        Fecha
-                        <input type="date" name="date" required defaultValue={appointment.date} className={FIELD} />
-                      </label>
-                      <label className="flex flex-col gap-1 text-xs font-medium text-soft">
-                        Hora
-                        <input
-                          type="time"
-                          name="time"
-                          required
-                          defaultValue={minutesToTimeInput(appointment.startMin)}
-                          className={FIELD}
-                        />
-                      </label>
+                      <TimeRangeField
+                        defaultStart={minutesToTimeInput(appointment.startMin)}
+                        defaultDuration={appointment.durationMin}
+                        inputClassName={FIELD}
+                        labelClassName="flex flex-col gap-1 text-xs font-medium text-soft"
+                      />
                     </div>
                     <label className="flex flex-col gap-1 text-xs font-medium text-soft">
                       Técnico

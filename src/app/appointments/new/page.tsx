@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getDb } from "@/db/client";
@@ -10,7 +9,7 @@ import { isoDate } from "@/domain/schemas";
 import { calendarHref } from "@/lib/calendar-links";
 import { AppShell } from "@/components/app-header";
 import { AppointmentForm } from "@/components/appointment-form";
-import { Icon } from "@/components/icons";
+import { BackLink } from "@/components/back-link";
 import { getActor } from "@/server/auth";
 import { getCustomerSummary } from "@/server/customers";
 import { listServices } from "@/server/services";
@@ -63,12 +62,7 @@ export default async function NewAppointmentPage({ searchParams }: PageProps<"/a
   return (
     <AppShell active="calendar" actor={actor}>
       <main className="mx-auto flex w-full max-w-[88rem] flex-1 flex-col gap-6 px-4 py-6 md:px-8">
-        <Link
-          href={calendarHref({ date })}
-          className="flex w-fit items-center gap-1 text-sm font-medium text-soft hover:text-ink"
-        >
-          <Icon name="left" /> Volver al calendario
-        </Link>
+        <BackLink fallback={calendarHref({ date })} />
         <div className="flex flex-col gap-1.5">
           <h1 className="font-display text-2xl font-semibold tracking-tight">Nueva cita</h1>
           <p className="text-sm text-soft">Elige el cliente, el servicio y el horario del técnico.</p>
