@@ -60,11 +60,39 @@ export const updateAddressSchema = z
   })
   .refine((value) => Object.values(value).some((field) => field !== undefined), "Envía al menos un campo");
 
+export const CUSTOMER_SORTS = [
+  "recent",
+  "oldest",
+  "code_asc",
+  "code_desc",
+  "first_asc",
+  "first_desc",
+  "last_asc",
+  "last_desc",
+] as const;
+export type CustomerSort = (typeof CUSTOMER_SORTS)[number];
+
+const optionalDate = z
+  .string()
+  .trim()
+  .transform((value) => (value === "" ? undefined : value))
+  .pipe(isoDate.optional())
+  .optional()
+  .catch(undefined);
+
 export const customerSearchSchema = z.object({
   q: z.string().trim().max(100).default(""),
   limit: z.coerce.number().int().min(1).max(50).default(20),
   offset: z.coerce.number().int().min(0).default(0),
+  sort: z.enum(CUSTOMER_SORTS).default("last_asc").catch("last_asc"),
+  city: z.string().trim().max(80).default("").catch(""),
+  marketing: z.enum(["any", "yes", "no"]).default("any").catch("any"),
+  appointments: z.enum(["any", "with", "without"]).default("any").catch("any"),
+  createdFrom: optionalDate,
+  createdTo: optionalDate,
 });
+
+export type CustomerSearchInput = z.input<typeof customerSearchSchema>;
 
 export const customerNoteSchema = z.object({
   text: z.string().trim().min(1, "La nota no puede estar vacía").max(2000),

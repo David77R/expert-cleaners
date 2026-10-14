@@ -431,3 +431,58 @@ describe("unir clientes repetidos", () => {
     expect(await findCustomerByCode(ctx.db, "CLI-99999")).toBeNull();
   });
 });
+
+describe("ordenar y filtrar clientes", () => {
+  const base = { addresses: [home] };
+
+  beforeAll(async () => {
+    await createCustomer(ctx.db, { ...base, firstName: "María", lastName: "Ñúñez", phone: "305-555-6001" });
+    await createCustomer(ctx.db, {
+      ...base,
+      firstName: "Maria José",
+      lastName: "Arias",
+      phone: "305-555-6002",
+      allowMarketing: true,
+      addresses: [{ ...office }],
+    });
+    await createCustomer(ctx.db, { ...base, firstName: "Rosamaría", lastName: "Báez", phone: "305-555-6003" });
+  });
+
+  it("encuentra todas las Marías sin importar acentos ni mayúsculas", async () => {
+    const { items, total } = await searchCustomers(ctx.db, { q: "maria" });
+    expect(items.map((c) => c.firstName).sort()).toEqual(["Maria José", "María", "Rosamaría"].sort());
+    expect(total).toBe(3);
+    expect((await searchCustomers(ctx.db, { q: "NUNEZ" })).items.map((c) => c.firstName)).toEqual(["María"]);
+  });
+
+  it("ordena por código, nombre y fecha de creación en ambos sentidos", async () => {
+    const codes = (await searchCustomers(ctx.db, { q: "maria", sort: "code_asc" })).items.map((c) => c.code);
+    expect(codes).toEqual([...codes].sort((a, b) => Number(a.slice(4)) - Number(b.slice(4))));
+    const desc = (await searchCustomers(ctx.db, { q: "maria", sort: "code_desc" })).items.map((c) => c.code);
+    expect(desc).toEqual([...codes].reverse());
+    const names = (await searchCustomers(ctx.db, { q: "maria", sort: "first_asc" })).items.map((c) => c.firstName);
+    expect(names).toEqual(["María", "Maria José", "Rosamaría"]);
+    const recent = await searchCustomers(ctx.db, { sort: "recent", limit: 1 });
+    expect(recent.items[0].firstName).not.toBe(ctx.customer.firstName);
+    const oldest = await searchCustomers(ctx.db, { sort: "oldest", limit: 1 });
+    expect(oldest.items[0].id).toBe(ctx.customer.id);
+  });
+
+  it("filtra por ciudad, promociones, citas y fecha de creación", async () => {
+    const doral = await searchCustomers(ctx.db, { q: "maria", city: "doral" });
+    expect(doral.items.map((c) => c.firstName)).toEqual(["Maria José"]);
+    const promos = await searchCustomers(ctx.db, { q: "maria", marketing: "yes" });
+    expect(promos.items.map((c) => c.firstName)).toEqual(["Maria José"]);
+    const without = await searchCustomers(ctx.db, { q: "maria", appointments: "without" });
+    expect(without.total).toBe(3);
+    expect((await searchCustomers(ctx.db, { q: "maria", appointments: "with" })).total).toBe(0);
+    expect((await searchCustomers(ctx.db, { q: "maria", createdTo: "2000-01-01" })).total).toBe(0);
+    expect((await searchCustomers(ctx.db, { q: "maria", createdFrom: "2000-01-01" })).total).toBe(3);
+  });
+
+  it("ignora valores de filtros inválidos y cuenta las citas", async () => {
+    const result = await searchCustomers(ctx.db, { q: "maria", sort: "raro", marketing: "x", createdFrom: "nope" });
+    expect(result.total).toBe(3);
+    expect(result.items[0].appointmentCount).toBe(0);
+  });
+});

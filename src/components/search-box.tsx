@@ -1,25 +1,28 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { Icon } from "@/components/icons";
 
 export function SearchBox({ initial, placeholder }: { initial: string; placeholder: string }) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [value, setValue] = useState(initial);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
     if (value.trim() === initial) return;
     const timer = setTimeout(() => {
-      const params = new URLSearchParams();
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete("offset");
       if (value.trim()) params.set("q", value.trim());
+      else params.delete("q");
       const query = params.toString();
       startTransition(() => router.replace(query ? `${pathname}?${query}` : pathname));
     }, 250);
     return () => clearTimeout(timer);
-  }, [value, initial, pathname, router]);
+  }, [value, initial, pathname, router, searchParams]);
 
   return (
     <div className="relative w-full max-w-xl">

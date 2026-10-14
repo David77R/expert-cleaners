@@ -1,4 +1,5 @@
 import { and, asc, count, desc, eq, inArray, ne, or, sql, type SQL } from "drizzle-orm";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import * as schema from "@/db/schema";
 import { DomainError } from "@/domain/appointment-rules";
 import { assertAdmin } from "@/domain/permissions";
@@ -11,6 +12,7 @@ import {
   updateAddressSchema,
   updateCustomerSchema,
   type CreateCustomerInput,
+  type CustomerSort,
 } from "@/domain/schemas";
 import type { Db } from "@/server/appointments";
 import { geocodeIfNeeded } from "@/server/geocoding";
@@ -140,31 +142,103 @@ export async function updateCustomer(db: Db, id: string, raw: unknown) {
   });
 }
 
-export async function searchCustomers(db: Db, raw: unknown) {
-  const { q, limit, offset } = customerSearchSchema.parse(raw);
+const ACCENTED = "áàäâãéèëêíìïîóòöôõúùüûñç";
+const PLAIN = "aaaaaeeeeiiiiooooouuuunc";
 
-  let where: SQL | undefined;
+function folded(value: SQL | AnyPgColumn): SQL {
+  return sql`translate(lower(${value}), ${ACCENTED}, ${PLAIN})`;
+}
+
+function foldText(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+const codeNumber = sql`cast(substring(${customers.code} from 5) as integer)`;
+
+const SORT_ORDER: Record<CustomerSort, SQL[]> = {
+  recent: [desc(customers.createdAt), desc(codeNumber)],
+  oldest: [asc(customers.createdAt), asc(codeNumber)],
+  code_asc: [asc(codeNumber)],
+  code_desc: [desc(codeNumber)],
+  first_asc: [asc(folded(customers.firstName)), asc(folded(customers.lastName))],
+  first_desc: [desc(folded(customers.firstName)), desc(folded(customers.lastName))],
+  last_asc: [asc(folded(customers.lastName)), asc(folded(customers.firstName))],
+  last_desc: [desc(folded(customers.lastName)), desc(folded(customers.firstName))],
+};
+
+export async function searchCustomers(db: Db, raw: unknown) {
+  const {
+    q,
+    limit,
+    offset,
+    sort,
+    city,
+    marketing,
+    appointments: withAppointments,
+    createdFrom,
+    createdTo,
+  } = customerSearchSchema.parse(raw);
+
+  const conditions: SQL[] = [];
   if (q) {
-    const like = `%${escapeLike(q)}%`;
+    const like = `%${escapeLike(foldText(q))}%`;
     const digits = phoneDigits(q);
     const clauses: SQL[] = [
-      sql`concat(${customers.firstName}, ' ', ${customers.lastName}) ilike ${like}`,
-      sql`${customers.code} ilike ${like}`,
-      sql`coalesce(${customers.email}, '') ilike ${like}`,
+      sql`${folded(sql`concat(${customers.firstName}, ' ', ${customers.lastName})`)} like ${like}`,
+      sql`${folded(sql`concat(${customers.lastName}, ' ', ${customers.firstName})`)} like ${like}`,
+      sql`lower(${customers.code}) like ${like}`,
+      sql`${folded(sql`coalesce(${customers.email}, '')`)} like ${like}`,
     ];
     if (digits.length >= 3) clauses.push(sql`${phoneDigitsSql} like ${`%${digits}%`}`);
-    where = or(...clauses);
+    const match = or(...clauses);
+    if (match) conditions.push(match);
   }
+  if (city) {
+    conditions.push(
+      sql`exists (select 1 from ${addresses} where ${addresses.customerId} = ${customers.id} and ${folded(
+        sql`${addresses.city}`,
+      )} like ${`%${escapeLike(foldText(city))}%`})`,
+    );
+  }
+  if (marketing !== "any") conditions.push(eq(customers.allowMarketing, marketing === "yes"));
+  if (withAppointments !== "any") {
+    const exists = sql`exists (select 1 from ${appointments} where ${appointments.customerId} = ${customers.id})`;
+    conditions.push(withAppointments === "with" ? exists : sql`not ${exists}`);
+  }
+  if (createdFrom)
+    conditions.push(sql`(${customers.createdAt} at time zone 'America/New_York')::date >= ${createdFrom}`);
+  if (createdTo) conditions.push(sql`(${customers.createdAt} at time zone 'America/New_York')::date <= ${createdTo}`);
+  const where = conditions.length > 0 ? and(...conditions) : undefined;
 
-  const rows = await db.query.customers.findMany({
-    where,
-    with: { addresses: true },
-    orderBy: [asc(customers.lastName), asc(customers.firstName)],
-    limit: limit + 1,
-    offset,
-  });
+  const rows = await db
+    .select({
+      customer: customers,
+      appointmentCount: sql<number>`(select count(*) from ${appointments} where ${appointments.customerId} = ${customers.id})`,
+    })
+    .from(customers)
+    .where(where)
+    .orderBy(...SORT_ORDER[sort])
+    .limit(limit + 1)
+    .offset(offset);
+  const [{ total }] = await db.select({ total: count() }).from(customers).where(where);
 
-  return { items: rows.slice(0, limit), hasMore: rows.length > limit };
+  const page = rows.slice(0, limit);
+  const ids = page.map((row) => row.customer.id);
+  const pageAddresses =
+    ids.length > 0 ? await db.select().from(addresses).where(inArray(addresses.customerId, ids)) : [];
+
+  return {
+    items: page.map((row) => ({
+      ...row.customer,
+      appointmentCount: Number(row.appointmentCount),
+      addresses: pageAddresses.filter((address) => address.customerId === row.customer.id),
+    })),
+    hasMore: rows.length > limit,
+    total: Number(total),
+  };
 }
 
 export async function getCustomerSummary(db: Db, id: string) {
