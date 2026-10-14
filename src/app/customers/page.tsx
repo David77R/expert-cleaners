@@ -32,6 +32,7 @@ export default async function CustomersPage({ searchParams }: PageProps<"/custom
   const requestedOffset = Number(first(params.offset));
   const offset = Number.isInteger(requestedOffset) && requestedOffset > 0 ? requestedOffset : 0;
 
+  const deleted = first(params.aviso) === "eliminado";
   const { items, hasMore } = await searchCustomers(getDb(), { q: q || undefined, limit: PAGE_SIZE, offset });
 
   return (
@@ -50,6 +51,12 @@ export default async function CustomersPage({ searchParams }: PageProps<"/custom
             Nuevo cliente
           </Link>
         </div>
+
+        {deleted && (
+          <p role="status" className="rounded-md bg-success-soft px-4 py-3 text-sm font-medium text-success">
+            Cliente eliminado.
+          </p>
+        )}
 
         <SearchBox initial={q} placeholder="Ej: Andrés, 305 555, CLI-1001" />
 

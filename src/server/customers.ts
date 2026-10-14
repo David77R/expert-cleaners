@@ -1,6 +1,7 @@
 import { and, asc, count, desc, eq, inArray, ne, or, sql, type SQL } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { DomainError } from "@/domain/appointment-rules";
+import { assertAdmin } from "@/domain/permissions";
 import { escapeLike, phoneDigits } from "@/domain/customer-rules";
 import {
   addressSnapshotSchema,
@@ -200,7 +201,26 @@ export async function getCustomer(db: Db, id: string) {
     .orderBy(desc(appointments.date), desc(appointments.startMin))
     .limit(20);
 
-  return { ...row, appointments: recentAppointments };
+  const [{ total }] = await db.select({ total: count() }).from(appointments).where(eq(appointments.customerId, id));
+
+  return { ...row, appointments: recentAppointments, appointmentCount: Number(total) };
+}
+
+export async function deleteCustomer(db: Db, actor: Actor, id: string) {
+  assertAdmin(actor);
+  return db.transaction(async (tx) => {
+    const [customer] = await tx.select().from(customers).where(eq(customers.id, id)).limit(1);
+    if (!customer) throw new DomainError("not_found", "El cliente no existe");
+    const [{ total }] = await tx.select({ total: count() }).from(appointments).where(eq(appointments.customerId, id));
+    if (Number(total) > 0) {
+      throw new DomainError(
+        "customer_in_use",
+        "Este cliente tiene citas registradas, así que no se puede eliminar para no perder su historial ni sus facturas.",
+      );
+    }
+    await tx.delete(customers).where(eq(customers.id, id));
+    return { id };
+  });
 }
 
 export async function addAddress(db: Db, customerId: string, raw: unknown) {

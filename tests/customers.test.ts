@@ -11,6 +11,7 @@ import {
   addCustomerNote,
   createCustomer,
   deleteAddress,
+  deleteCustomer,
   getCustomer,
   locateMissingAddresses,
   searchCustomers,
@@ -342,5 +343,30 @@ describe("clientes repetidos", () => {
     expect(relative.existing).toBe(false);
     expect(relative.customer.id).not.toBe(first.customer.id);
     expect(relative.duplicates.map((d) => d.id)).toContain(first.customer.id);
+  });
+});
+
+describe("eliminar cliente", () => {
+  const ADMIN = { id: AGENT_JOSUE.id, name: "Admin", role: "admin" as const };
+
+  it("solo el súper admin elimina, y se lleva direcciones y notas", async () => {
+    const { customer } = await createCustomer(ctx.db, newCustomer({ firstName: "Borrable", phone: "786 555 0777" }));
+    await addCustomerNote(ctx.db, AGENT_JOSUE, customer.id, { text: "Nota" });
+    await expect(deleteCustomer(ctx.db, AGENT_JOSUE, customer.id)).rejects.toMatchObject({ code: "forbidden" });
+
+    await deleteCustomer(ctx.db, ADMIN, customer.id);
+    await expect(getCustomer(ctx.db, customer.id)).rejects.toMatchObject({ code: "not_found" });
+    const left = await ctx.db.select().from(addressesTable).where(eq(addressesTable.customerId, customer.id));
+    expect(left).toHaveLength(0);
+  });
+
+  it("no elimina clientes con citas ni clientes inexistentes", async () => {
+    await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date: "2026-11-03" }));
+    const detail = await getCustomer(ctx.db, ctx.customer.id);
+    expect(detail.appointmentCount).toBeGreaterThan(0);
+    await expect(deleteCustomer(ctx.db, ADMIN, ctx.customer.id)).rejects.toMatchObject({ code: "customer_in_use" });
+    await expect(deleteCustomer(ctx.db, ADMIN, "00000000-0000-4000-8000-0000000000fe")).rejects.toMatchObject({
+      code: "not_found",
+    });
   });
 });

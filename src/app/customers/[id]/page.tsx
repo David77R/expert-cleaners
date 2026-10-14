@@ -13,6 +13,7 @@ import { AppShell } from "@/components/app-header";
 import { CustomerAvatar } from "@/components/customer-avatar";
 import { Icon } from "@/components/icons";
 import { NoteForm } from "@/components/note-form";
+import { deleteCustomerAction } from "@/app/customers/[id]/actions";
 import { StatusBadge } from "@/components/status-badge";
 import { getActor } from "@/server/auth";
 import { customersByIds, getCustomer } from "@/server/customers";
@@ -48,6 +49,8 @@ export default async function CustomerPage({ params, searchParams }: PageProps<"
   const query = await searchParams;
   const justCreated = first(query.nuevo) === "1";
   const alreadyExisted = first(query.existente) === "1";
+  const deleteFailed = first(query.error) === "no-eliminado";
+  const canDelete = actor.role === "admin" && customer.appointmentCount === 0;
   const duplicateIds = justCreated
     ? parseDuplicateIds(first(query.dup), (value) => z.uuid().safeParse(value).success).filter(
         (id) => id !== customer.id,
@@ -63,6 +66,12 @@ export default async function CustomerPage({ params, searchParams }: PageProps<"
         <Link href="/customers" className="flex w-fit items-center gap-1 text-sm font-medium text-soft hover:text-ink">
           <Icon name="left" /> Todos los clientes
         </Link>
+
+        {deleteFailed && (
+          <p role="alert" className="rounded-md bg-attention-soft px-4 py-3 text-sm font-medium text-attention">
+            No se pudo eliminar: este cliente tiene citas registradas.
+          </p>
+        )}
 
         {alreadyExisted && (
           <p role="status" className="rounded-md bg-info-soft px-4 py-3 text-sm font-medium text-info">
@@ -163,7 +172,7 @@ export default async function CustomerPage({ params, searchParams }: PageProps<"
 
             <section className="flex flex-col gap-3">
               <h2 className="font-display text-lg font-semibold">
-                Citas recientes <span className="text-sm font-normal text-muted">({customer.appointments.length})</span>
+                Citas recientes <span className="text-sm font-normal text-muted">({customer.appointmentCount})</span>
               </h2>
               {customer.appointments.length === 0 ? (
                 <p className="rounded-md border border-dashed border-hair bg-paper px-4 py-8 text-center text-sm text-muted">
@@ -223,6 +232,29 @@ export default async function CustomerPage({ params, searchParams }: PageProps<"
                   </li>
                 ))}
               </ol>
+            )}
+            {canDelete && (
+              <details className="group rounded-md border border-hair bg-paper">
+                <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold text-attention">
+                  Eliminar cliente
+                  <Icon name="right" className="transition-transform group-open:rotate-90" />
+                </summary>
+                <form
+                  action={deleteCustomerAction.bind(null, customer.id)}
+                  className="flex flex-col gap-3 border-t border-hair px-4 py-4"
+                >
+                  <p className="text-sm text-soft">
+                    Se borran definitivamente el cliente, sus direcciones y sus notas. Solo es posible porque no tiene
+                    ninguna cita.
+                  </p>
+                  <button
+                    type="submit"
+                    className="w-fit rounded-md border border-attention/50 bg-paper px-4 py-2 text-sm font-semibold text-attention transition-colors hover:bg-attention-soft"
+                  >
+                    Sí, eliminar a {fullName}
+                  </button>
+                </form>
+              </details>
             )}
           </aside>
         </div>
