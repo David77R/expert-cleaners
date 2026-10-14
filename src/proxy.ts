@@ -30,7 +30,7 @@ export async function proxy(request: NextRequest) {
     }
     return NextResponse.redirect(new URL("/login", request.url));
   }
-  if (data.user && isPublic) return NextResponse.redirect(new URL("/calendar", request.url));
+  if (data.user && isPublic) return NextResponse.redirect(new URL("/inicio", request.url));
   return response;
 }
 

@@ -20,7 +20,7 @@ export async function login(_prev: { error?: string } | undefined, formData: For
       error: `No se pudo conectar con el servicio de inicio de sesión (${error.code ?? error.status ?? "sin código"}). Avisa al administrador.`,
     };
   }
-  redirect("/calendar");
+  redirect("/inicio");
 }
 
 export async function logout() {

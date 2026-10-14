@@ -6,9 +6,11 @@ import { todayIn } from "@/domain/date-rules";
 import { logout } from "@/app/login/actions";
 import { Icon, type IconName } from "@/components/icons";
 
-type Section = "orders" | "calendar" | "customers" | "services" | "agents" | "technicians" | "reports" | "alerts";
+type Section =
+  "home" | "orders" | "calendar" | "customers" | "services" | "agents" | "technicians" | "reports" | "alerts";
 
 const LINKS: { key: Section; href: string; label: string; icon: IconName; adminOnly?: boolean }[] = [
+  { key: "home", href: "/inicio", label: "Inicio", icon: "home" },
   { key: "orders", href: "/orders/new", label: "Nuevo pedido", icon: "plus" },
   { key: "customers", href: "/customers", label: "Clientes", icon: "users" },
   { key: "services", href: "/services", label: "Servicios", icon: "tag", adminOnly: true },
@@ -21,7 +23,7 @@ const LINKS: { key: Section; href: string; label: string; icon: IconName; adminO
 
 function Brand() {
   return (
-    <Link href="/calendar" aria-label="Expert Cleaners" className="flex shrink-0 items-center gap-3">
+    <Link href="/inicio" aria-label="Expert Cleaners: inicio" className="flex shrink-0 items-center gap-3">
       <span className="font-display flex h-9 w-9 items-center justify-center rounded-md bg-brand text-sm font-bold text-white">
         EC
       </span>
@@ -114,8 +116,8 @@ export function AppShell({ active, actor, children }: { active: Section; actor: 
 
       <header className="sticky top-0 z-30 flex items-center gap-3 bg-rail px-4 py-2.5 lg:hidden">
         <Link
-          href="/calendar"
-          aria-label="Expert Cleaners"
+          href="/inicio"
+          aria-label="Expert Cleaners: inicio"
           className="font-display flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-brand text-sm font-bold text-white"
         >
           EC

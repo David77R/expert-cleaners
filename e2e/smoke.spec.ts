@@ -15,7 +15,9 @@ async function login(page: Page) {
   await page.getByLabel("Correo").fill(EMAIL!);
   await page.getByLabel("Contraseña").fill(PASSWORD!);
   await page.getByRole("button", { name: "Iniciar sesión" }).click();
-  await expect(page).toHaveURL(/\/calendar/);
+  await expect(page).toHaveURL(/\/inicio/);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await page.goto("/calendar");
 }
 
 function localToday() {
