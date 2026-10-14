@@ -9,6 +9,7 @@ import {
   moveAppointment,
   rescheduleAppointment,
   setBillingAddress,
+  setAppointmentAddress,
   setDestinationAddress,
   updateNotes,
   type Db,
@@ -27,6 +28,7 @@ export const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("set_destination"), address: addressSnapshotSchema }),
   z.object({ action: z.literal("set_billing"), address: addressSnapshotSchema }),
   z.object({ action: z.literal("update_notes"), notes: z.string() }),
+  z.object({ action: z.literal("set_address"), addressId: z.string() }),
 ]);
 
 export type AppointmentAction = z.infer<typeof actionSchema>;
@@ -54,5 +56,7 @@ export async function runAction(db: Db, actor: Actor, id: string, raw: unknown):
       return setBillingAddress(db, actor, id, input.address);
     case "update_notes":
       return updateNotes(db, actor, id, input.notes);
+    case "set_address":
+      return setAppointmentAddress(db, actor, id, { addressId: input.addressId });
   }
 }

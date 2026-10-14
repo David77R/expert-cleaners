@@ -210,6 +210,8 @@ export const rescheduleSchema = z.object({
   reason: z.string().trim().min(1, "El motivo es obligatorio"),
 });
 
+export const setAddressSchema = z.object({ addressId: z.uuid("Elige una dirección") });
+
 export const moveSchema = z.object({
   startMin: minutes,
   technicianId: z.uuid(),

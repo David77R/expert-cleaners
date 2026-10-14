@@ -10,8 +10,10 @@ import {
   markPaid,
   moveAppointment,
   rescheduleAppointment,
+  setAppointmentAddress,
   setDestinationAddress,
 } from "@/server/appointments";
+import { addresses } from "@/db/schema";
 import { AGENT_JOSUE } from "@/db/seed-data";
 import { DomainError } from "@/domain/appointment-rules";
 import { appointmentInput, createTestDb } from "./helpers";
@@ -208,5 +210,34 @@ describe("pago, factura y direcciones", () => {
       line1: "5500 NW 36th St",
     });
     expect(changed.appointment.destinationAddress?.line1).toBe("5500 NW 36th St");
+  });
+
+  it("cambia la dirección del servicio a otra del mismo cliente y lo deja en el historial", async () => {
+    const [second] = await ctx.db
+      .insert(addresses)
+      .values({ customerId: ctx.customer.id, line1: "900 Biscayne Blvd", city: "Miami", state: "FL", zip: "33132" })
+      .returning();
+    const { appointment } = await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date: "2026-11-23" }));
+    const changed = await setAppointmentAddress(ctx.db, AGENT_JOSUE, appointment.id, { addressId: second.id });
+    expect(changed.appointment.addressId).toBe(second.id);
+    const detail = await getAppointment(ctx.db, appointment.id);
+    expect(detail.address.line1).toBe("900 Biscayne Blvd");
+    expect(detail.customer.addresses.map((a) => a.id)).toContain(second.id);
+    const entry = detail.history.find((h) => h.field === "address");
+    expect(entry?.toValue).toBe("900 Biscayne Blvd, Miami, FL 33132");
+
+    const back = await setAppointmentAddress(ctx.db, AGENT_JOSUE, appointment.id, { addressId: ctx.address.id });
+    expect(back.appointment.addressId).toBe(ctx.address.id);
+  });
+
+  it("no acepta direcciones de otro cliente ni cambios en citas canceladas", async () => {
+    const { appointment } = await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date: "2026-11-24" }));
+    await expect(
+      setAppointmentAddress(ctx.db, AGENT_JOSUE, appointment.id, { addressId: "11111111-1111-4111-8111-111111111111" }),
+    ).rejects.toMatchObject({ code: "address_mismatch" });
+    await cancelAppointment(ctx.db, AGENT_JOSUE, appointment.id, { reason: "weather" });
+    await expect(
+      setAppointmentAddress(ctx.db, AGENT_JOSUE, appointment.id, { addressId: ctx.address.id }),
+    ).rejects.toMatchObject({ code: "cancelled" });
   });
 });

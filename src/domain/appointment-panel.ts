@@ -95,6 +95,8 @@ export function describeChange(
       return `Motivo de cancelación: ${describeReason(toValue)}`;
     case "reschedule_reason":
       return `Motivo de reprogramación: ${toValue}`;
+    case "address":
+      return `Dirección: ${toValue ?? "otra dirección"}`;
     case "destination_address":
       return "Dirección de entrega actualizada";
     case "billing_address":

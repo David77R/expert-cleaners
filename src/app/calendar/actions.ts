@@ -47,6 +47,10 @@ export async function notesAction(id: string, previous: ActionState, formData: F
   return run(id, previous, "update_notes", formData);
 }
 
+export async function addressAction(id: string, previous: ActionState, formData: FormData) {
+  return run(id, previous, "set_address", formData);
+}
+
 export async function moveAppointmentAction(
   id: string,
   startMin: number,

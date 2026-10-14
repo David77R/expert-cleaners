@@ -7,6 +7,7 @@ import { formatPhone } from "@/domain/customer-rules";
 import { describeSpecs, formatAddress, formatMoney } from "@/domain/invoice";
 import { calendarHref } from "@/lib/calendar-links";
 import {
+  addressAction,
   cancelAction,
   completeAction,
   confirmAction,
@@ -223,6 +224,35 @@ export function AppointmentPanel({
             )}
             {appointment.billingAddress && <Row label="Facturar a">{formatAddress(appointment.billingAddress)}</Row>}
           </dl>
+          {appointment.status !== "cancelled" && customer.addresses.length > 1 && (
+            <Expandable title="Cambiar dirección del servicio">
+              <ActionForm action={addressAction.bind(null, id)} submit="Usar esta dirección" pendingText="Guardando…">
+                <fieldset className="flex flex-col gap-2">
+                  <legend className="sr-only">Direcciones del cliente</legend>
+                  {customer.addresses.map((address) => (
+                    <label
+                      key={address.id}
+                      className="flex cursor-pointer items-start gap-2.5 rounded-md border border-hair px-3 py-2.5 text-sm has-[:checked]:border-brand has-[:checked]:bg-brand-soft/40"
+                    >
+                      <input
+                        type="radio"
+                        name="addressId"
+                        value={address.id}
+                        defaultChecked={address.id === appointment.addressId}
+                        className="mt-0.5 accent-brand"
+                      />
+                      <span className="min-w-0">
+                        {formatAddress(address)}
+                        {address.id === appointment.addressId && (
+                          <span className="ml-1.5 text-xs text-muted">(actual)</span>
+                        )}
+                      </span>
+                    </label>
+                  ))}
+                </fieldset>
+              </ActionForm>
+            </Expandable>
+          )}
         </Section>
 
         <Section title="Servicio y cobro">

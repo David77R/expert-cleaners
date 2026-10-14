@@ -17,9 +17,11 @@ import {
   moveSchema,
   rangeQuerySchema,
   rescheduleSchema,
+  setAddressSchema,
   addressSnapshotSchema,
   type CreateAppointmentInput,
 } from "@/domain/schemas";
+import { formatAddress } from "@/domain/invoice";
 import { geocodeIfNeeded } from "@/server/geocoding";
 
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
@@ -303,6 +305,30 @@ export async function setBillingAddress(db: Db, actor: Actor, id: string, raw: u
   });
 }
 
+export async function setAppointmentAddress(db: Db, actor: Actor, id: string, raw: unknown): Promise<Mutation> {
+  const { addressId } = setAddressSchema.parse(raw);
+  return db.transaction(async (tx) => {
+    const current = await load(tx, id);
+    if (current.status === "cancelled") {
+      throw new DomainError("cancelled", "Una cita cancelada no se puede modificar");
+    }
+    if (current.addressId === addressId) return { appointment: current, conflicts: [] };
+    const found = await tx
+      .select()
+      .from(addresses)
+      .where(inArray(addresses.id, [current.addressId, addressId]));
+    const next = found.find((row) => row.id === addressId);
+    if (!next || next.customerId !== current.customerId) {
+      throw new DomainError("address_mismatch", "La dirección no pertenece al cliente");
+    }
+    const previous = found.find((row) => row.id === current.addressId);
+    const updated = await persist(tx, actor, current, { addressId }, [
+      { field: "address", from: previous ? formatAddress(previous) : null, to: formatAddress(next) },
+    ]);
+    return { appointment: updated, conflicts: [] };
+  });
+}
+
 export async function updateNotes(db: Db, actor: Actor, id: string, notes: string): Promise<Mutation> {
   return db.transaction(async (tx) => {
     const current = await load(tx, id);
@@ -365,7 +391,7 @@ export async function getAppointment(db: Db, id: string) {
   const row = await db.query.appointments.findFirst({
     where: eq(appointments.id, id),
     with: {
-      customer: true,
+      customer: { with: { addresses: true } },
       address: true,
       service: true,
       technician: true,

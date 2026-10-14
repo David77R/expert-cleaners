@@ -6,7 +6,7 @@ import { runAction } from "@/server/actions";
 import type { Db } from "@/server/appointments";
 
 export type PanelAction =
-  "confirm" | "complete" | "mark_paid" | "advance_invoice" | "cancel" | "reschedule" | "update_notes";
+  "confirm" | "complete" | "mark_paid" | "advance_invoice" | "cancel" | "reschedule" | "update_notes" | "set_address";
 
 export type ActionResult = { ok: true; notice?: string } | { ok: false; error: string };
 
@@ -29,6 +29,8 @@ export function payloadFromForm(action: PanelAction, form: FormData): Record<str
       };
     case "update_notes":
       return { action, notes: text(form, "notes").trim() };
+    case "set_address":
+      return { action, addressId: text(form, "addressId") };
     default:
       return { action };
   }
@@ -44,6 +46,8 @@ function friendlyIssue(issue: ZodIssue): string {
       return "Elige una hora válida";
     case "technicianId":
       return "Elige un técnico válido";
+    case "addressId":
+      return "Elige una dirección";
     default:
       return issue.message;
   }
