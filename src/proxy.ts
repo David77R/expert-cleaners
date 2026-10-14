@@ -4,8 +4,8 @@ import { NextResponse, type NextRequest } from "next/server";
 const PUBLIC_PATHS = ["/login"];
 
 export async function proxy(request: NextRequest) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim().replace(/\/+$/, "");
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
   if (!url || !key) return NextResponse.next();
 
   let response = NextResponse.next({ request });
