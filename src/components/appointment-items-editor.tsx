@@ -1,8 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { INPUT } from "@/components/form-kit";
 import { Icon } from "@/components/icons";
+import { ServiceIcon } from "@/components/service-icon";
+import { ServiceTilePicker, serviceIconFor } from "@/components/service-tile-picker";
 import {
   MAX_ITEMS,
   DETAIL_LABELS,
@@ -57,8 +59,7 @@ export function AppointmentItemsEditor({
   const [rows, setRows] = useState<Row[]>(() =>
     (initialItems.length > 0 ? initialItems : [EMPTY_ITEM]).map((item, uid) => ({ ...item, uid })),
   );
-  const nextUid = useRef(Math.max(initialItems.length, 1));
-  const categories = [...new Set(services.map((option) => option.category))];
+  const [picking, setPicking] = useState<number[]>([]);
   const total = toEditorItems(rows, services).reduce((sum, item) => sum + item.priceCents, 0);
 
   function update(next: Row[]) {
@@ -66,7 +67,13 @@ export function AppointmentItemsEditor({
     onChange?.(toEditorItems(next, services));
   }
 
+  function togglePicking(uid: number) {
+    setPicking((current) => (current.includes(uid) ? current.filter((item) => item !== uid) : [...current, uid]));
+  }
+
   function chooseService(index: number, serviceId: string) {
+    const uid = rows[index]?.uid;
+    setPicking((current) => current.filter((item) => item !== uid));
     const service = services.find((option) => option.id === serviceId);
     update(
       rows.map((row, i) =>
@@ -90,8 +97,7 @@ export function AppointmentItemsEditor({
   }
 
   function addRow() {
-    const uid = nextUid.current;
-    nextUid.current += 1;
+    const uid = rows.reduce((max, row) => Math.max(max, row.uid), -1) + 1;
     update([...rows, { ...EMPTY_ITEM, uid }]);
   }
 
@@ -126,59 +132,71 @@ export function AppointmentItemsEditor({
                 </button>
               )}
             </div>
-            <div className={compact ? "grid gap-3" : "grid gap-3 sm:grid-cols-[minmax(0,1fr)_9rem]"}>
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor={`${base}-service`} className="text-sm font-medium">
-                  Tipo de servicio
-                </label>
-                <select
-                  id={`${base}-service`}
-                  name={serviceKey}
-                  value={row.serviceId}
-                  onChange={(event) => chooseService(index, event.target.value)}
-                  aria-invalid={Boolean(errors[serviceKey])}
-                  className={INPUT}
-                >
-                  <option value="">Elige un servicio</option>
-                  {categories.map((category) => (
-                    <optgroup key={category} label={category}>
-                      {services
-                        .filter((option) => option.category === category)
-                        .map((option) => (
-                          <option key={option.id} value={option.id}>
-                            {option.name}
-                          </option>
-                        ))}
-                    </optgroup>
-                  ))}
-                </select>
-                {errors[serviceKey] && (
-                  <p role="alert" className="text-sm text-attention">
-                    {errors[serviceKey]}
-                  </p>
-                )}
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor={`${base}-price`} className="text-sm font-medium">
-                  Precio (USD)
-                </label>
-                <input
-                  id={`${base}-price`}
-                  name={priceKey}
-                  inputMode="decimal"
-                  value={row.price}
-                  onChange={(event) => setPrice(index, event.target.value)}
-                  placeholder={service ? centsToDollars(service.basePriceCents) : "0.00"}
-                  aria-invalid={Boolean(errors[priceKey])}
-                  className={`${INPUT} tabular-nums`}
+            <input type="hidden" name={serviceKey} value={row.serviceId} />
+            {!service || picking.includes(row.uid) ? (
+              <div className="flex flex-col gap-2">
+                <ServiceTilePicker
+                  services={services}
+                  selectedId={row.serviceId}
+                  onPick={(option) => chooseService(index, option.id)}
+                  compact={compact}
+                  label={`Tipo de servicio ${index + 1}`}
                 />
-                {errors[priceKey] && (
-                  <p role="alert" className="text-sm text-attention">
-                    {errors[priceKey]}
-                  </p>
+                {service && (
+                  <button
+                    type="button"
+                    onClick={() => togglePicking(row.uid)}
+                    className="w-fit text-xs font-semibold text-soft hover:text-ink"
+                  >
+                    Mantener {service.name}
+                  </button>
                 )}
               </div>
-            </div>
+            ) : (
+              <div className={compact ? "grid gap-3" : "grid gap-3 sm:grid-cols-[minmax(0,1fr)_9rem] sm:items-end"}>
+                <div className="flex items-center gap-3 rounded-md border border-brand/40 bg-brand-soft/40 px-3 py-2.5">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-white">
+                    <ServiceIcon icon={serviceIconFor(service)} size={22} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold">{service.name}</span>
+                    <span className="block truncate text-xs text-soft">{service.category}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => togglePicking(row.uid)}
+                    className="shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-brand-ink hover:bg-paper"
+                  >
+                    Cambiar
+                  </button>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor={`${base}-price`} className="text-sm font-medium">
+                    Precio (USD)
+                  </label>
+                  <input
+                    id={`${base}-price`}
+                    name={priceKey}
+                    inputMode="decimal"
+                    value={row.price}
+                    onChange={(event) => setPrice(index, event.target.value)}
+                    placeholder={centsToDollars(service.basePriceCents)}
+                    aria-invalid={Boolean(errors[priceKey])}
+                    className={`${INPUT} tabular-nums`}
+                  />
+                </div>
+              </div>
+            )}
+            {errors[serviceKey] && (
+              <p role="alert" className="text-sm text-attention">
+                {errors[serviceKey]}
+              </p>
+            )}
+            {errors[priceKey] && (
+              <p role="alert" className="text-sm text-attention">
+                {errors[priceKey]}
+              </p>
+            )}
             {service && (
               <div className={compact ? "grid gap-3" : "grid gap-3 sm:grid-cols-2"}>
                 {fieldsForService(service).map((field) => {
