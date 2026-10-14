@@ -518,43 +518,50 @@ function photonUrl(query: string): URL {
 }
 
 const SUGGEST_CENSUS_TIMEOUT_MS = 4500;
-const MAX_VERIFICATIONS = 4;
-
-function distanceToFocus(suggestion: Pick<AddressSuggestion, "lat" | "lng">): number {
-  return Math.hypot(suggestion.lat - MIAMI_FOCUS.lat, (suggestion.lng - MIAMI_FOCUS.lng) * 0.9);
-}
+const MAX_VERIFICATIONS = 6;
 
 async function censusFromQuery(query: string): Promise<AddressSuggestion[]> {
   const house = splitHouseNumber(query);
   if (!house) return [];
-  const hasPlace = query.includes(",");
-  const lines = hasPlace ? [query] : [`${query}, Miami, FL`, `${query}, FL`];
-  const results = await Promise.all(
-    lines.map((line) =>
-      requestCensusOneLine(line, SUGGEST_CENSUS_TIMEOUT_MS).then((data) => parseCensusSuggestions(data, house.number)),
-    ),
+  const line = /,|\bfl\b|\bflorida\b/i.test(query) ? query : `${query}, FL`;
+  return parseCensusSuggestions(await requestCensusOneLine(line, SUGGEST_CENSUS_TIMEOUT_MS), house.number);
+}
+
+function mentionsPlace(query: string, suggestion: AddressSuggestion): boolean {
+  const text = query.toLowerCase();
+  return (
+    (suggestion.zip !== "" && text.includes(suggestion.zip)) ||
+    (suggestion.city !== "" && text.includes(suggestion.city.toLowerCase()))
   );
-  return results.flat();
 }
 
 export function mergeVerified(
+  query: string,
   verified: readonly AddressSuggestion[],
   rest: readonly AddressSuggestion[],
 ): AddressSuggestion[] {
   const seen = new Set<string>();
-  const unique = [...verified]
-    .sort((a, b) => distanceToFocus(a) - distanceToFocus(b))
-    .filter((suggestion) => {
-      const key = `${suggestion.lat.toFixed(4)},${suggestion.lng.toFixed(4)}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  const labels = new Set(unique.map((suggestion) => suggestionKey(suggestion)));
-  return [...unique, ...rest.filter((suggestion) => !labels.has(suggestionKey(suggestion)))].slice(0, MAX_SUGGESTIONS);
+  const unique = verified.filter((suggestion) => {
+    const key = `${suggestion.lat.toFixed(4)},${suggestion.lng.toFixed(4)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const ordered = [
+    ...unique.filter((suggestion) => mentionsPlace(query, suggestion)),
+    ...unique.filter((suggestion) => !mentionsPlace(query, suggestion)),
+  ];
+  const labels = new Set(ordered.map((suggestion) => suggestionKey(suggestion)));
+  const places = new Set(ordered.map((suggestion) => `${suggestion.city}|${suggestion.zip}`.toLowerCase()));
+  const others = rest.filter(
+    (suggestion) =>
+      !labels.has(suggestionKey(suggestion)) && !places.has(`${suggestion.city}|${suggestion.zip}`.toLowerCase()),
+  );
+  return [...ordered, ...others].slice(0, MAX_SUGGESTIONS);
 }
 
 async function verifyWithCensus(
+  query: string,
   houseNumber: string,
   ranked: AddressSuggestion[],
   direct: AddressSuggestion[],
@@ -562,21 +569,18 @@ async function verifyWithCensus(
   const candidates = ranked.filter((suggestion) => suggestion.approximate).slice(0, MAX_VERIFICATIONS);
   const checks = await Promise.all(
     candidates.map(async (candidate) => {
+      const zip = zip5(candidate.zip);
       const data = await requestCensus(
-        { line1: candidate.line1, city: candidate.city, state: candidate.state || "FL", zip: "" },
-        false,
+        { line1: candidate.line1, city: zip ? "" : candidate.city, state: candidate.state || "FL", zip },
+        zip !== "",
         SUGGEST_CENSUS_TIMEOUT_MS,
       );
-      return { candidate, found: parseCensusSuggestions(data, houseNumber) };
+      return parseCensusSuggestions(data, houseNumber);
     }),
   );
-  const rejected = new Set(checks.filter((check) => check.found.length === 0).map((check) => check.candidate));
-  const verified = [...direct, ...checks.flatMap((check) => check.found)];
+  const verified = [...checks.flat(), ...direct];
   if (verified.length === 0) return ranked;
-  return mergeVerified(
-    verified,
-    ranked.filter((suggestion) => !rejected.has(suggestion) && !checks.some((check) => check.candidate === suggestion)),
-  );
+  return mergeVerified(query, verified, ranked);
 }
 
 export async function suggestAddresses(query: string): Promise<AddressSuggestion[]> {
@@ -607,7 +611,7 @@ export async function suggestAddresses(query: string): Promise<AddressSuggestion
   }
 
   const house = splitHouseNumber(textQuery);
-  if (house) value = await verifyWithCensus(house.number, value, await censusDirect);
+  if (house) value = await verifyWithCensus(textQuery, house.number, value, await censusDirect);
   if (value.length > 0) {
     if (suggestionCache.size >= CACHE_LIMIT) suggestionCache.delete(suggestionCache.keys().next().value as string);
     suggestionCache.set(cacheKey, { at: Date.now(), value });

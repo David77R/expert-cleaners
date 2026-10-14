@@ -337,46 +337,63 @@ describe("sugerencias verificadas con el Census", () => {
     ]);
   });
 
-  it("pone primero la dirección que existe y descarta las calles donde ese número no existe", async () => {
+  it("pone primero las direcciones que existen y deja las demás después", async () => {
     vi.stubEnv("DATABASE_URL", "postgres://user:pass@localhost:5432/db");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon-key");
     vi.stubEnv("ORS_API_KEY", "ors-key");
-    const street = (city: string, lng: number) =>
+    const street = (city: string, zip: string, lng: number) =>
       feature(
         {
           layer: "street",
           street: "Northwest 80th Terrace",
           locality: city,
           region_a: "FL",
-          label: `NW 80th Ter, ${city}`,
+          postalcode: zip,
+          label: city,
         },
         [lng, 26.1],
       );
+    const plantation = {
+      coordinates: { x: -80.2601, y: 26.1302 },
+      addressComponents: {
+        preDirection: "NW",
+        streetName: "80TH",
+        suffixType: "TER",
+        city: "PLANTATION",
+        state: "FL",
+        zip: "33324",
+      },
+    };
+    const zips: string[] = [];
     vi.spyOn(console, "error").mockImplementation(() => {});
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       const url = new URL(String(input));
       if (url.hostname.includes("openrouteservice")) {
-        return new Response(JSON.stringify({ features: [street("Sunrise", -80.3), street("Plantation", -80.25)] }));
-      }
-      if (url.pathname.endsWith("onelineaddress")) {
-        const address = url.searchParams.get("address") ?? "";
         return new Response(
-          JSON.stringify({ result: { addressMatches: address.includes("Miami") ? [miamiMatch] : [] } }),
+          JSON.stringify({ features: [street("Medley", "33166", -80.33), street("Plantation", "33324", -80.26)] }),
         );
       }
-      if (url.pathname.endsWith("/address")) {
+      if (url.pathname.endsWith("onelineaddress")) {
+        expect(url.searchParams.get("address")).toBe("795 Northwest 80th Terrace, FL");
         return new Response(JSON.stringify({ result: { addressMatches: [] } }));
+      }
+      if (url.pathname.endsWith("/address")) {
+        zips.push(url.searchParams.get("zip") ?? "");
+        const found = url.searchParams.get("zip") === "33324" ? [plantation] : [];
+        return new Response(JSON.stringify({ result: { addressMatches: found } }));
       }
       return new Response(JSON.stringify({ features: [] }));
     });
     const suggestions = await suggestAddresses("795 Northwest 80th Terrace");
-    expect(suggestions[0]).toMatchObject({ line1: "795 NW 80th Ter", city: "Miami", zip: "33150", verified: true });
-    expect(suggestions.some((s) => s.city === "Sunrise" || s.city === "Plantation")).toBe(false);
+    expect(zips.sort()).toEqual(["33166", "33324"]);
+    expect(suggestions[0]).toMatchObject({ city: "Plantation", zip: "33324", verified: true });
+    expect(suggestions.map((s) => s.city)).toEqual(["Plantation", "Medley"]);
+    expect(suggestions[1].verified).toBeUndefined();
   });
 
-  it("ordena varias verificadas por cercanía a Miami", () => {
-    const near = {
+  it("si escribes la ciudad o el código postal, esa va primero", () => {
+    const miami = {
       label: "a",
       line1: "1 A St",
       city: "Miami",
@@ -386,7 +403,12 @@ describe("sugerencias verificadas con el Census", () => {
       lng: -80.21,
       verified: true,
     };
-    const far = { ...near, label: "b", city: "Sunrise", lat: 26.15, lng: -80.3 };
-    expect(mergeVerified([far, near], []).map((s) => s.city)).toEqual(["Miami", "Sunrise"]);
+    const sunrise = { ...miami, label: "b", city: "Sunrise", zip: "33322", lat: 26.15, lng: -80.3 };
+    expect(mergeVerified("795 nw 80 ter", [miami, sunrise], []).map((s) => s.city)).toEqual(["Miami", "Sunrise"]);
+    expect(mergeVerified("795 nw 80 ter sunrise", [miami, sunrise], []).map((s) => s.city)).toEqual([
+      "Sunrise",
+      "Miami",
+    ]);
+    expect(mergeVerified("795 nw 80 ter 33322", [miami, sunrise], []).map((s) => s.city)).toEqual(["Sunrise", "Miami"]);
   });
 });
