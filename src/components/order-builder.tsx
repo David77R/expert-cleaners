@@ -609,50 +609,43 @@ export function OrderBuilder({
               : "Todavía no hay servicios activos. Pídele al súper admin que los cree."}
           </p>
         ) : (
-          shownCategories.map((name) => (
-            <div key={name} className="flex flex-col gap-2.5">
-              {shownCategories.length > 1 && (
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">{name}</h2>
-              )}
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
-                {services
-                  .filter((service) => service.category === name)
-                  .map((service) => {
-                    const count = lines.filter((line) => line.serviceId === service.id).length;
-                    return (
-                      <div key={service.id} className="group relative">
-                        <button
-                          type="button"
-                          onClick={() => addService(service)}
-                          className="flex aspect-square w-full flex-col items-center justify-center gap-2.5 rounded-md border border-hair bg-paper p-3 text-center shadow-[0_1px_0_rgba(18,24,31,0.04)] transition-all hover:-translate-y-0.5 hover:border-brand/50 hover:shadow-md"
-                        >
-                          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-soft text-brand-ink transition-colors group-hover:bg-brand group-hover:text-white">
-                            <ServiceIcon icon={service.iconKey ?? guessServiceIcon(service)} size={30} />
-                          </span>
-                          <span className="line-clamp-2 text-sm font-medium leading-tight">{service.name}</span>
-                          <span className="text-xs tabular-nums text-muted">{formatMoney(service.basePriceCents)}</span>
-                        </button>
-                        {count > 0 && (
-                          <span className="font-display pointer-events-none absolute right-2 top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-brand px-1.5 text-xs font-bold text-white">
-                            {count}
-                          </span>
-                        )}
-                        {isAdmin && (
-                          <Link
-                            href={`/services/${service.id}?volver=pedido`}
-                            aria-label={`Editar ${service.name}`}
-                            title="Editar servicio"
-                            className="absolute left-2 top-2 flex h-7 w-7 items-center justify-center rounded-md bg-paper/90 text-soft opacity-0 shadow-sm transition-opacity hover:text-ink focus:opacity-100 group-hover:opacity-100"
-                          >
-                            <Icon name="wrench" size={13} />
-                          </Link>
-                        )}
-                      </div>
-                    );
-                  })}
-              </div>
-            </div>
-          ))
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
+            {shownCategories
+              .flatMap((name) => services.filter((service) => service.category === name))
+              .map((service) => {
+                const count = lines.filter((line) => line.serviceId === service.id).length;
+                return (
+                  <div key={service.id} className="group relative">
+                    <button
+                      type="button"
+                      onClick={() => addService(service)}
+                      className="flex aspect-square w-full flex-col items-center justify-center gap-2.5 rounded-md border border-hair bg-paper p-3 text-center shadow-[0_1px_0_rgba(18,24,31,0.04)] transition-all hover:-translate-y-0.5 hover:border-brand/50 hover:shadow-md"
+                    >
+                      <span className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-soft text-brand-ink transition-colors group-hover:bg-brand group-hover:text-white">
+                        <ServiceIcon icon={service.iconKey ?? guessServiceIcon(service)} size={30} />
+                      </span>
+                      <span className="line-clamp-2 text-sm font-medium leading-tight">{service.name}</span>
+                      <span className="text-xs tabular-nums text-muted">{formatMoney(service.basePriceCents)}</span>
+                    </button>
+                    {count > 0 && (
+                      <span className="font-display pointer-events-none absolute right-2 top-2 flex h-6 min-w-6 items-center justify-center rounded-full bg-brand px-1.5 text-xs font-bold text-white">
+                        {count}
+                      </span>
+                    )}
+                    {isAdmin && (
+                      <Link
+                        href={`/services/${service.id}?volver=pedido`}
+                        aria-label={`Editar ${service.name}`}
+                        title="Editar servicio"
+                        className="absolute left-2 top-2 flex h-7 w-7 items-center justify-center rounded-md bg-paper/90 text-soft opacity-0 shadow-sm transition-opacity hover:text-ink focus:opacity-100 group-hover:opacity-100"
+                      >
+                        <Icon name="wrench" size={13} />
+                      </Link>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
         )}
       </section>
 
