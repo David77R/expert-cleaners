@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type DragEvent as ReactDragEvent } from "react";
 import { MapContainer, Marker, Polyline, Tooltip, TileLayer } from "react-leaflet";
 import { formatRange, initialsOf, readableOn } from "@/domain/calendar-view";
+import { appointmentIdFromKey } from "@/domain/delivery";
 
 export type MapStop = {
   id: string;
@@ -115,12 +116,14 @@ export function MapView({
   technicians,
   services,
   drafts,
+  returnHref,
 }: {
   date: string;
   stops: MapStop[];
   technicians: MapTechnicianOption[];
   services: MapServiceOption[];
   drafts: MapRouteDraft[];
+  returnHref: string;
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<"tech" | "service">("tech");
@@ -890,6 +893,13 @@ export function MapView({
                 </div>
               )}
             </dl>
+
+            <a
+              href={`/appointments/${appointmentIdFromKey(selectedStop.id)}/edit?volver=${encodeURIComponent(returnHref)}`}
+              className="flex items-center justify-center gap-2 rounded-md bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            >
+              Editar cita: servicios, precios y fotos
+            </a>
           </div>
         </div>
       )}

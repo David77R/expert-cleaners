@@ -14,6 +14,7 @@ async function run(id: string, previous: ActionState, action: PanelAction, formD
 
   const result = await executeAction(getDb(), actor, id, payloadFromForm(action, formData));
   revalidatePath("/calendar");
+  revalidatePath(`/appointments/${id}/edit`);
   return result.ok
     ? { notice: result.notice, stamp: previous.stamp + 1 }
     : { error: result.error, stamp: previous.stamp };

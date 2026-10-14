@@ -18,6 +18,7 @@ import { CalendarSummary } from "@/components/calendar-summary";
 import { CalendarToolbar } from "@/components/calendar-toolbar";
 import { DayGrid } from "@/components/day-grid";
 import { MapViewLoader } from "@/components/map-view-loader";
+import { calendarHref } from "@/lib/calendar-links";
 import type { MapRouteDraft, MapServiceOption, MapStop, MapTechnicianOption } from "@/components/map-view";
 import { MonthView } from "@/components/month-view";
 import { WeekView } from "@/components/week-view";
@@ -203,6 +204,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
               technicians={mapTechnicians}
               services={mapServices}
               drafts={mapDrafts}
+              returnHref={calendarHref({ ...nav, mapa: true })}
             />
             {missingCoords > 0 && (
               <p className="-mt-1 text-xs text-muted">

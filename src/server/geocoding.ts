@@ -128,11 +128,16 @@ export type AddressSuggestion = {
   zip: string;
   lat: number;
   lng: number;
+  approximate?: boolean;
+  streetOnly?: boolean;
 };
 
 const ORS_AUTOCOMPLETE_URL = "https://api.openrouteservice.org/geocode/autocomplete";
 const MIAMI_FOCUS = { lat: 25.7617, lng: -80.1918 };
 const MAX_SUGGESTIONS = 6;
+const SUGGEST_TIMEOUT_MS = 4000;
+const CACHE_TTL_MS = 10 * 60 * 1000;
+const CACHE_LIMIT = 300;
 
 type PeliasFeature = {
   geometry?: { coordinates?: [number, number] };
@@ -153,7 +158,8 @@ export function parseSuggestions(data: unknown): AddressSuggestion[] {
     const street = [text(p.housenumber), text(p.street)].filter(Boolean).join(" ");
     const line1 = street || text(p.name);
     if (!line1) continue;
-    const suggestion = {
+    const suggestion: AddressSuggestion = {
+      ...(text(p.layer) === "street" ? { streetOnly: true } : {}),
       label: text(p.label) || line1,
       line1,
       city: text(p.locality) || text(p.localadmin) || text(p.county),
@@ -249,7 +255,16 @@ export function parsePhotonSuggestions(data: unknown): AddressSuggestion[] {
     const zip = text(p.postcode);
     const label = [line1, city, [state, zip].filter(Boolean).join(" ")].filter(Boolean).join(", ");
     if (suggestions.some((s) => s.label === label)) continue;
-    suggestions.push({ label, line1, city, state, zip, lat, lng });
+    suggestions.push({
+      ...(text(p.type) === "street" ? { streetOnly: true } : {}),
+      label,
+      line1,
+      city,
+      state,
+      zip,
+      lat,
+      lng,
+    });
     if (suggestions.length === MAX_SUGGESTIONS) break;
   }
   return suggestions;
@@ -258,7 +273,7 @@ export function parsePhotonSuggestions(data: unknown): AddressSuggestion[] {
 async function fetchJson(url: URL, source: string): Promise<unknown> {
   try {
     const res = await fetch(url, {
-      signal: AbortSignal.timeout(6000),
+      signal: AbortSignal.timeout(SUGGEST_TIMEOUT_MS),
       headers: { Accept: "application/json", "User-Agent": "expert-cleaners/1.0" },
     });
     if (!res.ok) {
@@ -284,28 +299,88 @@ function orsSuggestionUrl(base: string, apiKey: string, query: string): URL {
   return url;
 }
 
-export async function suggestAddresses(query: string): Promise<AddressSuggestion[]> {
-  const textQuery = query.trim();
-  if (textQuery.length < 3) return [];
+export function splitHouseNumber(query: string): { number: string; street: string } | null {
+  const match = /^\s*(\d+[A-Za-z]?(?:-\d+)?)\s+(.+)$/.exec(query);
+  return match ? { number: match[1], street: match[2].trim() } : null;
+}
 
-  const { ORS_API_KEY } = env();
-  if (ORS_API_KEY) {
-    const auto = parseSuggestions(
-      await fetchJson(orsSuggestionUrl(ORS_AUTOCOMPLETE_URL, ORS_API_KEY, textQuery), "OpenRouteService autocomplete"),
-    );
-    if (auto.length > 0) return auto;
-    const search = parseSuggestions(
-      await fetchJson(orsSuggestionUrl(ORS_GEOCODE_URL, ORS_API_KEY, textQuery), "OpenRouteService search"),
-    );
-    if (search.length > 0) return search;
+function suggestionKey(suggestion: AddressSuggestion): string {
+  return `${suggestion.line1}|${suggestion.city}`.toLowerCase().replace(/\s+/g, " ");
+}
+
+function relabel(suggestion: AddressSuggestion, line1: string): AddressSuggestion {
+  const tail = [suggestion.city, [suggestion.state, suggestion.zip].filter(Boolean).join(" ")].filter(Boolean);
+  return { ...suggestion, line1, label: [line1, ...tail].join(", "), approximate: true };
+}
+
+export function rankSuggestions(query: string, lists: readonly AddressSuggestion[][]): AddressSuggestion[] {
+  const house = splitHouseNumber(query);
+  const exact: AddressSuggestion[] = [];
+  const completed: AddressSuggestion[] = [];
+  const rest: AddressSuggestion[] = [];
+  for (const suggestion of lists.flat()) {
+    const leading = splitHouseNumber(suggestion.line1);
+    if (!house) rest.push(suggestion);
+    else if (leading?.number.toLowerCase() === house.number.toLowerCase()) exact.push(suggestion);
+    else if (suggestion.streetOnly && !leading)
+      completed.push(relabel(suggestion, `${house.number} ${suggestion.line1}`));
+    else rest.push(suggestion);
   }
+  const seen = new Set<string>();
+  const ranked: AddressSuggestion[] = [];
+  for (const suggestion of [...exact, ...completed, ...rest]) {
+    const key = suggestionKey(suggestion);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const { streetOnly, ...clean } = suggestion;
+    ranked.push(streetOnly && !clean.approximate && house ? { ...clean, approximate: true } : clean);
+    if (ranked.length === MAX_SUGGESTIONS) break;
+  }
+  return ranked;
+}
 
+const suggestionCache = new Map<string, { at: number; value: AddressSuggestion[] }>();
+
+function photonUrl(query: string): URL {
   const photon = new URL(PHOTON_URL);
-  photon.searchParams.set("q", textQuery);
+  photon.searchParams.set("q", query);
   photon.searchParams.set("limit", String(MAX_SUGGESTIONS * 2));
   photon.searchParams.set("lang", "en");
   photon.searchParams.set("lat", String(MIAMI_FOCUS.lat));
   photon.searchParams.set("lon", String(MIAMI_FOCUS.lng));
   photon.searchParams.set("bbox", SOUTH_FLORIDA_BBOX);
-  return parsePhotonSuggestions(await fetchJson(photon, "Photon"));
+  return photon;
+}
+
+export async function suggestAddresses(query: string): Promise<AddressSuggestion[]> {
+  const textQuery = query.trim().replace(/\s+/g, " ");
+  if (textQuery.length < 3) return [];
+
+  const cacheKey = textQuery.toLowerCase();
+  const hit = suggestionCache.get(cacheKey);
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.value;
+
+  const { ORS_API_KEY } = env();
+  const [ors, photon] = await Promise.all([
+    ORS_API_KEY
+      ? fetchJson(orsSuggestionUrl(ORS_AUTOCOMPLETE_URL, ORS_API_KEY, textQuery), "OpenRouteService autocomplete").then(
+          parseSuggestions,
+        )
+      : Promise.resolve([]),
+    fetchJson(photonUrl(textQuery), "Photon").then(parsePhotonSuggestions),
+  ]);
+
+  let value = rankSuggestions(textQuery, [ors, photon]);
+  if (value.length === 0 && ORS_API_KEY) {
+    const search = parseSuggestions(
+      await fetchJson(orsSuggestionUrl(ORS_GEOCODE_URL, ORS_API_KEY, textQuery), "OpenRouteService search"),
+    );
+    value = rankSuggestions(textQuery, [search]);
+  }
+
+  if (value.length > 0) {
+    if (suggestionCache.size >= CACHE_LIMIT) suggestionCache.delete(suggestionCache.keys().next().value as string);
+    suggestionCache.set(cacheKey, { at: Date.now(), value });
+  }
+  return value;
 }

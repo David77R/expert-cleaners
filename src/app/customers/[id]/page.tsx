@@ -265,7 +265,7 @@ export default async function CustomerPage({ params, searchParams }: PageProps<"
               Este cliente todavía no tiene citas.
             </p>
           ) : (
-            <CustomerAppointmentsTable rows={customer.appointments} />
+            <CustomerAppointmentsTable rows={customer.appointments} returnHref={`/customers/${customer.id}`} />
           )}
         </section>
       </main>

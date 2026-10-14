@@ -20,12 +20,14 @@ export function PanelItemsForm({
   initialItems,
   durationMin,
   hasDestination,
+  compact = true,
 }: {
   appointmentId: string;
   services: FormService[];
   initialItems: ItemValues[];
   durationMin: number;
   hasDestination: boolean;
+  compact?: boolean;
 }) {
   const [needsDestination, setNeedsDestination] = useState(false);
   const idPrefix = `panel-${appointmentId}`;
@@ -40,7 +42,7 @@ export function PanelItemsForm({
         services={services}
         initialItems={initialItems}
         idPrefix={idPrefix}
-        compact
+        compact={compact}
         onChange={changeItems}
       />
       {needsDestination && !hasDestination && (

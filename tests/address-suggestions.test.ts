@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { parsePhotonSuggestions, parseSuggestions, pickGeocodeResult, suggestAddresses } from "@/server/geocoding";
+import {
+  parsePhotonSuggestions,
+  parseSuggestions,
+  pickGeocodeResult,
+  rankSuggestions,
+  splitHouseNumber,
+  suggestAddresses,
+} from "@/server/geocoding";
 
 function feature(properties: Record<string, unknown>, coordinates: [number, number] = [-80.22, 25.76]) {
   return { geometry: { coordinates }, properties };
@@ -156,5 +163,74 @@ describe("sugerencias de respaldo", () => {
     const suggestions = await suggestAddresses("1200 Brick");
     expect(suggestions.map((s) => s.line1)).toEqual(["1200 Brickell Ave"]);
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes("photon"))).toBe(true);
+  });
+});
+
+describe("direcciones con número de casa", () => {
+  const street = {
+    label: "Northwest 80th Terrace, West Little River, FL",
+    line1: "Northwest 80th Terrace",
+    city: "West Little River",
+    state: "FL",
+    zip: "",
+    lat: 25.85,
+    lng: -80.21,
+    streetOnly: true,
+  };
+
+  it("separa el número de la calle", () => {
+    expect(splitHouseNumber("795 Northwest 80th Terrace")).toEqual({ number: "795", street: "Northwest 80th Terrace" });
+    expect(splitHouseNumber("12-34 Main St")).toEqual({ number: "12-34", street: "Main St" });
+    expect(splitHouseNumber("Northwest 80th Terrace")).toBeNull();
+  });
+
+  it("pone primero la dirección exacta y completa con el número las calles sin número", () => {
+    const exact = {
+      ...street,
+      label: "795 NW 80th Ter, Miami, FL 33150",
+      line1: "795 NW 80th Ter",
+      city: "Miami",
+      zip: "33150",
+      streetOnly: undefined,
+    };
+    const other = {
+      ...street,
+      label: "801 NW 80th Ter",
+      line1: "801 NW 80th Ter",
+      city: "Miami",
+      streetOnly: undefined,
+    };
+    const ranked = rankSuggestions("795 Northwest 80th Terrace", [[street, other], [exact]]);
+    expect(ranked.map((s) => s.line1)).toEqual(["795 NW 80th Ter", "795 Northwest 80th Terrace", "801 NW 80th Ter"]);
+    expect(ranked[0].approximate).toBeUndefined();
+    expect(ranked[1]).toMatchObject({ approximate: true, label: "795 Northwest 80th Terrace, West Little River, FL" });
+    expect(ranked.every((s) => !("streetOnly" in s))).toBe(true);
+  });
+
+  it("no le pega el número a lugares que no son calles", () => {
+    const venue = { ...street, line1: "Dolphin Mall", label: "Dolphin Mall", streetOnly: undefined };
+    expect(rankSuggestions("795 Dolphin", [[venue]])[0].line1).toBe("Dolphin Mall");
+  });
+
+  it("sin número deja las sugerencias como vienen", () => {
+    const ranked = rankSuggestions("Northwest 80th", [[street]]);
+    expect(ranked[0]).toMatchObject({ line1: "Northwest 80th Terrace" });
+    expect(ranked[0].approximate).toBeUndefined();
+  });
+
+  it("reconoce calles de ORS y de Photon", () => {
+    expect(
+      parseSuggestions({ features: [feature({ layer: "street", street: "NW 80th Ter", label: "x" })] })[0].streetOnly,
+    ).toBe(true);
+    expect(
+      parsePhotonSuggestions({
+        features: [
+          {
+            geometry: { coordinates: [-80.2, 25.8] },
+            properties: { type: "street", name: "NW 80th Ter", countrycode: "US" },
+          },
+        ],
+      })[0].streetOnly,
+    ).toBe(true);
   });
 });

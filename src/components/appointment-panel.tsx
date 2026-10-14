@@ -127,6 +127,13 @@ export function AppointmentPanel({
               <span className="block text-xs text-soft">{technician.zone}</span>
             </span>
           </div>
+          <Link
+            href={`/appointments/${id}/edit?volver=${encodeURIComponent(calendarHref({ ...nav, appt: id }))}`}
+            className="flex items-center justify-center gap-2 rounded-md bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            <Icon name="wrench" size={14} />
+            Editar cita: servicios, precios y fotos
+          </Link>
           {appointment.alerts.length > 0 && (
             <ul className="flex flex-wrap gap-1.5">
               {appointment.alerts.map((alert) => (

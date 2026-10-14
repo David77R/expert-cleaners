@@ -5,7 +5,8 @@ import type { FieldControlProps } from "@/components/form-kit";
 import type { AddressSuggestion } from "@/server/geocoding";
 
 const MIN_CHARS = 3;
-const DEBOUNCE_MS = 300;
+const DEBOUNCE_MS = 350;
+const CLIENT_TIMEOUT_MS = 9000;
 
 function fillField(form: HTMLFormElement | null, name: string, value: string) {
   const field = form?.elements.namedItem(name);
@@ -33,6 +34,7 @@ export function AddressAutocomplete({
   const inputRef = useRef<HTMLInputElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const request = useRef<AbortController | null>(null);
+  const cache = useRef(new Map<string, AddressSuggestion[]>());
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -44,31 +46,51 @@ export function AddressAutocomplete({
     setActive(-1);
   }
 
+  function show(list: AddressSuggestion[]) {
+    setSuggestions(list);
+    setOpen(true);
+    setActive(-1);
+  }
+
   function search(query: string) {
     if (timer.current) clearTimeout(timer.current);
     request.current?.abort();
-    if (query.trim().length < MIN_CHARS) {
+    request.current = null;
+    const key = query.trim().replace(/\s+/g, " ").toLowerCase();
+    if (key.length < MIN_CHARS) {
       setSuggestions([]);
       setLoading(false);
       close();
+      return;
+    }
+    const cached = cache.current.get(key);
+    if (cached) {
+      setLoading(false);
+      show(cached);
       return;
     }
     setLoading(true);
     timer.current = setTimeout(async () => {
       const controller = new AbortController();
       request.current = controller;
+      const timeout = setTimeout(() => controller.abort(), CLIENT_TIMEOUT_MS);
       try {
-        const res = await fetch(`/api/geocode/autocomplete?q=${encodeURIComponent(query)}`, {
+        const res = await fetch(`/api/geocode/autocomplete?q=${encodeURIComponent(key)}`, {
           signal: controller.signal,
         });
         const data: { suggestions?: AddressSuggestion[] } = res.ok ? await res.json() : {};
-        setSuggestions(data.suggestions ?? []);
-        setOpen(true);
-        setActive(-1);
+        if (request.current !== controller) return;
+        const list = data.suggestions ?? [];
+        if (list.length > 0) cache.current.set(key, list);
+        show(list);
       } catch {
-        if (!controller.signal.aborted) setSuggestions([]);
+        if (request.current === controller) show([]);
       } finally {
-        if (!controller.signal.aborted) setLoading(false);
+        clearTimeout(timeout);
+        if (request.current === controller) {
+          request.current = null;
+          setLoading(false);
+        }
       }
     }, DEBOUNCE_MS);
   }
@@ -79,7 +101,7 @@ export function AddressAutocomplete({
     fillField(input?.form ?? null, `${prefix}city`, suggestion.city);
     fillField(input?.form ?? null, `${prefix}state`, suggestion.state);
     fillField(input?.form ?? null, `${prefix}zip`, suggestion.zip);
-    setCoords({ lat: suggestion.lat, lng: suggestion.lng });
+    setCoords(suggestion.approximate ? null : { lat: suggestion.lat, lng: suggestion.lng });
     setSuggestions([]);
     close();
   }
@@ -157,6 +179,9 @@ export function AddressAutocomplete({
                 <span className="block text-xs text-soft">
                   {[suggestion.city, suggestion.state, suggestion.zip].filter(Boolean).join(", ")}
                 </span>
+                {suggestion.approximate && (
+                  <span className="block text-[11px] text-muted">Calle encontrada con tu número</span>
+                )}
               </li>
             ))
           )}

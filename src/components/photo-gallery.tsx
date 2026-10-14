@@ -41,12 +41,15 @@ export function PhotoGallery({
   photos,
   available,
   canUpload,
+  items = [],
 }: {
   appointmentId: string;
   photos: PanelPhoto[];
   available: boolean;
   canUpload: boolean;
+  items?: { id: string; label: string }[];
 }) {
+  const [itemId, setItemId] = useState("");
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [viewer, setViewer] = useState<number | null>(null);
@@ -87,6 +90,7 @@ export function PhotoGallery({
     patch(key, { state: "uploading" });
     const body = new FormData();
     body.set("file", blob, "foto");
+    if (itemId) body.set("itemId", itemId);
     let response: Response;
     try {
       response = await fetch(endpoint, { method: "POST", body });
@@ -165,10 +169,25 @@ export function PhotoGallery({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm tabular-nums text-soft">
           {photos.length} de {MAX_PHOTOS_PER_APPOINTMENT} fotos
         </p>
+        {canUpload && items.length > 1 && (
+          <select
+            value={itemId}
+            onChange={(event) => setItemId(event.target.value)}
+            aria-label="Artículo de las fotos"
+            className="min-h-10 min-w-0 flex-1 rounded-md border border-hair bg-paper px-2.5 text-sm"
+          >
+            <option value="">Toda la cita</option>
+            {items.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        )}
         {canUpload && (
           <label
             className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-md border border-hair bg-paper px-3.5 text-sm font-semibold transition-colors hover:bg-canvas focus-within:ring-2 focus-within:ring-brand/30 ${

@@ -18,12 +18,23 @@ export function MapViewLoader({
   technicians,
   services,
   drafts,
+  returnHref,
 }: {
   date: string;
   stops: MapStop[];
   technicians: MapTechnicianOption[];
   services: MapServiceOption[];
   drafts: MapRouteDraft[];
+  returnHref: string;
 }) {
-  return <MapView date={date} stops={stops} technicians={technicians} services={services} drafts={drafts} />;
+  return (
+    <MapView
+      date={date}
+      stops={stops}
+      technicians={technicians}
+      services={services}
+      drafts={drafts}
+      returnHref={returnHref}
+    />
+  );
 }

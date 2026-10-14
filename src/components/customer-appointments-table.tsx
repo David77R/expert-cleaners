@@ -28,7 +28,7 @@ function orderItems(row: Row) {
   return row.items.length > 0 ? row.items : [{ service: row.service }];
 }
 
-export function CustomerAppointmentsTable({ rows }: { rows: Row[] }) {
+export function CustomerAppointmentsTable({ rows, returnHref }: { rows: Row[]; returnHref?: string }) {
   return (
     <div className="overflow-x-auto rounded-md border border-hair bg-paper">
       <table className="w-full min-w-[1080px] text-sm">
@@ -130,13 +130,23 @@ export function CustomerAppointmentsTable({ rows }: { rows: Row[] }) {
                   {formatMoney(row.priceCents)}
                 </td>
                 <td className={CELL}>
-                  <Link
-                    href={calendarHref({ view: "day", date: row.date, appt: row.id })}
-                    aria-label={`Abrir la cita ${row.code}`}
-                    className="flex h-8 w-8 items-center justify-center rounded-md text-brand-ink hover:bg-brand-soft"
-                  >
-                    <Icon name="right" />
-                  </Link>
+                  <div className="flex items-center gap-0.5">
+                    <Link
+                      href={`/appointments/${row.id}/edit${returnHref ? `?volver=${encodeURIComponent(returnHref)}` : ""}`}
+                      aria-label={`Editar la cita ${row.code}`}
+                      title="Editar cita"
+                      className="flex h-8 w-8 items-center justify-center rounded-md text-soft hover:bg-canvas hover:text-ink"
+                    >
+                      <Icon name="wrench" size={14} />
+                    </Link>
+                    <Link
+                      href={calendarHref({ view: "day", date: row.date, appt: row.id })}
+                      aria-label={`Abrir la cita ${row.code}`}
+                      className="flex h-8 w-8 items-center justify-center rounded-md text-brand-ink hover:bg-brand-soft"
+                    >
+                      <Icon name="right" />
+                    </Link>
+                  </div>
                 </td>
               </tr>
             );
