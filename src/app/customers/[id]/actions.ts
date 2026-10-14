@@ -6,6 +6,7 @@ import { z, ZodError } from "zod";
 import { getDb } from "@/db/client";
 import { DomainError } from "@/domain/appointment-rules";
 import { getActor } from "@/server/auth";
+import { getPhotoStorage } from "@/server/storage";
 import {
   addAddress,
   addCustomerNote,
@@ -39,17 +40,28 @@ export async function addNote(customerId: string, previous: NoteState, formData:
   return { version: previous.version + 1 };
 }
 
-export async function deleteCustomerAction(customerId: string): Promise<void> {
+export async function deleteCustomerAction(customerId: string, formData: FormData): Promise<void> {
   const actor = await getActor();
   if (!actor) redirect("/login");
   if (actor.role !== "admin") redirect(`/customers/${customerId}`);
   if (!z.uuid().safeParse(customerId).success) redirect("/customers");
 
+  let storage: ReturnType<typeof getPhotoStorage> | undefined;
   try {
-    await deleteCustomer(getDb(), actor, customerId);
+    storage = getPhotoStorage();
+  } catch {
+    storage = undefined;
+  }
+
+  try {
+    await deleteCustomer(getDb(), actor, customerId, {
+      confirmCode: String(formData.get("confirmCode") ?? ""),
+      storage,
+    });
   } catch (error) {
     if (!(error instanceof DomainError)) console.error(error);
-    redirect(`/customers/${customerId}?error=no-eliminado`);
+    const code = error instanceof DomainError && error.code === "confirmation_required" ? "confirmar" : "no-eliminado";
+    redirect(`/customers/${customerId}?error=${code}`);
   }
 
   revalidatePath("/customers");

@@ -48,9 +48,11 @@ export default async function CustomerPage({ params, searchParams }: PageProps<"
   const justCreated = first(query.nuevo) === "1";
   const alreadyExisted = first(query.existente) === "1";
   const deleteFailed = first(query.error) === "no-eliminado";
+  const confirmMissing = first(query.error) === "confirmar";
   const merged = first(query.aviso) === "unido";
   const isAdmin = actor.role === "admin";
-  const canDelete = isAdmin && customer.appointmentCount === 0;
+  const canDelete = isAdmin;
+  const hasAppointments = customer.appointmentCount > 0;
   const mergeCandidates = isAdmin ? await possibleDuplicates(getDb(), customer) : [];
   const duplicateIds = justCreated
     ? parseDuplicateIds(first(query.dup), (value) => z.uuid().safeParse(value).success).filter(
@@ -68,9 +70,11 @@ export default async function CustomerPage({ params, searchParams }: PageProps<"
           <Icon name="left" /> Todos los clientes
         </Link>
 
-        {deleteFailed && (
+        {(deleteFailed || confirmMissing) && (
           <p role="alert" className="rounded-md bg-attention-soft px-4 py-3 text-sm font-medium text-attention">
-            No se pudo eliminar: este cliente tiene citas registradas.
+            {confirmMissing
+              ? `No se eliminó: para borrar un cliente con citas escribe exactamente su código (${customer.code}).`
+              : "No se pudo eliminar el cliente. Inténtalo de nuevo."}
           </p>
         )}
 
@@ -200,7 +204,7 @@ export default async function CustomerPage({ params, searchParams }: PageProps<"
               </details>
             )}
             {canDelete && (
-              <details className="group rounded-md border border-hair bg-paper">
+              <details className="group rounded-md border border-hair bg-paper" open={confirmMissing}>
                 <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold text-attention">
                   Eliminar cliente
                   <Icon name="right" className="transition-transform group-open:rotate-90" />
@@ -209,10 +213,30 @@ export default async function CustomerPage({ params, searchParams }: PageProps<"
                   action={deleteCustomerAction.bind(null, customer.id)}
                   className="flex flex-col gap-3 border-t border-hair px-4 py-4"
                 >
-                  <p className="text-sm text-soft">
-                    Se borran definitivamente el cliente, sus direcciones y sus notas. Solo es posible porque no tiene
-                    ninguna cita.
-                  </p>
+                  {hasAppointments ? (
+                    <>
+                      <p className="rounded-md bg-attention-soft px-3 py-2.5 text-sm text-attention">
+                        Este cliente tiene <strong>{customer.appointmentCount}</strong>{" "}
+                        {customer.appointmentCount === 1 ? "cita" : "citas"}. Se borrarán definitivamente el cliente,
+                        sus direcciones, sus notas y <strong>todas sus citas</strong> con sus fotos, facturas e
+                        historial. No se puede deshacer.
+                      </p>
+                      <label className="flex flex-col gap-1.5 text-sm font-medium">
+                        Para confirmar, escribe su código: {customer.code}
+                        <input
+                          name="confirmCode"
+                          required
+                          autoComplete="off"
+                          placeholder={customer.code}
+                          className="rounded-md border border-hair bg-paper px-3 py-2 text-sm uppercase focus:border-attention focus:outline-none"
+                        />
+                      </label>
+                    </>
+                  ) : (
+                    <p className="text-sm text-soft">
+                      Se borran definitivamente el cliente, sus direcciones y sus notas.
+                    </p>
+                  )}
                   <button
                     type="submit"
                     className="w-fit rounded-md border border-attention/50 bg-paper px-4 py-2 text-sm font-semibold text-attention transition-colors hover:bg-attention-soft"

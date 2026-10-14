@@ -16,11 +16,12 @@ import {
 } from "@/domain/schemas";
 import type { Db } from "@/server/appointments";
 import { geocodeIfNeeded } from "@/server/geocoding";
+import type { PhotoStorage } from "@/server/storage";
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 type Actor = schema.Actor;
 
-const { customers, addresses, customerNotes, appointments, appointmentHistory } = schema;
+const { customers, addresses, customerNotes, appointments, appointmentHistory, appointmentPhotos } = schema;
 
 export type DuplicateMatch = { id: string; code: string; firstName: string; lastName: string };
 
@@ -278,21 +279,43 @@ export async function getCustomer(db: Db, id: string) {
   return { ...row, appointments: recentAppointments, appointmentCount: Number(total) };
 }
 
-export async function deleteCustomer(db: Db, actor: Actor, id: string) {
+export async function deleteCustomer(
+  db: Db,
+  actor: Actor,
+  id: string,
+  options: { confirmCode?: string; storage?: Pick<PhotoStorage, "remove"> } = {},
+) {
   assertAdmin(actor);
-  return db.transaction(async (tx) => {
+  const removed = await db.transaction(async (tx) => {
     const [customer] = await tx.select().from(customers).where(eq(customers.id, id)).limit(1);
     if (!customer) throw new DomainError("not_found", "El cliente no existe");
-    const [{ total }] = await tx.select({ total: count() }).from(appointments).where(eq(appointments.customerId, id));
-    if (Number(total) > 0) {
+    const owned = await tx.select({ id: appointments.id }).from(appointments).where(eq(appointments.customerId, id));
+    if (owned.length > 0 && options.confirmCode?.trim().toUpperCase() !== customer.code.toUpperCase()) {
       throw new DomainError(
-        "customer_in_use",
-        "Este cliente tiene citas registradas, así que no se puede eliminar para no perder su historial ni sus facturas.",
+        "confirmation_required",
+        `Este cliente tiene ${owned.length} ${owned.length === 1 ? "cita" : "citas"}. Escribe su código (${customer.code}) para confirmar que también se borran.`,
       );
     }
+    const ids = owned.map((row) => row.id);
+    const photoPaths =
+      ids.length > 0
+        ? (
+            await tx
+              .select({ path: appointmentPhotos.storagePath })
+              .from(appointmentPhotos)
+              .where(inArray(appointmentPhotos.appointmentId, ids))
+          ).map((row) => row.path)
+        : [];
+    if (ids.length > 0) await tx.delete(appointments).where(inArray(appointments.id, ids));
     await tx.delete(customers).where(eq(customers.id, id));
-    return { id };
+    return { id, appointments: ids.length, photoPaths };
   });
+  if (options.storage) {
+    for (const path of removed.photoPaths) {
+      await options.storage.remove(path).catch((error) => console.error(error));
+    }
+  }
+  return { id: removed.id, appointments: removed.appointments };
 }
 
 export async function addAddress(db: Db, customerId: string, raw: unknown) {

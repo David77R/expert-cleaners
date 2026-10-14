@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { ZodError } from "zod";
-import { addresses as addressesTable } from "@/db/schema";
+import { addresses as addressesTable, appointmentPhotos as appointmentPhotosTable } from "@/db/schema";
 import { AGENT_JOSUE } from "@/db/seed-data";
 import { DomainError } from "@/domain/appointment-rules";
 import { escapeLike, isValidPhone, phoneDigits } from "@/domain/customer-rules";
@@ -383,11 +383,16 @@ describe("eliminar cliente", () => {
     expect(left).toHaveLength(0);
   });
 
-  it("no elimina clientes con citas ni clientes inexistentes", async () => {
+  it("pide el código para eliminar clientes con citas y rechaza clientes inexistentes", async () => {
     await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date: "2026-11-03" }));
     const detail = await getCustomer(ctx.db, ctx.customer.id);
     expect(detail.appointmentCount).toBeGreaterThan(0);
-    await expect(deleteCustomer(ctx.db, ADMIN, ctx.customer.id)).rejects.toMatchObject({ code: "customer_in_use" });
+    await expect(deleteCustomer(ctx.db, ADMIN, ctx.customer.id)).rejects.toMatchObject({
+      code: "confirmation_required",
+    });
+    await expect(deleteCustomer(ctx.db, ADMIN, ctx.customer.id, { confirmCode: "CLI-0000" })).rejects.toMatchObject({
+      code: "confirmation_required",
+    });
     await expect(deleteCustomer(ctx.db, ADMIN, "00000000-0000-4000-8000-0000000000fe")).rejects.toMatchObject({
       code: "not_found",
     });
@@ -503,5 +508,38 @@ describe("ordenar y filtrar clientes", () => {
     const result = await searchCustomers(ctx.db, { q: "maria", sort: "raro", marketing: "x", createdFrom: "nope" });
     expect(result.total).toBe(3);
     expect(result.items[0].appointmentCount).toBe(0);
+  });
+});
+
+describe("eliminar cliente con citas", () => {
+  const ADMIN = { id: AGENT_JOSUE.id, name: "Admin", role: "admin" as const };
+
+  it("con el código correcto borra el cliente, sus citas y las fotos guardadas", async () => {
+    const { customer, addresses } = await createCustomer(
+      ctx.db,
+      newCustomer({ firstName: "Borrar", lastName: "Con Citas", phone: "786 555 0991" }),
+    );
+    const { appointment } = await createAppointment(
+      ctx.db,
+      AGENT_JOSUE,
+      appointmentInput(ctx, { customerId: customer.id, addressId: addresses[0].id, date: "2026-11-09" }),
+    );
+    await ctx.db.insert(appointmentPhotosTable).values({
+      appointmentId: appointment.id,
+      storagePath: `appointments/${appointment.id}/foto.jpg`,
+      contentType: "image/jpeg",
+      sizeBytes: 10,
+    });
+    const removed: string[] = [];
+    const storage = { remove: async (path: string) => void removed.push(path) };
+
+    const result = await deleteCustomer(ctx.db, ADMIN, customer.id, {
+      confirmCode: customer.code.toLowerCase(),
+      storage,
+    });
+    expect(result.appointments).toBe(1);
+    expect(removed).toEqual([`appointments/${appointment.id}/foto.jpg`]);
+    await expect(getCustomer(ctx.db, customer.id)).rejects.toMatchObject({ code: "not_found" });
+    await expect(getAppointment(ctx.db, appointment.id)).rejects.toMatchObject({ code: "not_found" });
   });
 });
