@@ -2,11 +2,21 @@ import { ZodError, type ZodIssue } from "zod";
 import type { Actor } from "@/db/schema";
 import { DomainError } from "@/domain/appointment-rules";
 import { parseTimeInput } from "@/domain/appointment-panel";
+import { itemsPayloadFromValues } from "@/domain/appointment-items";
+import { DESTINATION_PREFIX, destinationFromValues, readAppointmentForm } from "@/domain/appointment-form";
 import { runAction } from "@/server/actions";
 import type { Db } from "@/server/appointments";
 
 export type PanelAction =
-  "confirm" | "complete" | "mark_paid" | "advance_invoice" | "cancel" | "reschedule" | "update_notes" | "set_address";
+  | "confirm"
+  | "complete"
+  | "mark_paid"
+  | "advance_invoice"
+  | "cancel"
+  | "reschedule"
+  | "update_notes"
+  | "set_address"
+  | "update_items";
 
 export type ActionResult = { ok: true; notice?: string } | { ok: false; error: string };
 
@@ -31,6 +41,14 @@ export function payloadFromForm(action: PanelAction, form: FormData): Record<str
       return { action, notes: text(form, "notes").trim() };
     case "set_address":
       return { action, addressId: text(form, "addressId") };
+    case "update_items": {
+      const values = readAppointmentForm(form);
+      return {
+        action,
+        ...itemsPayloadFromValues(values),
+        ...(`${DESTINATION_PREFIX}line1` in values ? { destinationAddress: destinationFromValues(values) } : {}),
+      };
+    }
     default:
       return { action };
   }
@@ -48,6 +66,16 @@ function friendlyIssue(issue: ZodIssue): string {
       return "Elige un técnico válido";
     case "addressId":
       return "Elige una dirección";
+    case "items":
+      return issue.path.includes("priceCents")
+        ? "Revisa los precios: deben ser números positivos"
+        : issue.path.includes("serviceId")
+          ? "Elige el servicio de cada artículo"
+          : issue.message;
+    case "durationMin":
+      return "Escribe la duración en minutos, entre 15 y 720";
+    case "destinationAddress":
+      return "Completa la dirección de entrega";
     default:
       return issue.message;
   }

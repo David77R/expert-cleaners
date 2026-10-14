@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { serviceLabel } from "@/domain/appointment-items";
 import { WEEKDAY_SHORT, isInSameMonth, monthWeeks } from "@/domain/calendar-view";
 import { formatMinutes } from "@/domain/appointment-rules";
 import { calendarHref } from "@/lib/calendar-links";
@@ -103,7 +104,7 @@ export function MonthView({
                         }}
                       >
                         <span className="font-semibold tabular-nums">{shortTime(appointment.startMin)}</span>{" "}
-                        {appointment.service.name}
+                        {serviceLabel(appointment)}
                       </span>
                     ))}
                     {extra > 0 && <span className="px-1 text-[11px] font-medium text-brand-ink">+{extra} más</span>}

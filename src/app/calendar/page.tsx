@@ -5,6 +5,8 @@ import { services as servicesTable, technicians as techniciansTable } from "@/db
 import { DomainError } from "@/domain/appointment-rules";
 import { parseView, summarize, viewRange } from "@/domain/calendar-view";
 import { minutesNowIn, todayIn } from "@/domain/date-rules";
+import { serviceLabel } from "@/domain/appointment-items";
+import { toFormService } from "@/domain/appointment-form";
 import { isoDate } from "@/domain/schemas";
 import { AppShell } from "@/components/app-header";
 import { AppointmentPanel } from "@/components/appointment-panel";
@@ -103,7 +105,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
         technicianName: a.technician.name,
         technicianColor: a.technician.color,
         serviceId: a.service.id,
-        serviceName: a.service.name,
+        serviceName: serviceLabel(a),
         address: `${a.address.line1}${a.address.unit ? ` ${a.address.unit}` : ""}, ${a.address.city}, ${a.address.state} ${a.address.zip}`,
         notes: a.notes,
       }));
@@ -121,6 +123,11 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
   }
   const selectedId = selected?.id ?? null;
   const photos = selected ? await panelPhotos(db, getPhotoStorage, actor, selected.id) : null;
+  const panelServices = selected
+    ? (await db.select().from(servicesTable))
+        .filter((s) => s.active || selected.items.some((item) => item.serviceId === s.id))
+        .map(toFormService)
+    : [];
 
   return (
     <AppShell active="calendar" actor={actor}>
@@ -185,7 +192,13 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
       <CalendarNotice />
 
       {selected && photos && (
-        <AppointmentPanel appointment={selected} technicians={allTechnicians} nav={nav} photos={photos} />
+        <AppointmentPanel
+          appointment={selected}
+          technicians={allTechnicians}
+          services={panelServices}
+          nav={nav}
+          photos={photos}
+        />
       )}
     </AppShell>
   );

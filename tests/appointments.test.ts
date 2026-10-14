@@ -12,6 +12,7 @@ import {
   rescheduleAppointment,
   setAppointmentAddress,
   setDestinationAddress,
+  updateAppointmentItems,
 } from "@/server/appointments";
 import { addresses } from "@/db/schema";
 import { AGENT_JOSUE } from "@/db/seed-data";
@@ -239,5 +240,97 @@ describe("pago, factura y direcciones", () => {
     await expect(
       setAppointmentAddress(ctx.db, AGENT_JOSUE, appointment.id, { addressId: ctx.address.id }),
     ).rejects.toMatchObject({ code: "cancelled" });
+  });
+});
+
+describe("varios servicios por cita", () => {
+  const carpetSpecs = { length: 12, width: 10, carpetType: "Lana", quantity: 1 };
+
+  it("crea la cita con varios servicios y suma el total", async () => {
+    const { appointment } = await createAppointment(ctx.db, AGENT_JOSUE, {
+      ...appointmentInput(ctx, { date: "2026-11-25" }),
+      serviceId: undefined,
+      items: [
+        { serviceId: ctx.services.sofa.id, specs: { sofaType: "Tela", seats: 3, sofaLength: 84 }, priceCents: 15000 },
+        { serviceId: ctx.services.carpet.id, specs: carpetSpecs },
+      ],
+    });
+    expect(appointment.priceCents).toBe(15000 + ctx.services.carpet.basePriceCents);
+    expect(appointment.serviceId).toBe(ctx.services.sofa.id);
+    const detail = await getAppointment(ctx.db, appointment.id);
+    expect(detail.items.map((item) => item.service.name)).toEqual([ctx.services.sofa.name, ctx.services.carpet.name]);
+    expect(detail.items[0].specs).toMatchObject({ sofaLength: 84 });
+  });
+
+  it("pide las especificaciones obligatorias de cada servicio", async () => {
+    await expect(
+      createAppointment(ctx.db, AGENT_JOSUE, {
+        ...appointmentInput(ctx, { date: "2026-11-25" }),
+        items: [
+          { serviceId: ctx.services.sofa.id, specs: { sofaType: "Tela", seats: 2 } },
+          { serviceId: ctx.services.carpet.id, specs: {} },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: "specs_required" });
+  });
+
+  it("edita servicios, precio y duración desde la cita y lo deja en el historial", async () => {
+    const { appointment } = await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date: "2026-11-26" }));
+    const changed = await updateAppointmentItems(ctx.db, AGENT_JOSUE, appointment.id, {
+      items: [
+        { serviceId: ctx.services.sofa.id, specs: { sofaType: "Tela", seats: 3 }, priceCents: 9900 },
+        { serviceId: ctx.services.carpet.id, specs: carpetSpecs, priceCents: 5000 },
+      ],
+      durationMin: 120,
+    });
+    expect(changed.appointment.priceCents).toBe(14900);
+    expect(changed.appointment.durationMin).toBe(120);
+    const detail = await getAppointment(ctx.db, appointment.id);
+    expect(detail.items).toHaveLength(2);
+    const fields = detail.history.map((entry) => entry.field);
+    expect(fields).toEqual(expect.arrayContaining(["items", "price", "duration"]));
+    expect(detail.history.find((entry) => entry.field === "price")?.toValue).toBe("$149.00");
+
+    const again = await updateAppointmentItems(ctx.db, AGENT_JOSUE, appointment.id, {
+      items: [
+        { serviceId: ctx.services.sofa.id, specs: { seats: 3, sofaType: "Tela" }, priceCents: 9900 },
+        { serviceId: ctx.services.carpet.id, specs: carpetSpecs, priceCents: 5000 },
+      ],
+      durationMin: 120,
+    });
+    expect(again.appointment.updatedAt).toEqual(changed.appointment.updatedAt);
+  });
+
+  it("no deja cambiar servicios con la factura enviada ni en citas canceladas", async () => {
+    const items = [{ serviceId: ctx.services.sofa.id, specs: { sofaType: "Tela", seats: 1 } }];
+    const sent = await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date: "2026-11-27" }));
+    await advanceInvoice(ctx.db, AGENT_JOSUE, sent.appointment.id);
+    await advanceInvoice(ctx.db, AGENT_JOSUE, sent.appointment.id);
+    await expect(updateAppointmentItems(ctx.db, AGENT_JOSUE, sent.appointment.id, { items })).rejects.toMatchObject({
+      code: "invoice_sent",
+    });
+    const cancelled = await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date: "2026-11-27" }));
+    await cancelAppointment(ctx.db, AGENT_JOSUE, cancelled.appointment.id, { reason: "weather" });
+    await expect(
+      updateAppointmentItems(ctx.db, AGENT_JOSUE, cancelled.appointment.id, { items }),
+    ).rejects.toMatchObject({ code: "cancelled" });
+  });
+
+  it("al agregar recogida pide la dirección de entrega y al quitarla la borra", async () => {
+    const { appointment } = await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date: "2026-11-28" }));
+    const sofaItem = { serviceId: ctx.services.sofa.id, specs: { sofaType: "Tela", seats: 2 } };
+    const pickupItem = { serviceId: ctx.services["rug-pickup"].id, specs: {} };
+    await expect(
+      updateAppointmentItems(ctx.db, AGENT_JOSUE, appointment.id, { items: [sofaItem, pickupItem] }),
+    ).rejects.toMatchObject({ code: "destination_required" });
+    const withPickup = await updateAppointmentItems(ctx.db, AGENT_JOSUE, appointment.id, {
+      items: [sofaItem, pickupItem],
+      destinationAddress: destination,
+    });
+    expect(withPickup.appointment.destinationAddress?.line1).toBe(destination.line1);
+    const changed = await setDestinationAddress(ctx.db, AGENT_JOSUE, appointment.id, { ...destination, unit: "" });
+    expect(changed.appointment.destinationAddress?.unit).toBe("");
+    const back = await updateAppointmentItems(ctx.db, AGENT_JOSUE, appointment.id, { items: [sofaItem] });
+    expect(back.appointment.destinationAddress).toBeNull();
   });
 });

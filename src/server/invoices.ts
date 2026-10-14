@@ -1,5 +1,6 @@
 import type { Address, AddressSnapshot } from "@/db/schema";
 import { DomainError } from "@/domain/appointment-rules";
+import { fieldsForService } from "@/domain/appointment-items";
 import { buildInvoice } from "@/domain/invoice";
 import { getAppointment, type Db } from "@/server/appointments";
 import { renderInvoicePdf } from "@/server/invoice-pdf";
@@ -35,7 +36,12 @@ export async function getInvoice(db: Db, appointmentId: string) {
     billingAddress: row.billingAddress,
     customer: row.customer,
     address: toSnapshot(row.address),
-    service: { name: row.service.name, fields: row.service.fields },
+    service: { name: row.service.name, fields: fieldsForService(row.service) },
+    items: row.items.map((item) => ({
+      service: { name: item.service.name, fields: fieldsForService(item.service) },
+      specs: item.specs,
+      priceCents: item.priceCents,
+    })),
     generatedAt: generation?.createdAt ?? row.updatedAt,
   });
   return invoice;

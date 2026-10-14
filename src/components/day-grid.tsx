@@ -1,3 +1,4 @@
+import { serviceLabel } from "@/domain/appointment-items";
 import { formatMinutes } from "@/domain/appointment-rules";
 import { initialsOf, layoutSlots, offShiftRanges, readableOn } from "@/domain/calendar-view";
 import { AppointmentTicket } from "@/components/appointment-ticket";
@@ -123,7 +124,7 @@ export function DayGrid({
                     key={appointment.id}
                     appointmentId={appointment.id}
                     code={appointment.code}
-                    serviceName={appointment.service.name}
+                    serviceName={serviceLabel(appointment)}
                     startMin={appointment.startMin}
                     durationMin={appointment.durationMin}
                     technicianId={appointment.technicianId}

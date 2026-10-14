@@ -16,7 +16,7 @@ import {
 
 export async function renderInvoicePdf(invoice: InvoiceData): Promise<Uint8Array> {
   const { pdf, regular, bold, supported } = await createPdf(`Factura ${invoice.number}`, invoice.issuedAt);
-  const page = pdf.addPage([PAGE.width, PAGE.height]);
+  let page = pdf.addPage([PAGE.width, PAGE.height]);
   const draw = createDrawer(() => page, regular, supported);
 
   drawBrandHeader(page, draw, bold, "FACTURA", invoice.number);
@@ -54,21 +54,33 @@ export async function renderInvoicePdf(invoice: InvoiceData): Promise<Uint8Array
   draw("PRECIO", MARGIN + CONTENT_WIDTH - 100, y + 2, { size: 8, font: bold, color: COLORS.brand, align: "right" });
   draw("IMPORTE", MARGIN + CONTENT_WIDTH - 10, y + 2, { size: 8, font: bold, color: COLORS.brand, align: "right" });
 
-  y -= 28;
-  draw(invoice.serviceName, MARGIN + 10, y, { size: 11, font: bold });
-  draw("1", MARGIN + CONTENT_WIDTH - 190, y, { align: "right" });
-  draw(formatMoney(invoice.priceCents), MARGIN + CONTENT_WIDTH - 100, y, { align: "right" });
-  draw(formatMoney(invoice.priceCents), MARGIN + CONTENT_WIDTH - 10, y, { font: bold, align: "right" });
+  for (const [index, line] of invoice.lines.entries()) {
+    if (y < 220) {
+      page = pdf.addPage([PAGE.width, PAGE.height]);
+      y = PAGE.height - 60;
+    }
+    y -= index === 0 ? 28 : 22;
+    draw(line.name, MARGIN + 10, y, { size: 11, font: bold });
+    draw("1", MARGIN + CONTENT_WIDTH - 190, y, { align: "right" });
+    draw(formatMoney(line.priceCents), MARGIN + CONTENT_WIDTH - 100, y, { align: "right" });
+    draw(formatMoney(line.priceCents), MARGIN + CONTENT_WIDTH - 10, y, { font: bold, align: "right" });
+    y -= 6;
+    for (const spec of line.specs) {
+      for (const text of wrap(`${spec.label}: ${spec.value}`, regular, 9, CONTENT_WIDTH - 220)) {
+        y -= 13;
+        draw(text, MARGIN + 10, y, { size: 9, color: COLORS.muted });
+      }
+    }
+  }
 
-  const details: string[] = invoice.specs.map((spec) => `${spec.label}: ${spec.value}`);
-  details.push(`Dirección del servicio: ${invoice.serviceAddress}`);
+  const details = [`Dirección del servicio: ${invoice.serviceAddress}`];
   if (invoice.destinationAddress) details.push(`Dirección de entrega: ${invoice.destinationAddress}`);
 
-  y -= 6;
+  y -= 10;
   for (const detail of details) {
-    for (const line of wrap(detail, regular, 9, CONTENT_WIDTH - 220)) {
+    for (const text of wrap(detail, regular, 9, CONTENT_WIDTH - 220)) {
       y -= 13;
-      draw(line, MARGIN + 10, y, { size: 9, color: COLORS.muted });
+      draw(text, MARGIN + 10, y, { size: 9, color: COLORS.muted });
     }
   }
 

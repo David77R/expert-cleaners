@@ -4,18 +4,19 @@ import Link from "next/link";
 import { useActionState, useState, useTransition, type ComponentProps, type FormEvent } from "react";
 import { createAppointmentAction, type AppointmentFormState } from "@/app/appointments/new/actions";
 import { AddressAutocomplete } from "@/components/address-autocomplete";
+import { AppointmentItemsEditor, itemsDuration, type EditorItem } from "@/components/appointment-items-editor";
 import { CustomerPicker } from "@/components/customer-picker";
 import { Card, Field, INPUT } from "@/components/form-kit";
+import { readItemValues } from "@/domain/appointment-items";
 import {
   DESTINATION_PREFIX,
-  SPEC_PREFIX,
   type AppointmentFormValues,
   type FormService,
   type FormTechnician,
   type PickerCustomer,
 } from "@/domain/appointment-form";
 import { formatMinutes } from "@/domain/appointment-rules";
-import { formatAddress, formatMoney } from "@/domain/invoice";
+import { formatAddress } from "@/domain/invoice";
 import { calendarHref } from "@/lib/calendar-links";
 
 function AppointmentField(props: Omit<ComponentProps<typeof Field>, "prefix">) {
@@ -58,12 +59,16 @@ export function AppointmentForm({
 
   const [customer, setCustomer] = useState<PickerCustomer | null>(initialCustomer);
   const [addressId, setAddressId] = useState(initialValues.addressId ?? "");
-  const [serviceId, setServiceId] = useState(initialValues.serviceId ?? "");
+  const [items, setItems] = useState<EditorItem[]>(() =>
+    readItemValues(initialValues).map((row) => ({
+      service: services.find((option) => option.id === row.serviceId) ?? null,
+      priceCents: 0,
+    })),
+  );
   const [technicianId, setTechnicianId] = useState(initialValues.technicianId ?? "");
   const [duration, setDuration] = useState(initialValues.durationMin ?? "");
 
-  const service = services.find((option) => option.id === serviceId) ?? null;
-  const categories = [...new Set(services.map((option) => option.category))];
+  const needsDestination = items.some((item) => item.service?.twoAddresses);
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -76,10 +81,11 @@ export function AppointmentForm({
     setAddressId(next.addresses[0]?.id ?? "");
   }
 
-  function chooseService(id: string) {
-    setServiceId(id);
-    const next = services.find((option) => option.id === id);
-    if (next) setDuration(String(next.durationMin));
+  function changeItems(next: EditorItem[]) {
+    const signature = (list: EditorItem[]) => list.map((item) => item.service?.id ?? "").join(",");
+    const changed = signature(next) !== signature(items);
+    setItems(next);
+    if (changed && next.some((item) => item.service)) setDuration(String(itemsDuration(next)));
   }
 
   return (
@@ -118,70 +124,16 @@ export function AppointmentForm({
         </div>
       </Card>
 
-      <Card title="Servicio">
-        <AppointmentField name="serviceId" label="Tipo de servicio" error={errors.serviceId} wide>
-          {(props) => (
-            <select
-              {...props}
-              name="serviceId"
-              value={serviceId}
-              onChange={(event) => chooseService(event.target.value)}
-              className={INPUT}
-            >
-              <option value="">Elige un servicio</option>
-              {categories.map((category) => (
-                <optgroup key={category} label={category}>
-                  {services
-                    .filter((option) => option.category === category)
-                    .map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.name}
-                      </option>
-                    ))}
-                </optgroup>
-              ))}
-            </select>
-          )}
-        </AppointmentField>
+      <Card title="Servicios" hint="Agrega todos los artículos de la cita. El precio de cada uno se puede ajustar.">
+        <AppointmentItemsEditor
+          services={services}
+          initialItems={readItemValues(initialValues)}
+          errors={errors}
+          idPrefix="appointment"
+          onChange={changeItems}
+        />
 
-        {service?.fields.map((field) => {
-          const key = `${SPEC_PREFIX}${field.key}`;
-          return (
-            <AppointmentField
-              key={`${service.id}-${field.key}`}
-              name={key}
-              label={field.label}
-              error={errors[key]}
-              optional={!field.required}
-            >
-              {(props) =>
-                field.type === "select" ? (
-                  <select {...props} name={key} defaultValue={values[key] ?? ""} className={INPUT}>
-                    <option value="">Elige una opción</option>
-                    {(field.options ?? []).map((option) => (
-                      <option key={option} value={option}>
-                        {option}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    {...props}
-                    name={key}
-                    type="number"
-                    inputMode="decimal"
-                    min={0}
-                    step="any"
-                    defaultValue={values[key] ?? ""}
-                    className={INPUT}
-                  />
-                )
-              }
-            </AppointmentField>
-          );
-        })}
-
-        {service?.twoAddresses && (
+        {needsDestination && (
           <>
             <p className="text-sm font-medium sm:col-span-2">Dirección de entrega</p>
             <AppointmentField
@@ -346,13 +298,7 @@ export function AppointmentForm({
         </p>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <p className="text-sm text-soft">
-          Precio
-          <span className="font-display ml-2 text-xl font-semibold tabular-nums text-ink">
-            {service ? formatMoney(service.basePriceCents) : "—"}
-          </span>
-        </p>
+      <div className="flex flex-wrap items-center justify-end gap-4">
         <div className="flex items-center gap-3">
           <Link
             href={calendarHref({ date: values.date || undefined })}

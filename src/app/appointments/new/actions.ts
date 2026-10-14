@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -11,10 +11,10 @@ import {
   appointmentFieldErrors,
   appointmentInputFromForm,
   readAppointmentForm,
-  validateSpecs,
   type AppointmentFormErrors,
   type AppointmentFormValues,
 } from "@/domain/appointment-form";
+import { readItemValues } from "@/domain/appointment-items";
 import { createAppointmentSchema } from "@/domain/schemas";
 import { calendarHref } from "@/lib/calendar-links";
 import { createAppointment } from "@/server/appointments";
@@ -35,19 +35,18 @@ export async function createAppointmentAction(
 
   const values = readAppointmentForm(formData);
   const db = getDb();
-  const validService = z.uuid().safeParse(values.serviceId).success;
-  const [service] = validService
-    ? await db.select().from(services).where(eq(services.id, values.serviceId)).limit(1)
-    : [];
-  const rules = service ?? { fields: [], twoAddresses: false };
+  const ids = readItemValues(values)
+    .map((item) => item.serviceId)
+    .filter((id) => z.uuid().safeParse(id).success);
+  const rows = ids.length > 0 ? await db.select().from(services).where(inArray(services.id, ids)) : [];
+  const byId = new Map(rows.filter((row) => row.active).map((row) => [row.id, row]));
 
-  const input = appointmentInputFromForm(values, rules);
+  const { input, itemErrors } = appointmentInputFromForm(values, (id) => byId.get(id));
   const parsed = createAppointmentSchema.safeParse(input);
   const errors: AppointmentFormErrors = {
-    ...validateSpecs(values, rules.fields),
     ...(parsed.success ? {} : appointmentFieldErrors(parsed.error.issues)),
+    ...itemErrors,
   };
-  if (!service) errors.serviceId ??= "Elige un servicio";
   if (Object.keys(errors).length > 0) return { values, errors };
 
   let created: Awaited<ReturnType<typeof createAppointment>>;

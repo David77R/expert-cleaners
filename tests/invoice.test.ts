@@ -88,6 +88,31 @@ function source(partial: Partial<InvoiceSource> = {}): InvoiceSource {
 }
 
 describe("buildInvoice", () => {
+  it("lists one line per service of the appointment", () => {
+    const invoice = buildInvoice(
+      source({
+        priceCents: 20000,
+        items: [
+          {
+            service: { name: "Sofá", fields: [{ key: "seats", label: "Asientos", type: "number", required: true }] },
+            specs: { seats: 3 },
+            priceCents: 12000,
+          },
+          { service: { name: "Alfombra", fields: [] }, specs: {}, priceCents: 8000 },
+        ],
+      }),
+    );
+    expect(invoice.lines).toEqual([
+      { name: "Sofá", specs: [{ label: "Asientos", value: "3" }], priceCents: 12000 },
+      { name: "Alfombra", specs: [], priceCents: 8000 },
+    ]);
+    expect(invoice.priceCents).toBe(20000);
+  });
+
+  it("falls back to the main service when there are no items", () => {
+    expect(buildInvoice(source()).lines).toEqual([{ name: "Limpieza de alfombra", specs: [], priceCents: 12000 }]);
+  });
+
   it("bills to the service address when there is no separate billing address", () => {
     const invoice = buildInvoice(source());
     expect(invoice.billTo).toBe(formatAddress(address()));

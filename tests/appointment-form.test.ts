@@ -5,7 +5,6 @@ import {
   appointmentInputFromForm,
   emptyAppointmentForm,
   readAppointmentForm,
-  validateSpecs,
 } from "@/domain/appointment-form";
 import { createAppointmentSchema } from "@/domain/schemas";
 import { createAppointment } from "@/server/appointments";
@@ -38,25 +37,40 @@ function sofaForm(overrides: Record<string, string> = {}) {
   return {
     customerId: ctx.customer.id,
     addressId: ctx.address.id,
-    serviceId: ctx.services.sofa.id,
+    "items.0.serviceId": ctx.services.sofa.id,
+    "items.0.price": "",
+    "items.0.spec.sofaType": "Tela",
+    "items.0.spec.seats": "3",
     technicianId: ctx.techs[0].id,
     date: "2027-03-10",
     time: "09:30",
     durationMin: "60",
     notes: "  Hay un perro  ",
-    spec_sofaType: "Tela",
-    spec_seats: "3",
     ...overrides,
   };
 }
 
-function errorsFor(entries: Record<string, string>, service = ctx.services.sofa) {
-  const values = readAppointmentForm(formData(entries));
-  const input = appointmentInputFromForm(values, service);
+function pickupForm(overrides: Record<string, string> = {}) {
+  const entries: Record<string, string> = { ...sofaForm(), "items.0.serviceId": ctx.services["rug-pickup"].id };
+  delete entries["items.0.spec.sofaType"];
+  delete entries["items.0.spec.seats"];
+  return { ...entries, ...overrides };
+}
+
+function findService(id: string) {
+  return Object.values(ctx.services).find((service) => service.id === id);
+}
+
+function inputFor(entries: Record<string, string>) {
+  return appointmentInputFromForm(readAppointmentForm(formData(entries)), findService);
+}
+
+function errorsFor(entries: Record<string, string>) {
+  const { input, itemErrors } = inputFor(entries);
   const parsed = createAppointmentSchema.safeParse(input);
   return {
-    ...validateSpecs(values, service.fields),
     ...(parsed.success ? {} : appointmentFieldErrors(parsed.error.issues)),
+    ...itemErrors,
   };
 }
 
@@ -76,35 +90,45 @@ describe("lectura del formulario de cita", () => {
 });
 
 describe("entrada de la cita", () => {
-  it("convierte hora, duración y especificaciones", () => {
-    const values = readAppointmentForm(formData(sofaForm()));
-    const input = appointmentInputFromForm(values, ctx.services.sofa);
+  it("convierte hora, duración, servicios y especificaciones", () => {
+    const { input, itemErrors } = inputFor(sofaForm());
+    expect(itemErrors).toEqual({});
     expect(input.startMin).toBe(570);
     expect(input.durationMin).toBe(60);
-    expect(input.specs).toEqual({ sofaType: "Tela", seats: 3 });
+    expect(input.items).toEqual([{ serviceId: ctx.services.sofa.id, specs: { sofaType: "Tela", seats: 3 } }]);
     expect(input.notes).toBe("Hay un perro");
     expect(input.destinationAddress).toBeUndefined();
     expect(createAppointmentSchema.safeParse(input).success).toBe(true);
   });
 
-  it("omite las especificaciones vacías", () => {
-    const values = readAppointmentForm(formData(sofaForm({ spec_seats: "  " })));
-    expect(appointmentInputFromForm(values, ctx.services.sofa).specs).toEqual({ sofaType: "Tela" });
+  it("omite las especificaciones vacías y lee el largo y ancho del sofá", () => {
+    const { input } = inputFor(
+      sofaForm({ "items.0.spec.seats": "  ", "items.0.spec.sofaLength": "84", "items.0.spec.sofaWidth": "36.5" }),
+    );
+    expect(input.items[0].specs).toEqual({ sofaType: "Tela", sofaLength: 84, sofaWidth: 36.5 });
   });
 
-  it("arma la dirección de entrega cuando el servicio la usa", () => {
-    const values = readAppointmentForm(
-      formData(
-        sofaForm({
-          serviceId: ctx.services["rug-pickup"].id,
-          dest_line1: " 99 Warehouse Rd ",
-          dest_city: "Miami",
-          dest_state: "",
-          dest_zip: "33126",
-        }),
-      ),
+  it("lee varios servicios con su precio en dólares", () => {
+    const { input, itemErrors } = inputFor(
+      sofaForm({
+        "items.0.price": "$1,150.50",
+        "items.1.serviceId": ctx.services.carpet.id,
+        "items.1.price": "80",
+        "items.1.spec.length": "12",
+        "items.1.spec.width": "10",
+        "items.1.spec.carpetType": "Lana",
+        "items.1.spec.quantity": "1",
+      }),
     );
-    const input = appointmentInputFromForm(values, ctx.services["rug-pickup"]);
+    expect(itemErrors).toEqual({});
+    expect(input.items.map((item) => item.priceCents)).toEqual([115050, 8000]);
+    expect(input.items[1].serviceId).toBe(ctx.services.carpet.id);
+  });
+
+  it("arma la dirección de entrega cuando algún servicio la usa", () => {
+    const { input } = inputFor(
+      pickupForm({ dest_line1: " 99 Warehouse Rd ", dest_city: "Miami", dest_state: "", dest_zip: "33126" }),
+    );
     expect(input.destinationAddress).toEqual({
       line1: "99 Warehouse Rd",
       unit: "",
@@ -122,11 +146,11 @@ describe("errores por campo de la cita", () => {
 
   it("pide cliente, dirección, servicio, técnico y fecha", () => {
     const errors = errorsFor(
-      sofaForm({ customerId: "", addressId: "", serviceId: "", technicianId: "", date: "2027-13-40" }),
+      sofaForm({ customerId: "", addressId: "", "items.0.serviceId": "", technicianId: "", date: "2027-13-40" }),
     );
     expect(errors.customerId).toBe("Elige un cliente");
     expect(errors.addressId).toBe("Elige la dirección del servicio");
-    expect(errors.serviceId).toBe("Elige un servicio");
+    expect(errors["items.0.serviceId"]).toBe("Elige un servicio");
     expect(errors.technicianId).toBe("Elige un técnico");
     expect(errors.date).toBe("Elige una fecha válida");
   });
@@ -139,16 +163,24 @@ describe("errores por campo de la cita", () => {
     expect(errorsFor(sofaForm({ durationMin: "900" })).durationMin).toMatch(/entre 15 y 720/);
   });
 
-  it("valida las especificaciones del servicio", () => {
-    expect(errorsFor(sofaForm({ spec_sofaType: "" })).spec_sofaType).toBe("Este campo es obligatorio");
-    expect(errorsFor(sofaForm({ spec_sofaType: "Madera" })).spec_sofaType).toBe("Elige una de las opciones");
-    expect(errorsFor(sofaForm({ spec_seats: "tres" })).spec_seats).toBe("Escribe un número válido");
-    expect(errorsFor(sofaForm({ spec_seats: "-2" })).spec_seats).toBe("Escribe un número válido");
+  it("valida las especificaciones y el precio de cada servicio", () => {
+    expect(errorsFor(sofaForm({ "items.0.spec.sofaType": "" }))["items.0.spec.sofaType"]).toBe(
+      "Este campo es obligatorio",
+    );
+    expect(errorsFor(sofaForm({ "items.0.spec.sofaType": "Madera" }))["items.0.spec.sofaType"]).toBe(
+      "Elige una de las opciones",
+    );
+    expect(errorsFor(sofaForm({ "items.0.spec.seats": "tres" }))["items.0.spec.seats"]).toBe(
+      "Escribe un número válido",
+    );
+    expect(errorsFor(sofaForm({ "items.0.spec.sofaLength": "-2" }))["items.0.spec.sofaLength"]).toBe(
+      "Escribe un número válido",
+    );
+    expect(errorsFor(sofaForm({ "items.0.price": "abc" }))["items.0.price"]).toMatch(/precio válido/);
   });
 
   it("exige la dirección de entrega solo en servicios con dos direcciones", () => {
-    const pickup = ctx.services["rug-pickup"];
-    const errors = errorsFor(sofaForm({ serviceId: pickup.id, spec_sofaType: "", spec_seats: "" }), pickup);
+    const errors = errorsFor(pickupForm());
     expect(errors.dest_line1).toBe("Este campo es obligatorio");
     expect(errors.dest_city).toBe("Este campo es obligatorio");
     expect(errors.dest_zip).toBe("Este campo es obligatorio");
@@ -163,8 +195,7 @@ describe("errores por campo de la cita", () => {
 
 describe("crear la cita desde el formulario", () => {
   it("guarda la cita con la hora y las especificaciones del formulario", async () => {
-    const values = readAppointmentForm(formData(sofaForm({ date: "2027-03-11" })));
-    const input = appointmentInputFromForm(values, ctx.services.sofa);
+    const { input } = inputFor(sofaForm({ date: "2027-03-11" }));
     const { appointment, conflicts } = await createAppointment(ctx.db, AGENT_JOSUE, input);
     expect(appointment.startMin).toBe(570);
     expect(appointment.specs).toEqual({ sofaType: "Tela", seats: 3 });
@@ -174,31 +205,28 @@ describe("crear la cita desde el formulario", () => {
   });
 
   it("avisa del solape pero crea la cita igual", async () => {
-    const values = readAppointmentForm(formData(sofaForm({ date: "2027-03-12", time: "09:00" })));
-    const input = appointmentInputFromForm(values, ctx.services.sofa);
-    await createAppointment(ctx.db, AGENT_JOSUE, input);
-    const overlapping = readAppointmentForm(formData(sofaForm({ date: "2027-03-12", time: "09:30" })));
+    await createAppointment(ctx.db, AGENT_JOSUE, inputFor(sofaForm({ date: "2027-03-12", time: "09:00" })).input);
     const second = await createAppointment(
       ctx.db,
       AGENT_JOSUE,
-      appointmentInputFromForm(overlapping, ctx.services.sofa),
+      inputFor(sofaForm({ date: "2027-03-12", time: "09:30" })).input,
     );
     expect(second.appointment.id).toBeTruthy();
     expect(second.conflicts.length).toBeGreaterThan(0);
   });
 
   it("crea una cita con dos direcciones", async () => {
-    const pickup = ctx.services["rug-pickup"];
-    const values = readAppointmentForm(
-      formData({
-        ...sofaForm({ serviceId: pickup.id, date: "2027-03-13", durationMin: "30" }),
+    const { input } = inputFor(
+      pickupForm({
+        date: "2027-03-13",
+        durationMin: "30",
         dest_line1: "99 Warehouse Rd",
         dest_city: "Miami",
         dest_state: "fl",
         dest_zip: "33126",
       }),
     );
-    const { appointment } = await createAppointment(ctx.db, AGENT_JOSUE, appointmentInputFromForm(values, pickup));
+    const { appointment } = await createAppointment(ctx.db, AGENT_JOSUE, input);
     expect(appointment.destinationAddress?.state).toBe("FL");
   });
 });

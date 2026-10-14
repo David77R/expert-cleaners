@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { cancelSchema, moveSchema, rescheduleSchema, addressSnapshotSchema } from "@/domain/schemas";
+import { cancelSchema, moveSchema, rescheduleSchema, addressSnapshotSchema, updateItemsSchema } from "@/domain/schemas";
 import {
   advanceInvoice,
   cancelAppointment,
@@ -11,6 +11,7 @@ import {
   setBillingAddress,
   setAppointmentAddress,
   setDestinationAddress,
+  updateAppointmentItems,
   updateNotes,
   type Db,
   type Mutation,
@@ -29,6 +30,7 @@ export const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("set_billing"), address: addressSnapshotSchema }),
   z.object({ action: z.literal("update_notes"), notes: z.string() }),
   z.object({ action: z.literal("set_address"), addressId: z.string() }),
+  z.object({ action: z.literal("update_items") }).extend(updateItemsSchema.shape),
 ]);
 
 export type AppointmentAction = z.infer<typeof actionSchema>;
@@ -58,5 +60,7 @@ export async function runAction(db: Db, actor: Actor, id: string, raw: unknown):
       return updateNotes(db, actor, id, input.notes);
     case "set_address":
       return setAppointmentAddress(db, actor, id, { addressId: input.addressId });
+    case "update_items":
+      return updateAppointmentItems(db, actor, id, input);
   }
 }

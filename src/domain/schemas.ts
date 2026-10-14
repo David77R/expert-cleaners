@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_ITEMS } from "./appointment-items";
 import { CANCEL_REASONS } from "./appointment-rules";
 import { isValidPhone } from "./customer-rules";
 import { daysBetween, isRealDate, periodBounds } from "./date-rules";
@@ -181,15 +182,29 @@ export const serviceListSchema = z.object({
     .default(false),
 });
 
+const specsSchema = z.record(z.string(), z.union([z.string(), z.number()]));
+
+export const appointmentItemSchema = z.object({
+  serviceId: z.uuid("Elige un servicio"),
+  specs: specsSchema.default({}),
+  priceCents: z.number().int().min(0, "El precio no puede ser negativo").max(10_000_000).optional(),
+});
+
+const itemsSchema = z
+  .array(appointmentItemSchema)
+  .min(1, "Agrega al menos un servicio")
+  .max(MAX_ITEMS, `Máximo ${MAX_ITEMS} servicios por cita`);
+
 export const createAppointmentSchema = z.object({
   customerId: z.uuid(),
   addressId: z.uuid(),
-  serviceId: z.uuid(),
+  serviceId: z.uuid().optional(),
+  items: itemsSchema.optional(),
   technicianId: z.uuid(),
   date: isoDate,
   startMin: minutes,
   durationMin: z.number().int().min(15).max(720),
-  specs: z.record(z.string(), z.union([z.string(), z.number()])).default({}),
+  specs: specsSchema.default({}),
   notes: z.string().default(""),
   alerts: z
     .array(z.object({ key: z.string(), label: z.string(), level: z.enum(["attention", "warning", "info"]) }))
@@ -211,6 +226,12 @@ export const rescheduleSchema = z.object({
 });
 
 export const setAddressSchema = z.object({ addressId: z.uuid("Elige una dirección") });
+
+export const updateItemsSchema = z.object({
+  items: itemsSchema,
+  durationMin: z.number().int().min(15).max(720).optional(),
+  destinationAddress: addressSnapshotSchema.optional(),
+});
 
 export const moveSchema = z.object({
   startMin: minutes,
@@ -303,3 +324,4 @@ export type CreateAgentInput = z.input<typeof createAgentSchema>;
 export type UpdateAgentInput = z.input<typeof updateAgentSchema>;
 export type CancelInput = z.infer<typeof cancelSchema>;
 export type RescheduleInput = z.infer<typeof rescheduleSchema>;
+export type UpdateItemsInput = z.input<typeof updateItemsSchema>;

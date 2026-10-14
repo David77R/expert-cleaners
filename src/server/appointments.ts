@@ -19,9 +19,11 @@ import {
   rescheduleSchema,
   setAddressSchema,
   addressSnapshotSchema,
+  updateItemsSchema,
   type CreateAppointmentInput,
 } from "@/domain/schemas";
-import { formatAddress } from "@/domain/invoice";
+import { fieldsForService, itemsTotal, summarizeItems, type ItemInput } from "@/domain/appointment-items";
+import { formatAddress, formatMoney } from "@/domain/invoice";
 import { geocodeIfNeeded } from "@/server/geocoding";
 
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
@@ -31,7 +33,14 @@ type AppointmentRow = schema.Appointment;
 
 export type Mutation = { appointment: AppointmentRow; conflicts: TimeBlock[] };
 
-const { appointments, appointmentHistory, addresses, services, technicians } = schema;
+const { appointments, appointmentHistory, appointmentItems, addresses, services, technicians } = schema;
+
+type ResolvedItem = {
+  serviceId: string;
+  specs: Record<string, string | number>;
+  priceCents: number;
+  service: schema.Service;
+};
 
 function toBlock(
   a: Pick<AppointmentRow, "id" | "technicianId" | "date" | "startMin" | "durationMin" | "status">,
@@ -94,6 +103,78 @@ async function persist(
   return updated;
 }
 
+async function resolveItems(
+  tx: Tx,
+  requested: readonly ItemInput[],
+  allowInactive: ReadonlySet<string> = new Set(),
+): Promise<ResolvedItem[]> {
+  const ids = [...new Set(requested.map((item) => item.serviceId))];
+  const found = ids.length > 0 ? await tx.select().from(services).where(inArray(services.id, ids)) : [];
+  const byId = new Map(found.map((service) => [service.id, service]));
+  return requested.map((item) => {
+    const service = byId.get(item.serviceId);
+    if (!service || (!service.active && !allowInactive.has(service.id))) {
+      throw new DomainError("service_unavailable", "El servicio no está disponible");
+    }
+    const missing = fieldsForService(service).filter(
+      (field) => field.required && (item.specs[field.key] === undefined || item.specs[field.key] === ""),
+    );
+    if (missing.length > 0) {
+      throw new DomainError(
+        "specs_required",
+        `Faltan especificaciones de ${service.name}: ${missing.map((m) => m.label).join(", ")}`,
+      );
+    }
+    return { serviceId: service.id, specs: item.specs, priceCents: item.priceCents ?? service.basePriceCents, service };
+  });
+}
+
+async function currentItems(tx: Tx, current: AppointmentRow): Promise<ResolvedItem[]> {
+  const rows = await tx
+    .select({ item: appointmentItems, service: services })
+    .from(appointmentItems)
+    .innerJoin(services, eq(services.id, appointmentItems.serviceId))
+    .where(eq(appointmentItems.appointmentId, current.id))
+    .orderBy(asc(appointmentItems.position));
+  if (rows.length > 0) {
+    return rows.map(({ item, service }) => ({
+      serviceId: item.serviceId,
+      specs: item.specs,
+      priceCents: item.priceCents,
+      service,
+    }));
+  }
+  const [service] = await tx.select().from(services).where(eq(services.id, current.serviceId)).limit(1);
+  return service ? [{ serviceId: service.id, specs: current.specs, priceCents: current.priceCents, service }] : [];
+}
+
+async function saveItems(tx: Tx, appointmentId: string, items: readonly ResolvedItem[]) {
+  await tx.delete(appointmentItems).where(eq(appointmentItems.appointmentId, appointmentId));
+  await tx.insert(appointmentItems).values(
+    items.map((item, position) => ({
+      appointmentId,
+      serviceId: item.serviceId,
+      specs: item.specs,
+      priceCents: item.priceCents,
+      position,
+    })),
+  );
+}
+
+function itemSignature(items: readonly Pick<ResolvedItem, "serviceId" | "specs" | "priceCents">[]): string {
+  return JSON.stringify(
+    items.map((item) => [
+      item.serviceId,
+      item.priceCents,
+      Object.entries(item.specs).sort(([a], [b]) => a.localeCompare(b)),
+    ]),
+  );
+}
+
+function itemSummary(items: readonly ResolvedItem[]): string {
+  return summarizeItems(items.map((item) => ({ serviceName: item.service.name, priceCents: item.priceCents })));
+}
+
 async function nextCode(tx: Tx): Promise<string> {
   const [row] = await tx
     .select({ max: sql<number>`coalesce(max(cast(substring(${appointments.code} from 5) as integer)), 2000)` })
@@ -105,31 +186,26 @@ export async function createAppointment(db: Db, actor: Actor, raw: CreateAppoint
   const input = createAppointmentSchema.parse(raw);
   const destinationAddress = input.destinationAddress ? await geocodeIfNeeded(input.destinationAddress) : null;
   const billingAddress = input.billingAddress ? await geocodeIfNeeded(input.billingAddress) : null;
+  const requested = input.items ?? (input.serviceId ? [{ serviceId: input.serviceId, specs: input.specs }] : []);
+  if (requested.length === 0) throw new DomainError("service_required", "Elige un servicio");
   return db.transaction(async (tx) => {
-    const [service] = await tx.select().from(services).where(eq(services.id, input.serviceId)).limit(1);
-    if (!service || !service.active) throw new DomainError("service_unavailable", "El servicio no está disponible");
+    const items = await resolveItems(tx, requested);
+    const twoAddresses = items.some((item) => item.service.twoAddresses);
 
     const [address] = await tx.select().from(addresses).where(eq(addresses.id, input.addressId)).limit(1);
     if (!address || address.customerId !== input.customerId) {
       throw new DomainError("address_mismatch", "La dirección no pertenece al cliente");
     }
 
-    if (service.twoAddresses && !input.destinationAddress) {
+    if (twoAddresses && !input.destinationAddress) {
       throw new DomainError("destination_required", "Este servicio requiere dirección de entrega");
     }
-    if (!service.twoAddresses && input.destinationAddress) {
+    if (!twoAddresses && input.destinationAddress) {
       throw new DomainError("destination_not_allowed", "Este servicio no usa dirección de entrega");
     }
 
     const [tech] = await tx.select().from(technicians).where(eq(technicians.id, input.technicianId)).limit(1);
     if (!tech || !tech.active) throw new DomainError("technician_unavailable", "El técnico no está activo");
-
-    const missing = service.fields.filter(
-      (f) => f.required && (input.specs[f.key] === undefined || input.specs[f.key] === ""),
-    );
-    if (missing.length > 0) {
-      throw new DomainError("specs_required", `Faltan especificaciones: ${missing.map((m) => m.label).join(", ")}`);
-    }
 
     const code = await nextCode(tx);
     const [created] = await tx
@@ -139,19 +215,21 @@ export async function createAppointment(db: Db, actor: Actor, raw: CreateAppoint
         agentId: actor.id,
         customerId: input.customerId,
         addressId: input.addressId,
-        serviceId: input.serviceId,
+        serviceId: items[0].serviceId,
         technicianId: input.technicianId,
         date: input.date,
         startMin: input.startMin,
         durationMin: input.durationMin,
-        priceCents: service.basePriceCents,
+        priceCents: itemsTotal(items),
         notes: input.notes,
-        specs: input.specs,
+        specs: items[0].specs,
         alerts: input.alerts,
         destinationAddress,
         billingAddress,
       })
       .returning();
+
+    await saveItems(tx, created.id, items);
 
     await tx.insert(appointmentHistory).values({
       appointmentId: created.id,
@@ -283,9 +361,10 @@ export async function setDestinationAddress(db: Db, actor: Actor, id: string, ra
   const address = await geocodeIfNeeded(parsed);
   return db.transaction(async (tx) => {
     const current = await load(tx, id);
-    const [service] = await tx.select().from(services).where(eq(services.id, current.serviceId)).limit(1);
-    if (!service?.twoAddresses)
+    const items = await currentItems(tx, current);
+    if (!items.some((item) => item.service.twoAddresses)) {
       throw new DomainError("destination_not_allowed", "Este servicio no usa dirección de entrega");
+    }
     const updated = await persist(tx, actor, current, { destinationAddress: address }, [
       { field: "destination_address", from: JSON.stringify(current.destinationAddress), to: JSON.stringify(address) },
     ]);
@@ -329,6 +408,66 @@ export async function setAppointmentAddress(db: Db, actor: Actor, id: string, ra
   });
 }
 
+export async function updateAppointmentItems(db: Db, actor: Actor, id: string, raw: unknown): Promise<Mutation> {
+  const input = updateItemsSchema.parse(raw);
+  const destination = input.destinationAddress ? await geocodeIfNeeded(input.destinationAddress) : null;
+  return db.transaction(async (tx) => {
+    const current = await load(tx, id);
+    if (current.status === "cancelled") {
+      throw new DomainError("cancelled", "Una cita cancelada no se puede modificar");
+    }
+    if (current.invoiceStatus === "sent") {
+      throw new DomainError(
+        "invoice_sent",
+        "La factura ya fue enviada; no se pueden cambiar los servicios ni el precio",
+      );
+    }
+    const previous = await currentItems(tx, current);
+    const items = await resolveItems(tx, input.items, new Set(previous.map((item) => item.serviceId)));
+
+    let destinationAddress = current.destinationAddress;
+    if (items.some((item) => item.service.twoAddresses)) {
+      destinationAddress = destination ?? destinationAddress;
+      if (!destinationAddress) {
+        throw new DomainError("destination_required", "Agrega la dirección de entrega para este servicio");
+      }
+    } else {
+      destinationAddress = null;
+    }
+
+    const total = itemsTotal(items);
+    const durationMin = input.durationMin ?? current.durationMin;
+    const changes: FieldChange[] = [];
+    const itemsChanged = itemSignature(previous) !== itemSignature(items);
+    if (itemsChanged) changes.push({ field: "items", from: itemSummary(previous), to: itemSummary(items) });
+    if (total !== current.priceCents) {
+      changes.push({ field: "price", from: formatMoney(current.priceCents), to: formatMoney(total) });
+    }
+    if (durationMin !== current.durationMin) {
+      changes.push({ field: "duration", from: String(current.durationMin), to: String(durationMin) });
+    }
+    if (JSON.stringify(destinationAddress) !== JSON.stringify(current.destinationAddress)) {
+      changes.push({
+        field: "destination_address",
+        from: JSON.stringify(current.destinationAddress),
+        to: JSON.stringify(destinationAddress),
+      });
+    }
+    if (changes.length === 0) return { appointment: current, conflicts: [] };
+
+    if (itemsChanged) await saveItems(tx, current.id, items);
+    const updated = await persist(
+      tx,
+      actor,
+      current,
+      { serviceId: items[0].serviceId, specs: items[0].specs, priceCents: total, durationMin, destinationAddress },
+      changes,
+    );
+    const conflicts = durationMin !== current.durationMin ? await conflictsFor(tx, toBlock(updated)) : [];
+    return { appointment: updated, conflicts };
+  });
+}
+
 export async function updateNotes(db: Db, actor: Actor, id: string, notes: string): Promise<Mutation> {
   return db.transaction(async (tx) => {
     const current = await load(tx, id);
@@ -363,7 +502,13 @@ export async function getDay(db: Db, date: string, technicianId?: string) {
     : eq(appointments.date, date);
   const rows = await db.query.appointments.findMany({
     where,
-    with: { customer: true, address: true, service: true, technician: true },
+    with: {
+      customer: true,
+      address: true,
+      service: true,
+      technician: true,
+      items: { orderBy: [asc(appointmentItems.position)], with: { service: true } },
+    },
     orderBy: [asc(appointments.startMin)],
   });
   return { appointments: rows, overlapIds: overlapIdsOf(rows) };
@@ -376,7 +521,13 @@ export async function getRange(db: Db, raw: unknown) {
 
   const rows = await db.query.appointments.findMany({
     where: and(...conditions),
-    with: { customer: true, address: true, service: true, technician: true },
+    with: {
+      customer: true,
+      address: true,
+      service: true,
+      technician: true,
+      items: { orderBy: [asc(appointmentItems.position)], with: { service: true } },
+    },
     orderBy: [asc(appointments.date), asc(appointments.startMin)],
   });
 
@@ -395,6 +546,7 @@ export async function getAppointment(db: Db, id: string) {
       address: true,
       service: true,
       technician: true,
+      items: { orderBy: [asc(appointmentItems.position)], with: { service: true } },
       agent: true,
       photos: true,
       history: { orderBy: [desc(appointmentHistory.createdAt)] },

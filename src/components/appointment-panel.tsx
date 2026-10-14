@@ -4,6 +4,8 @@ import { CANCEL_REASON_LABELS, describeChange, minutesToTimeInput, panelActions 
 import { CANCEL_REASONS } from "@/domain/appointment-rules";
 import { formatDayLabel, formatRange, initialsOf, readableOn } from "@/domain/calendar-view";
 import { formatPhone } from "@/domain/customer-rules";
+import { centsToDollars, fieldsForService, serviceLabel } from "@/domain/appointment-items";
+import type { FormService } from "@/domain/appointment-form";
 import { describeSpecs, formatAddress, formatMoney } from "@/domain/invoice";
 import { calendarHref } from "@/lib/calendar-links";
 import {
@@ -12,6 +14,7 @@ import {
   completeAction,
   confirmAction,
   invoiceAction,
+  itemsAction,
   notesAction,
   payAction,
   rescheduleAction,
@@ -19,6 +22,7 @@ import {
 import { ActionForm } from "@/components/action-form";
 import type { CalendarNav, CalendarTechnician } from "@/components/calendar-types";
 import { Icon } from "@/components/icons";
+import { PanelItemsForm } from "@/components/panel-items-form";
 import { PhotoGallery } from "@/components/photo-gallery";
 import { StatusBadge } from "@/components/status-badge";
 import type { getAppointment } from "@/server/appointments";
@@ -74,18 +78,31 @@ function Expandable({ title, tone, children }: { title: string; tone?: "danger";
 export function AppointmentPanel({
   appointment,
   technicians,
+  services,
   nav,
   photos,
 }: {
   appointment: Detail;
   technicians: CalendarTechnician[];
+  services: FormService[];
   nav: CalendarNav;
   photos: PanelPhotos;
 }) {
   const actions = panelActions(appointment.status, appointment.paymentStatus, appointment.invoiceStatus);
   const closeHref = calendarHref(nav);
   const technicianNames = Object.fromEntries(technicians.map((t) => [t.id, t.name]));
-  const specs = describeSpecs(appointment.specs, appointment.service.fields);
+  const items =
+    appointment.items.length > 0
+      ? appointment.items
+      : [
+          {
+            id: appointment.id,
+            service: appointment.service,
+            specs: appointment.specs,
+            priceCents: appointment.priceCents,
+          },
+        ];
+  const canEditItems = appointment.status !== "cancelled" && appointment.invoiceStatus !== "sent";
   const customer = appointment.customer;
   const customerName = `${customer.firstName} ${customer.lastName}`;
   const technician = appointment.technician;
@@ -121,7 +138,7 @@ export function AppointmentPanel({
             </Link>
           </div>
           <div>
-            <h2 className="font-display text-2xl font-semibold leading-tight">{appointment.service.name}</h2>
+            <h2 className="font-display text-2xl font-semibold leading-tight">{serviceLabel(appointment)}</h2>
             <p className="mt-1 flex items-center gap-1.5 text-sm text-soft">
               <Icon name="clock" size={14} />
               {formatDayLabel(appointment.date)} · {formatRange(appointment.startMin, appointment.durationMin)}
@@ -256,13 +273,25 @@ export function AppointmentPanel({
         </Section>
 
         <Section title="Servicio y cobro">
-          <dl className="flex flex-col gap-2">
-            {specs.map((spec) => (
-              <Row key={spec.label} label={spec.label}>
-                {spec.value}
-              </Row>
+          <ul className="flex flex-col gap-2">
+            {items.map((item) => (
+              <li key={item.id} className="rounded-md border border-hair px-3.5 py-2.5">
+                <div className="flex items-baseline justify-between gap-3 text-sm">
+                  <span className="font-medium">{item.service.name}</span>
+                  <span className="tabular-nums">{formatMoney(item.priceCents)}</span>
+                </div>
+                {describeSpecs(item.specs, fieldsForService(item.service)).length > 0 && (
+                  <p className="mt-1 text-xs text-soft">
+                    {describeSpecs(item.specs, fieldsForService(item.service))
+                      .map((spec) => `${spec.label}: ${spec.value}`)
+                      .join(" · ")}
+                  </p>
+                )}
+              </li>
             ))}
-            <Row label="Precio">
+          </ul>
+          <dl className="flex flex-col gap-2">
+            <Row label="Total">
               <span className="font-display text-base tabular-nums">{formatMoney(appointment.priceCents)}</span>
             </Row>
             <Row label="Pago">
@@ -285,6 +314,23 @@ export function AppointmentPanel({
               )}
             </Row>
           </dl>
+          {canEditItems && (
+            <Expandable title="Editar servicios y precio">
+              <ActionForm action={itemsAction.bind(null, id)} submit="Guardar cambios" pendingText="Guardando…">
+                <PanelItemsForm
+                  appointmentId={id}
+                  services={services}
+                  initialItems={items.map((item) => ({
+                    serviceId: item.service.id,
+                    price: centsToDollars(item.priceCents),
+                    specs: Object.fromEntries(Object.entries(item.specs).map(([key, value]) => [key, String(value)])),
+                  }))}
+                  durationMin={appointment.durationMin}
+                  hasDestination={appointment.destinationAddress !== null}
+                />
+              </ActionForm>
+            </Expandable>
+          )}
         </Section>
 
         <Section title="Notas de la cita">

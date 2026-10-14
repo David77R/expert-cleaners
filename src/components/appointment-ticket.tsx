@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
+import { serviceLabel } from "@/domain/appointment-items";
 import { formatMinutes } from "@/domain/appointment-rules";
 import { formatRange } from "@/domain/calendar-view";
 import { calendarHref } from "@/lib/calendar-links";
@@ -60,7 +61,7 @@ export function AppointmentTicket({
         )}
       </span>
       <span className={`block truncate font-semibold ${cancelled ? "line-through" : ""}`}>
-        {appointment.service.name}
+        {serviceLabel(appointment)}
       </span>
       {detail !== "minimal" && <span className="block truncate text-soft">{customer}</span>}
       {detail === "full" && (

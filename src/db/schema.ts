@@ -175,6 +175,24 @@ export const appointments = pgTable(
   ],
 );
 
+export const appointmentItems = pgTable(
+  "appointment_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    appointmentId: uuid("appointment_id")
+      .notNull()
+      .references(() => appointments.id, { onDelete: "cascade" }),
+    serviceId: uuid("service_id")
+      .notNull()
+      .references(() => services.id),
+    specs: jsonb("specs").$type<Record<string, string | number>>().notNull().default({}),
+    priceCents: integer("price_cents").notNull(),
+    position: smallint("position").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("appointment_items_appt_idx").on(t.appointmentId, t.position)],
+);
+
 export const appointmentHistory = pgTable(
   "appointment_history",
   {
@@ -245,8 +263,14 @@ export const appointmentsRelations = relations(appointments, ({ one, many }) => 
   service: one(services, { fields: [appointments.serviceId], references: [services.id] }),
   technician: one(technicians, { fields: [appointments.technicianId], references: [technicians.id] }),
   agent: one(profiles, { fields: [appointments.agentId], references: [profiles.id] }),
+  items: many(appointmentItems),
   history: many(appointmentHistory),
   photos: many(appointmentPhotos),
+}));
+
+export const appointmentItemsRelations = relations(appointmentItems, ({ one }) => ({
+  appointment: one(appointments, { fields: [appointmentItems.appointmentId], references: [appointments.id] }),
+  service: one(services, { fields: [appointmentItems.serviceId], references: [services.id] }),
 }));
 
 export const appointmentHistoryRelations = relations(appointmentHistory, ({ one }) => ({
@@ -266,6 +290,7 @@ export type Address = typeof addresses.$inferSelect;
 export type Photo = typeof appointmentPhotos.$inferSelect;
 export type Appointment = typeof appointments.$inferSelect;
 export type NewAppointment = typeof appointments.$inferInsert;
+export type AppointmentItem = typeof appointmentItems.$inferSelect;
 export type AppointmentStatus = (typeof appointmentStatus.enumValues)[number];
 export type RouteDraft = typeof routeDrafts.$inferSelect;
 export type Actor = { id: string; name: string; role: (typeof userRole.enumValues)[number] };

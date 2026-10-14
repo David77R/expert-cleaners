@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getDb } from "@/db/client";
 import { technicians as techniciansTable } from "@/db/schema";
-import { emptyAppointmentForm, type FormService, type FormTechnician } from "@/domain/appointment-form";
+import { emptyAppointmentForm, toFormService, type FormService, type FormTechnician } from "@/domain/appointment-form";
 import { minutesToTimeInput, parseTimeInput } from "@/domain/appointment-panel";
 import { todayIn } from "@/domain/date-rules";
 import { isoDate } from "@/domain/schemas";
@@ -32,15 +32,7 @@ export default async function NewAppointmentPage({ searchParams }: PageProps<"/a
   const time = startMin === null ? "" : minutesToTimeInput(startMin);
 
   const serviceRows = await listServices(db);
-  const services: FormService[] = serviceRows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    category: row.category,
-    basePriceCents: row.basePriceCents,
-    durationMin: row.durationMin,
-    twoAddresses: row.twoAddresses,
-    fields: row.fields,
-  }));
+  const services: FormService[] = serviceRows.map(toFormService);
 
   const technicians: FormTechnician[] = (await db.select().from(techniciansTable))
     .filter((row) => row.active)

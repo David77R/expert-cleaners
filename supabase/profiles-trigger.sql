@@ -26,3 +26,4 @@ alter table public.customer_notes enable row level security;
 alter table public.services enable row level security;
 alter table public.technicians enable row level security;
 alter table public.route_drafts enable row level security;
+alter table public.appointment_items enable row level security;

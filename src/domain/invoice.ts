@@ -12,8 +12,17 @@ export type InvoiceSource = {
   customer: { code: string; firstName: string; lastName: string };
   address: AddressSnapshot;
   service: { name: string; fields: ServiceField[] };
+  items?: InvoiceSourceItem[];
   generatedAt: Date;
 };
+
+export type InvoiceSourceItem = {
+  service: { name: string; fields: readonly ServiceField[] };
+  specs: Record<string, string | number>;
+  priceCents: number;
+};
+
+export type InvoiceLine = { name: string; specs: { label: string; value: string }[]; priceCents: number };
 
 export type InvoiceData = {
   number: string;
@@ -28,6 +37,7 @@ export type InvoiceData = {
   serviceAddress: string;
   destinationAddress: string | null;
   specs: { label: string; value: string }[];
+  lines: InvoiceLine[];
   priceCents: number;
   paid: boolean;
 };
@@ -62,6 +72,15 @@ export function describeSpecs(
 
 export function buildInvoice(source: InvoiceSource): InvoiceData {
   const billing = source.billingAddress ?? source.address;
+  const items =
+    source.items && source.items.length > 0
+      ? source.items
+      : [{ service: source.service, specs: source.specs, priceCents: source.priceCents }];
+  const lines = items.map((item) => ({
+    name: item.service.name,
+    specs: describeSpecs(item.specs, item.service.fields),
+    priceCents: item.priceCents,
+  }));
   return {
     number: invoiceNumber(source.code),
     issuedAt: source.generatedAt,
@@ -69,12 +88,13 @@ export function buildInvoice(source: InvoiceSource): InvoiceData {
     customerName: `${source.customer.firstName} ${source.customer.lastName}`.trim(),
     customerCode: source.customer.code,
     billTo: formatAddress(billing),
-    serviceName: source.service.name,
+    serviceName: lines[0].name,
     serviceDate: source.date,
     startMin: source.startMin,
     serviceAddress: formatAddress(source.address),
     destinationAddress: source.destinationAddress ? formatAddress(source.destinationAddress) : null,
-    specs: describeSpecs(source.specs, source.service.fields),
+    specs: lines[0].specs,
+    lines,
     priceCents: source.priceCents,
     paid: source.paymentStatus === "paid",
   };
