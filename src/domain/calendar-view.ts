@@ -8,7 +8,7 @@ export const WEEKDAY_SHORT = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"]
 export const WEEKDAY_LONG = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"] as const;
 export const WEEKDAY_NARROW = ["D", "L", "M", "M", "J", "V", "S"] as const;
 
-const MONTHS = [
+export const MONTHS = [
   "enero",
   "febrero",
   "marzo",

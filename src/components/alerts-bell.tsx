@@ -1,11 +1,14 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
+import { SEEN_COOKIE, unseenCount } from "@/domain/alert-seen";
 import { getDb } from "@/db/client";
 import { Icon } from "@/components/icons";
 import { getAlerts } from "@/server/alerts";
 
 async function alertCount(): Promise<number | null> {
   try {
-    return (await getAlerts(getDb())).count;
+    const { items } = await getAlerts(getDb());
+    return unseenCount(items, (await cookies()).get(SEEN_COOKIE)?.value);
   } catch (error) {
     console.error(error);
     return null;
@@ -14,9 +17,7 @@ async function alertCount(): Promise<number | null> {
 
 export function BellLink({ count, active, tone }: { count: number | null; active: boolean; tone: "light" | "dark" }) {
   const label =
-    count === null || count === 0
-      ? "Alertas: sin pendientes hoy"
-      : `Alertas: ${count} ${count === 1 ? "pendiente" : "pendientes"} hoy`;
+    count === null || count === 0 ? "Alertas: nada nuevo" : `Alertas: ${count} ${count === 1 ? "nueva" : "nuevas"}`;
   return (
     <Link
       href="/alerts"

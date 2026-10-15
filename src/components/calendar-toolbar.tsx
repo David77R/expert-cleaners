@@ -47,33 +47,33 @@ export function CalendarToolbar({
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
         <div className="flex items-center gap-4">
-          <div className="flex items-center overflow-hidden rounded-md border border-hair bg-paper">
-            <Link
-              href={previous}
-              aria-label={`Ir a ${STEP_LABEL[view]} anterior`}
-              className="flex h-10 w-10 items-center justify-center text-soft transition-colors hover:bg-canvas"
-            >
-              <Icon name="left" />
-            </Link>
-            <Link
-              href={calendarHref({ view, date: today, tech, mapa, entregas })}
-              aria-current={atToday ? "date" : undefined}
-              className={`flex h-10 items-center border-x border-hair px-4 text-sm font-semibold transition-colors ${
-                atToday ? "bg-brand-soft text-brand-ink" : "text-ink hover:bg-canvas"
-              }`}
-            >
-              Hoy
-            </Link>
-            <Link
-              href={next}
-              aria-label={`Ir a ${STEP_LABEL[view]} siguiente`}
-              className="flex h-10 w-10 items-center justify-center text-soft transition-colors hover:bg-canvas"
-            >
-              <Icon name="right" />
-            </Link>
-            <span className="border-l border-hair">
-              <DateJump view={view} date={date} tech={tech} mapa={mapa} entregas={entregas} />
-            </span>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center overflow-hidden rounded-md border border-hair bg-paper">
+              <Link
+                href={previous}
+                aria-label={`Ir a ${STEP_LABEL[view]} anterior`}
+                className="flex h-10 w-10 items-center justify-center text-soft transition-colors hover:bg-canvas"
+              >
+                <Icon name="left" />
+              </Link>
+              <Link
+                href={calendarHref({ view, date: today, tech, mapa, entregas })}
+                aria-current={atToday ? "date" : undefined}
+                className={`flex h-10 items-center border-x border-hair px-4 text-sm font-semibold transition-colors ${
+                  atToday ? "bg-brand-soft text-brand-ink" : "text-ink hover:bg-canvas"
+                }`}
+              >
+                Hoy
+              </Link>
+              <Link
+                href={next}
+                aria-label={`Ir a ${STEP_LABEL[view]} siguiente`}
+                className="flex h-10 w-10 items-center justify-center text-soft transition-colors hover:bg-canvas"
+              >
+                <Icon name="right" />
+              </Link>
+            </div>
+            <DateJump view={view} date={date} today={today} tech={tech} mapa={mapa} entregas={entregas} />
           </div>
 
           <h1 className="flex flex-col leading-none">

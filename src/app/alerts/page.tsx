@@ -9,6 +9,8 @@ import { Icon, type IconName } from "@/components/icons";
 import { getDb } from "@/db/client";
 import { getActor } from "@/server/auth";
 import { getAlerts } from "@/server/alerts";
+import { MarkAlertsSeen } from "@/components/mark-alerts-seen";
+import { alertKeys } from "@/domain/alert-seen";
 
 const TYPE_LABEL: Record<AlertType, string> = {
   not_confirmed: "Citas sin confirmar",
@@ -52,6 +54,7 @@ export default async function AlertsPage({ searchParams }: PageProps<"/alerts">)
 
   return (
     <AppShell active="alerts" actor={actor}>
+      <MarkAlertsSeen keys={alertKeys(items)} />
       <main className="mx-auto flex w-full max-w-[72rem] flex-1 flex-col gap-6 px-4 py-6 md:px-8">
         <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
           <div>
