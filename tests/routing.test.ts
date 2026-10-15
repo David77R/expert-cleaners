@@ -49,3 +49,17 @@ describe("rutas con OpenRouteService", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe("puntos del mapa en la misma dirección", () => {
+  it("separa un poco los que caen exactamente en el mismo sitio", async () => {
+    const { spreadPositions } = await import("@/domain/map-positions");
+    const positions = spreadPositions([
+      { id: "a", lat: 25.85, lng: -80.21 },
+      { id: "b", lat: 25.85, lng: -80.21 },
+      { id: "c", lat: 25.9, lng: -80.3 },
+    ]);
+    expect(positions.get("a")).toEqual([25.85, -80.21]);
+    expect(positions.get("c")).toEqual([25.9, -80.3]);
+    expect(positions.get("b")).not.toEqual([25.85, -80.21]);
+  });
+});

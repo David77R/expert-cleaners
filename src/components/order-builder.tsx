@@ -942,6 +942,9 @@ export function OrderBuilder({
                               </span>
                               {count > 1 && (
                                 <span className="block text-[11px] tabular-nums text-soft">
+                                  {prices.length === 1
+                                    ? `${formatMoney(lineCents(units[0].line, service))} c/u · `
+                                    : "Precios distintos · "}
                                   Subtotal {formatMoney(subtotal)}
                                 </span>
                               )}
@@ -971,7 +974,7 @@ export function OrderBuilder({
                               +
                             </button>
                           </span>
-                          <span className="relative w-20 shrink-0">
+                          <span className={`relative shrink-0 ${count > 1 ? "w-24" : "w-20"}`}>
                             <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted">
                               $
                             </span>
@@ -983,8 +986,15 @@ export function OrderBuilder({
                               placeholder={prices.length === 1 ? undefined : "varios"}
                               onChange={(event) => setGroupPrice(serviceId, event.target.value)}
                               aria-invalid={units.some(({ index }) => Boolean(itemErrors[itemKey(index, "price")]))}
-                              className="w-full rounded-md border border-hair bg-paper py-1.5 pl-4 pr-1.5 text-right text-sm tabular-nums focus:border-brand focus:outline-none aria-[invalid=true]:border-attention"
+                              className={`w-full rounded-md border border-hair bg-paper py-1.5 pl-4 text-right text-sm tabular-nums focus:border-brand focus:outline-none aria-[invalid=true]:border-attention ${
+                                count > 1 ? "pr-7" : "pr-1.5"
+                              }`}
                             />
+                            {count > 1 && (
+                              <span className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-muted">
+                                c/u
+                              </span>
+                            )}
                           </span>
                           <button
                             type="button"

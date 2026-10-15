@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { getDb } from "@/db/client";
@@ -83,10 +84,12 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
   let mapStops: MapStop[] = [];
   let mapDrafts: MapRouteDraft[] = [];
   let missingCoords = 0;
+  let unplaced: { id: string; code: string; customerId: string; customerName: string; address: string }[] = [];
 
   if (mapa) {
     const mapData = tech ? await getDay(db, date) : data;
-    mapServices = (await db.select().from(servicesTable)).filter((s) => s.active);
+    const usedServiceIds = new Set(mapData.appointments.map((a) => a.serviceId));
+    mapServices = (await db.select().from(servicesTable)).filter((s) => s.active || usedServiceIds.has(s.id));
     mapDrafts = (await listRouteDraftsForDay(db, date)).map((d) => ({
       mode: d.mode as "tech" | "service",
       groupKey: d.groupKey,
@@ -125,6 +128,15 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
     });
     mapStops = activeMapAppointments.filter((a) => a.address.lat != null && a.address.lng != null).map(toStop);
     missingCoords = activeMapAppointments.length - mapStops.length;
+    unplaced = activeMapAppointments
+      .filter((a) => a.address.lat == null || a.address.lng == null)
+      .map((a) => ({
+        id: a.id,
+        code: a.code,
+        customerId: a.customer.id,
+        customerName: `${a.customer.firstName} ${a.customer.lastName}`.trim(),
+        address: `${a.address.line1}, ${a.address.city}, ${a.address.state} ${a.address.zip}`,
+      }));
 
     if (entregas) {
       const unlocatedDeliveries = deliveryRows.filter(
@@ -206,11 +218,41 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
               drafts={mapDrafts}
               returnHref={calendarHref({ ...nav, mapa: true })}
             />
-            {missingCoords > 0 && (
-              <p className="-mt-1 text-xs text-muted">
-                {missingCoords} cita{missingCoords === 1 ? "" : "s"} sin dirección geocodificada no aparece
-                {missingCoords === 1 ? "" : "n"} en el mapa.
+            {!entregas && deliveryRows.length > 0 && (
+              <p className="-mt-1 rounded-md border border-brand/30 bg-brand-soft/50 px-4 py-2.5 text-sm text-brand-ink">
+                Este día también hay {deliveryRows.length} {deliveryRows.length === 1 ? "entrega" : "entregas"}.{" "}
+                <Link
+                  href={calendarHref({ ...nav, mapa: true, entregas: true })}
+                  className="font-semibold underline underline-offset-2"
+                >
+                  Activa Entregas para verlas en el mapa
+                </Link>
               </p>
+            )}
+            {missingCoords > 0 && (
+              <div className="-mt-1 flex flex-col gap-2 rounded-md border border-warning/40 bg-warning-soft/60 px-4 py-3 text-sm">
+                <p className="font-semibold text-warning">
+                  {missingCoords} {missingCoords === 1 ? "cita no aparece" : "citas no aparecen"} en el mapa porque su
+                  dirección no se pudo ubicar.
+                </p>
+                {unplaced.length > 0 && (
+                  <ul className="flex flex-col gap-1">
+                    {unplaced.map((row) => (
+                      <li key={row.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
+                        <span className="font-display font-semibold tabular-nums">{row.code}</span>
+                        <span className="font-medium">{row.customerName}</span>
+                        <span className="text-soft">{row.address}</span>
+                        <Link
+                          href={`/customers/${row.customerId}`}
+                          className="font-semibold text-brand-ink underline underline-offset-2"
+                        >
+                          Corregir dirección
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             )}
           </>
         )}

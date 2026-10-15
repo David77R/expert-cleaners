@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState, type DragEvent as ReactDragEvent } from "
 import { MapContainer, Marker, Polyline, Tooltip, TileLayer } from "react-leaflet";
 import { formatRange, initialsOf, readableOn } from "@/domain/calendar-view";
 import { appointmentIdFromKey } from "@/domain/delivery";
+import { spreadPositions } from "@/domain/map-positions";
 
 export type MapStop = {
   id: string;
@@ -164,6 +165,8 @@ export function MapView({
       return next;
     });
   }
+
+  const positions = spreadPositions(stops);
 
   const visibleStops =
     mode === "tech"
@@ -455,7 +458,7 @@ export function MapView({
         return displayStops.map((stop, index) => (
           <Marker
             key={stop.id}
-            position={[stop.lat, stop.lng]}
+            position={positions.get(stop.id) ?? [stop.lat, stop.lng]}
             icon={numberedIcon(index + 1, group.color, isEditingThis, stop.kind === "delivery")}
             draggable={isEditingThis}
             eventHandlers={{
