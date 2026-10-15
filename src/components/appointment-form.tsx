@@ -72,6 +72,8 @@ export function AppointmentForm({
   const [time, setTime] = useState(initialValues.time ?? "");
 
   const needsDestination = items.some((item) => item.service?.twoAddresses);
+  const [destinationMode, setDestinationMode] = useState<"same" | "custom">("same");
+  const sameDestination = customer?.addresses.find((address) => address.id === addressId) ?? null;
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -139,81 +141,124 @@ export function AppointmentForm({
         {needsDestination && (
           <>
             <p className="text-sm font-medium sm:col-span-2">Dirección de entrega</p>
-            <AppointmentField
-              name={`${DESTINATION_PREFIX}line1`}
-              label="Calle y número"
-              error={errors[`${DESTINATION_PREFIX}line1`]}
-              wide
-            >
-              {(props) => (
-                <AddressAutocomplete
-                  control={props}
+            <div role="radiogroup" aria-label="Dirección de entrega" className="flex flex-wrap gap-2 sm:col-span-2">
+              {(
+                [
+                  ["same", "La misma del servicio"],
+                  ["custom", "Otra dirección"],
+                ] as const
+              ).map(([value, label]) => (
+                <label
+                  key={value}
+                  className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
+                    destinationMode === value ? "border-brand bg-brand-soft/40" : "border-hair hover:bg-canvas"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    checked={destinationMode === value}
+                    onChange={() => setDestinationMode(value)}
+                    className="accent-brand"
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+            {destinationMode === "same" ? (
+              sameDestination ? (
+                <>
+                  <p className="text-sm text-soft sm:col-span-2">{formatAddress(sameDestination)}</p>
+                  {(["line1", "unit", "city", "state", "zip"] as const).map((field) => (
+                    <input
+                      key={field}
+                      type="hidden"
+                      name={`${DESTINATION_PREFIX}${field}`}
+                      value={sameDestination[field] ?? ""}
+                    />
+                  ))}
+                </>
+              ) : (
+                <p className="text-sm text-soft sm:col-span-2">Elige primero el cliente y su dirección.</p>
+              )
+            ) : (
+              <>
+                <AppointmentField
                   name={`${DESTINATION_PREFIX}line1`}
-                  prefix={DESTINATION_PREFIX}
-                  defaultValue={values[`${DESTINATION_PREFIX}line1`] ?? ""}
-                  className={INPUT}
-                />
-              )}
-            </AppointmentField>
-            <AppointmentField
-              name={`${DESTINATION_PREFIX}unit`}
-              label="Apartamento o suite"
-              error={errors[`${DESTINATION_PREFIX}unit`]}
-              optional
-            >
-              {(props) => (
-                <input
-                  {...props}
+                  label="Calle y número"
+                  error={errors[`${DESTINATION_PREFIX}line1`]}
+                  wide
+                >
+                  {(props) => (
+                    <AddressAutocomplete
+                      control={props}
+                      name={`${DESTINATION_PREFIX}line1`}
+                      prefix={DESTINATION_PREFIX}
+                      defaultValue={values[`${DESTINATION_PREFIX}line1`] ?? ""}
+                      className={INPUT}
+                    />
+                  )}
+                </AppointmentField>
+                <AppointmentField
                   name={`${DESTINATION_PREFIX}unit`}
-                  defaultValue={values[`${DESTINATION_PREFIX}unit`] ?? ""}
-                  className={INPUT}
-                />
-              )}
-            </AppointmentField>
-            <AppointmentField
-              name={`${DESTINATION_PREFIX}city`}
-              label="Ciudad"
-              error={errors[`${DESTINATION_PREFIX}city`]}
-            >
-              {(props) => (
-                <input
-                  {...props}
+                  label="Apartamento o suite"
+                  error={errors[`${DESTINATION_PREFIX}unit`]}
+                  optional
+                >
+                  {(props) => (
+                    <input
+                      {...props}
+                      name={`${DESTINATION_PREFIX}unit`}
+                      defaultValue={values[`${DESTINATION_PREFIX}unit`] ?? ""}
+                      className={INPUT}
+                    />
+                  )}
+                </AppointmentField>
+                <AppointmentField
                   name={`${DESTINATION_PREFIX}city`}
-                  defaultValue={values[`${DESTINATION_PREFIX}city`] ?? ""}
-                  className={INPUT}
-                />
-              )}
-            </AppointmentField>
-            <AppointmentField
-              name={`${DESTINATION_PREFIX}state`}
-              label="Estado"
-              error={errors[`${DESTINATION_PREFIX}state`]}
-            >
-              {(props) => (
-                <input
-                  {...props}
+                  label="Ciudad"
+                  error={errors[`${DESTINATION_PREFIX}city`]}
+                >
+                  {(props) => (
+                    <input
+                      {...props}
+                      name={`${DESTINATION_PREFIX}city`}
+                      defaultValue={values[`${DESTINATION_PREFIX}city`] ?? ""}
+                      className={INPUT}
+                    />
+                  )}
+                </AppointmentField>
+                <AppointmentField
                   name={`${DESTINATION_PREFIX}state`}
-                  defaultValue={values[`${DESTINATION_PREFIX}state`] ?? "FL"}
-                  maxLength={2}
-                  className={`${INPUT} uppercase`}
-                />
-              )}
-            </AppointmentField>
-            <AppointmentField
-              name={`${DESTINATION_PREFIX}zip`}
-              label="Código postal"
-              error={errors[`${DESTINATION_PREFIX}zip`]}
-            >
-              {(props) => (
-                <input
-                  {...props}
+                  label="Estado"
+                  error={errors[`${DESTINATION_PREFIX}state`]}
+                >
+                  {(props) => (
+                    <input
+                      {...props}
+                      name={`${DESTINATION_PREFIX}state`}
+                      defaultValue={values[`${DESTINATION_PREFIX}state`] ?? "FL"}
+                      maxLength={2}
+                      className={`${INPUT} uppercase`}
+                    />
+                  )}
+                </AppointmentField>
+                <AppointmentField
                   name={`${DESTINATION_PREFIX}zip`}
-                  inputMode="numeric"
-                  defaultValue={values[`${DESTINATION_PREFIX}zip`] ?? ""}
-                  className={INPUT}
-                />
-              )}
-            </AppointmentField>
+                  label="Código postal"
+                  error={errors[`${DESTINATION_PREFIX}zip`]}
+                >
+                  {(props) => (
+                    <input
+                      {...props}
+                      name={`${DESTINATION_PREFIX}zip`}
+                      inputMode="numeric"
+                      defaultValue={values[`${DESTINATION_PREFIX}zip`] ?? ""}
+                      className={INPUT}
+                    />
+                  )}
+                </AppointmentField>
+              </>
+            )}
           </>
         )}
       </Card>

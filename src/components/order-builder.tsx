@@ -35,6 +35,7 @@ import {
   destinationFromValues,
   type FormService,
   type FormTechnician,
+  type PickerAddress,
   type PickerCustomer,
 } from "@/domain/appointment-form";
 import { formatMinutes } from "@/domain/appointment-rules";
@@ -65,6 +66,7 @@ type Schedule = {
   delivery: Visit | null;
   readyDate: string;
   destination: ReturnType<typeof destinationFromValues> | null;
+  destinationChoice: string;
 };
 
 type Done = {
@@ -95,6 +97,8 @@ function ScheduleForm({
   today,
   needsDestination,
   pickupMode,
+  customerAddresses,
+  pickupAddressId,
   onApply,
   onCancel,
 }: {
@@ -104,12 +108,17 @@ function ScheduleForm({
   today: string;
   needsDestination: boolean;
   pickupMode: boolean;
+  customerAddresses: readonly PickerAddress[];
+  pickupAddressId: string;
   onApply: (schedule: Schedule) => void;
   onCancel: () => void;
 }) {
   const [wantsDelivery, setWithDelivery] = useState(initial ? initial.delivery !== null : true);
   const withDelivery = pickupMode && wantsDelivery;
   const visitWord = pickupMode ? "de la recogida" : "de la cita";
+  const [destChoice, setDestChoice] = useState(initial?.destinationChoice ?? "same");
+  const pickupAddress = customerAddresses.find((address) => address.id === pickupAddressId);
+  const otherAddresses = customerAddresses.filter((address) => address.id !== pickupAddressId);
   const [error, setError] = useState<string | null>(null);
   const pickupDate = initial?.pickup.date ?? today;
   const defaultTech = initial?.pickup.technicianId ?? technicians[0]?.id ?? "";
@@ -156,12 +165,19 @@ function ScheduleForm({
       }
     }
     const values = Object.fromEntries([...data.entries()].map(([key, value]) => [key, String(value)]));
-    const destination = needsDestination ? destinationFromValues(values) : null;
+    const custom = needsDestination && destChoice === "custom";
+    const destination = custom ? destinationFromValues(values) : null;
     if (destination && (!destination.line1 || !destination.city || !destination.zip)) {
       setError("Completa la dirección de entrega.");
       return;
     }
-    onApply({ pickup, delivery, readyDate: pickupMode ? text("readyDate") : "", destination });
+    onApply({
+      pickup,
+      delivery,
+      readyDate: pickupMode ? text("readyDate") : "",
+      destination,
+      destinationChoice: needsDestination ? destChoice : "same",
+    });
   }
 
   const techOptions = technicians.map((technician) => (
@@ -295,45 +311,90 @@ function ScheduleForm({
       {needsDestination && (
         <fieldset className="grid gap-3 rounded-md border border-hair p-4 sm:grid-cols-2">
           <legend className="px-1 text-sm font-semibold">Dirección de entrega</legend>
-          <label className={`${LABEL} sm:col-span-2`}>
-            Calle y número
-            <AddressAutocomplete
-              control={{ id: "order-dest-line1", "aria-invalid": false, "aria-describedby": undefined }}
-              name={`${DESTINATION_PREFIX}line1`}
-              prefix={DESTINATION_PREFIX}
-              defaultValue={initial?.destination?.line1 ?? ""}
-              className={FIELD}
-            />
-          </label>
-          <label className={LABEL}>
-            Apartamento o suite
-            <input
-              name={`${DESTINATION_PREFIX}unit`}
-              defaultValue={initial?.destination?.unit ?? ""}
-              className={FIELD}
-            />
-          </label>
-          <label className={LABEL}>
-            Ciudad
-            <input
-              name={`${DESTINATION_PREFIX}city`}
-              defaultValue={initial?.destination?.city ?? ""}
-              className={FIELD}
-            />
-          </label>
-          <label className={LABEL}>
-            Estado
-            <input
-              name={`${DESTINATION_PREFIX}state`}
-              maxLength={2}
-              defaultValue={initial?.destination?.state ?? "FL"}
-              className={`${FIELD} uppercase`}
-            />
-          </label>
-          <label className={LABEL}>
-            Código postal
-            <input name={`${DESTINATION_PREFIX}zip`} defaultValue={initial?.destination?.zip ?? ""} className={FIELD} />
-          </label>
+          <div role="radiogroup" aria-label="Dirección de entrega" className="flex flex-col gap-2 sm:col-span-2">
+            {[
+              {
+                value: "same",
+                title: "La misma de la recogida",
+                detail: pickupAddress
+                  ? formatAddress(pickupAddress)
+                  : "La dirección del cliente que elijas en el ticket",
+              },
+              ...otherAddresses.map((address) => ({
+                value: address.id,
+                title: "Otra dirección del cliente",
+                detail: formatAddress(address),
+              })),
+              { value: "custom", title: "Una dirección nueva", detail: "Escríbela abajo" },
+            ].map((option) => (
+              <label
+                key={option.value}
+                className={`flex cursor-pointer items-start gap-2.5 rounded-md border px-3 py-2.5 text-sm transition-colors ${
+                  destChoice === option.value ? "border-brand bg-brand-soft/40" : "border-hair hover:bg-canvas"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="destinationChoice"
+                  value={option.value}
+                  checked={destChoice === option.value}
+                  onChange={() => setDestChoice(option.value)}
+                  className="mt-0.5 accent-brand"
+                />
+                <span className="min-w-0 leading-tight">
+                  <span className="block font-medium">{option.title}</span>
+                  <span className="block text-xs text-soft">{option.detail}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          {destChoice === "custom" && (
+            <>
+              <label className={`${LABEL} sm:col-span-2`}>
+                Calle y número
+                <AddressAutocomplete
+                  control={{ id: "order-dest-line1", "aria-invalid": false, "aria-describedby": undefined }}
+                  name={`${DESTINATION_PREFIX}line1`}
+                  prefix={DESTINATION_PREFIX}
+                  defaultValue={initial?.destination?.line1 ?? ""}
+                  className={FIELD}
+                />
+              </label>
+              <label className={LABEL}>
+                Apartamento o suite
+                <input
+                  name={`${DESTINATION_PREFIX}unit`}
+                  defaultValue={initial?.destination?.unit ?? ""}
+                  className={FIELD}
+                />
+              </label>
+              <label className={LABEL}>
+                Ciudad
+                <input
+                  name={`${DESTINATION_PREFIX}city`}
+                  defaultValue={initial?.destination?.city ?? ""}
+                  className={FIELD}
+                />
+              </label>
+              <label className={LABEL}>
+                Estado
+                <input
+                  name={`${DESTINATION_PREFIX}state`}
+                  maxLength={2}
+                  defaultValue={initial?.destination?.state ?? "FL"}
+                  className={`${FIELD} uppercase`}
+                />
+              </label>
+              <label className={LABEL}>
+                Código postal
+                <input
+                  name={`${DESTINATION_PREFIX}zip`}
+                  defaultValue={initial?.destination?.zip ?? ""}
+                  className={FIELD}
+                />
+              </label>
+            </>
+          )}
         </fieldset>
       )}
 
@@ -681,7 +742,22 @@ export function OrderBuilder({
     }
 
     const chosen = customer;
-    const plan = pickupOrder ? schedule : { ...schedule, delivery: null, readyDate: "" };
+    const basePlan = pickupOrder ? schedule : { ...schedule, delivery: null, readyDate: "" };
+    let resolvedDestination = needsDestination ? basePlan.destination : null;
+    if (needsDestination && basePlan.destinationChoice !== "custom") {
+      const chosenId = basePlan.destinationChoice === "same" ? addressId : basePlan.destinationChoice;
+      const source = customer.addresses.find((address) => address.id === chosenId);
+      if (!source) return setMessage("Elige la dirección de entrega en el botón del camión.");
+      resolvedDestination = {
+        line1: source.line1,
+        unit: source.unit,
+        city: source.city,
+        state: source.state,
+        zip: source.zip,
+      };
+    }
+    if (needsDestination && !resolvedDestination) return setMessage("Completa la dirección de entrega.");
+    const plan = { ...basePlan, destination: resolvedDestination };
     const sent = lines;
     const payload = {
       customerId: chosen.id,
@@ -1241,6 +1317,8 @@ export function OrderBuilder({
             today={today}
             needsDestination={needsDestination}
             pickupMode={pickupOrder}
+            customerAddresses={customer?.addresses ?? []}
+            pickupAddressId={addressId}
             onCancel={() => setModal(null)}
             onApply={(next) => {
               setSchedule(next);
