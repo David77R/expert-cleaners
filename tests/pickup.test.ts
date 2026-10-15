@@ -5,7 +5,8 @@ describe("servicios con recogida y entrega", () => {
   it("solo alfombras y rugs llevan recogida y entrega", () => {
     expect(isPickupService({ name: "RUGS" })).toBe(true);
     expect(isPickupService({ name: "Limpieza de alfombra persa" })).toBe(true);
-    expect(isPickupService({ name: "CARPET" })).toBe(true);
+    expect(isPickupService({ name: "CARPET" })).toBe(false);
+    expect(isPickupService({ name: "Carpet cleaning" })).toBe(false);
     expect(isPickupService({ name: "Tapete" })).toBe(true);
     expect(isPickupService({ name: "SOFA" })).toBe(false);
     expect(isPickupService({ name: "Limpieza residencial" })).toBe(false);

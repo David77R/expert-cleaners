@@ -1,6 +1,6 @@
 import { slugify } from "./service-rules";
 
-const PICKUP_WORDS = new Set(["rug", "rugs", "alfombra", "alfombras", "tapete", "tapetes", "carpet", "carpets"]);
+const PICKUP_WORDS = new Set(["rug", "rugs", "alfombra", "alfombras", "tapete", "tapetes"]);
 
 type ServiceLike = { name: string; slug?: string | null; category?: string | null };
 
