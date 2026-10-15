@@ -39,7 +39,8 @@ async function createSofaAppointment(
 
   await page.locator("label", { hasText: technician }).click();
 
-  await page.getByLabel("Fecha").fill(localToday());
+  await page.getByLabel("Fecha").click();
+  await page.getByRole("button", { name: localToday(), exact: true }).click();
   const [hours, minutes] = time.split(":").map(Number);
   await page.getByLabel("Hora de inicio").selectOption(String(hours % 12 === 0 ? 12 : hours % 12));
   await page.getByLabel("Minutos").first().selectOption(String(minutes).padStart(2, "0"));

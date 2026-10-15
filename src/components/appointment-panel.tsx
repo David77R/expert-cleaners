@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DateInput } from "@/components/date-jump";
 import { CANCEL_REASON_LABELS, describeChange, minutesToTimeInput, panelActions } from "@/domain/appointment-panel";
 import { CANCEL_REASONS } from "@/domain/appointment-rules";
 import { formatDayLabel, formatRange, initialsOf, readableOn } from "@/domain/calendar-view";
@@ -23,6 +24,7 @@ import {
   notesAction,
   payAction,
   rescheduleAction,
+  unconfirmAction,
 } from "@/app/calendar/actions";
 import { ActionForm } from "@/components/action-form";
 import type { CalendarNav, CalendarTechnician } from "@/components/calendar-types";
@@ -171,7 +173,7 @@ export function AppointmentPanel({
           </p>
         )}
 
-        {(actions.confirm || actions.complete || actions.pay || actions.invoice) && (
+        {(actions.confirm || actions.unconfirm || actions.complete || actions.pay || actions.invoice) && (
           <Section title="Acciones">
             <div className="grid grid-cols-2 gap-2">
               {actions.confirm && (
@@ -180,6 +182,13 @@ export function AppointmentPanel({
                   submit="Confirmar"
                   pendingText="Confirmando…"
                   tone="primary"
+                />
+              )}
+              {actions.unconfirm && (
+                <ActionForm
+                  action={unconfirmAction.bind(null, id)}
+                  submit="Quitar confirmación"
+                  pendingText="Guardando…"
                 />
               )}
               {actions.complete && (
@@ -201,6 +210,56 @@ export function AppointmentPanel({
                 />
               )}
             </div>
+          </Section>
+        )}
+
+        {actions.reschedule && (
+          <Section title="Fecha y hora">
+            <p className="flex items-center gap-1.5 text-sm text-soft">
+              <Icon name="calendar" size={14} />
+              {formatDayLabel(appointment.date)} · {formatRange(appointment.startMin, appointment.durationMin)}
+            </p>
+            <Expandable title="Cambiar fecha, hora o técnico">
+              <ActionForm
+                action={rescheduleAction.bind(null, id)}
+                submit="Guardar nuevo horario"
+                pendingText="Guardando…"
+                tone="primary"
+              >
+                <label className="flex flex-col gap-1 text-xs font-medium text-soft">
+                  Fecha
+                  <DateInput name="date" required defaultValue={appointment.date} className={FIELD} />
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <TimeRangeField
+                    defaultStart={minutesToTimeInput(appointment.startMin)}
+                    defaultDuration={appointment.durationMin}
+                    inputClassName={FIELD}
+                    labelClassName="flex flex-col gap-1 text-xs font-medium text-soft"
+                  />
+                </div>
+                <label className="flex flex-col gap-1 text-xs font-medium text-soft">
+                  Técnico
+                  <select name="technicianId" defaultValue={technician.id} className={FIELD}>
+                    {technicians.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1 text-xs font-medium text-soft">
+                  Motivo
+                  <input
+                    type="text"
+                    name="reason"
+                    required
+                    placeholder="Ej: el cliente pidió otro día"
+                    className={FIELD}
+                  />
+                </label>
+              </ActionForm>
+            </Expandable>
           </Section>
         )}
 
@@ -384,52 +443,9 @@ export function AppointmentPanel({
           />
         </Section>
 
-        {(actions.reschedule || actions.cancel) && (
+        {actions.cancel && (
           <Section title="Cambios en la cita">
             <div className="flex flex-col gap-2">
-              {actions.reschedule && (
-                <Expandable title="Reprogramar">
-                  <ActionForm
-                    action={rescheduleAction.bind(null, id)}
-                    submit="Reprogramar cita"
-                    pendingText="Guardando…"
-                    tone="primary"
-                  >
-                    <label className="flex flex-col gap-1 text-xs font-medium text-soft">
-                      Fecha
-                      <input type="date" name="date" required defaultValue={appointment.date} className={FIELD} />
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <TimeRangeField
-                        defaultStart={minutesToTimeInput(appointment.startMin)}
-                        defaultDuration={appointment.durationMin}
-                        inputClassName={FIELD}
-                        labelClassName="flex flex-col gap-1 text-xs font-medium text-soft"
-                      />
-                    </div>
-                    <label className="flex flex-col gap-1 text-xs font-medium text-soft">
-                      Técnico
-                      <select name="technicianId" defaultValue={technician.id} className={FIELD}>
-                        {technicians.map((option) => (
-                          <option key={option.id} value={option.id}>
-                            {option.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="flex flex-col gap-1 text-xs font-medium text-soft">
-                      Motivo
-                      <input
-                        type="text"
-                        name="reason"
-                        required
-                        placeholder="Ej: el cliente pidió otro día"
-                        className={FIELD}
-                      />
-                    </label>
-                  </ActionForm>
-                </Expandable>
-              )}
               {actions.cancel && (
                 <Expandable title="Cancelar cita" tone="danger">
                   <ActionForm

@@ -11,7 +11,7 @@ export type CancelReason = (typeof CANCEL_REASONS)[number];
 
 const TRANSITIONS: Record<AppointmentStatus, readonly AppointmentStatus[]> = {
   not_confirmed: ["confirmed", "rescheduled", "cancelled", "completed"],
-  confirmed: ["rescheduled", "cancelled", "completed"],
+  confirmed: ["not_confirmed", "rescheduled", "cancelled", "completed"],
   rescheduled: ["confirmed", "rescheduled", "cancelled", "completed"],
   completed: [],
   cancelled: [],

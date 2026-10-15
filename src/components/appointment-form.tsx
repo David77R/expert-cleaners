@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "@/components/date-jump";
 import Link from "next/link";
 import { useActionState, useState, useTransition, type ComponentProps, type FormEvent } from "react";
 import { createAppointmentAction, type AppointmentFormState } from "@/app/appointments/new/actions";
@@ -251,9 +252,7 @@ export function AppointmentForm({
         </Group>
 
         <AppointmentField name="date" label="Fecha" error={errors.date}>
-          {(props) => (
-            <input {...props} name="date" type="date" defaultValue={values.date ?? ""} required className={INPUT} />
-          )}
+          {(props) => <DateInput {...props} name="date" defaultValue={values.date ?? ""} required className={INPUT} />}
         </AppointmentField>
         <TimeRange
           start={time}

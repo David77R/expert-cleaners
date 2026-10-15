@@ -24,6 +24,10 @@ export async function confirmAction(id: string, previous: ActionState, formData:
   return run(id, previous, "confirm", formData);
 }
 
+export async function unconfirmAction(id: string, previous: ActionState, formData: FormData) {
+  return run(id, previous, "unconfirm", formData);
+}
+
 export async function completeAction(id: string, previous: ActionState, formData: FormData) {
   return run(id, previous, "complete", formData);
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DateInput } from "@/components/date-jump";
 import { TimeInput } from "@/components/time-input";
 import { minutesToTimeInput } from "@/domain/appointment-panel";
 import { formatDayLabel, formatRange } from "@/domain/calendar-view";
@@ -34,12 +35,13 @@ function DeliveryFields({ appointment, technicians }: { appointment: Detail; tec
       <div className="grid grid-cols-2 gap-2">
         <label className="flex flex-col gap-1 text-xs font-medium text-soft">
           Fecha
-          <input
-            type="date"
+          <DateInput
             name="deliveryDate"
             required
             min={appointment.date}
-            defaultValue={scheduled ? appointment.deliveryDate : (appointment.readyDate ?? nextDay(appointment.date))}
+            defaultValue={
+              (scheduled ? appointment.deliveryDate : (appointment.readyDate ?? nextDay(appointment.date))) ?? ""
+            }
             className={FIELD}
           />
         </label>
@@ -144,7 +146,7 @@ export function AppointmentDeliverySection({
         <ActionForm action={readyDateAction.bind(null, id)} submit="Guardar fecha" pendingText="Guardando…">
           <label className="flex flex-col gap-1 text-xs font-medium text-soft">
             Listo en (fecha estimada)
-            <input type="date" name="readyDate" defaultValue={appointment.readyDate ?? ""} className={FIELD} />
+            <DateInput name="readyDate" clearable defaultValue={appointment.readyDate ?? ""} className={FIELD} />
           </label>
         </ActionForm>
       ) : (

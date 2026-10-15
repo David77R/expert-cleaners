@@ -18,6 +18,7 @@ import {
   setStage,
   completeAppointment,
   confirmAppointment,
+  unconfirmAppointment,
   markPaid,
   moveAppointment,
   rescheduleAppointment,
@@ -33,6 +34,7 @@ import type { Actor } from "@/db/schema";
 
 export const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("confirm") }),
+  z.object({ action: z.literal("unconfirm") }),
   z.object({ action: z.literal("complete") }),
   z.object({ action: z.literal("mark_paid") }),
   z.object({ action: z.literal("advance_invoice") }),
@@ -57,6 +59,8 @@ export async function runAction(db: Db, actor: Actor, id: string, raw: unknown):
   switch (input.action) {
     case "confirm":
       return confirmAppointment(db, actor, id);
+    case "unconfirm":
+      return unconfirmAppointment(db, actor, id);
     case "complete":
       return completeAppointment(db, actor, id);
     case "mark_paid":

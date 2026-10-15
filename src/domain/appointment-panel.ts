@@ -26,6 +26,7 @@ const INVOICE_LABELS: Record<string, string> = {
 
 export type PanelActions = {
   confirm: boolean;
+  unconfirm: boolean;
   complete: boolean;
   pay: boolean;
   invoice: "generate" | "send" | null;
@@ -41,6 +42,7 @@ export function panelActions(
   const cancelled = status === "cancelled";
   return {
     confirm: status === "not_confirmed" || status === "rescheduled",
+    unconfirm: status === "confirmed",
     complete: canTransition(status, "completed"),
     pay: paymentStatus === "unpaid" && !cancelled,
     invoice: cancelled || invoiceStatus === "sent" ? null : invoiceStatus === "not_generated" ? "generate" : "send",

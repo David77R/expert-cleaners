@@ -4,6 +4,7 @@ import {
   cancelAppointment,
   completeAppointment,
   confirmAppointment,
+  unconfirmAppointment,
   createAppointment,
   getAppointment,
   getDay,
@@ -111,6 +112,16 @@ describe("flujo de estados", () => {
     const statusChanges = detail.history.filter((h) => h.field === "status");
     expect(statusChanges.map((h) => h.toValue).sort()).toEqual(["completed", "confirmed"]);
     expect(statusChanges[0].actorName).toBe("Josué Perfecto");
+  });
+
+  it("se puede quitar la confirmación y queda en el historial", async () => {
+    const { appointment } = await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date: "2026-11-12" }));
+    await confirmAppointment(ctx.db, AGENT_JOSUE, appointment.id);
+    const undone = await unconfirmAppointment(ctx.db, AGENT_JOSUE, appointment.id);
+    expect(undone.appointment.status).toBe("not_confirmed");
+    const detail = await getAppointment(ctx.db, appointment.id);
+    expect(detail.history.filter((h) => h.field === "status").map((h) => h.toValue)).toContain("not_confirmed");
+    await expect(unconfirmAppointment(ctx.db, AGENT_JOSUE, appointment.id)).rejects.toBeInstanceOf(DomainError);
   });
 
   it("una cita completada no se puede cancelar", async () => {

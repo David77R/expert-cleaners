@@ -26,7 +26,12 @@ describe("canTransition / assertTransition", () => {
   });
 
   it("blocks transitions the state machine does not list", () => {
-    expect(canTransition("confirmed", "not_confirmed")).toBe(false);
+    expect(canTransition("completed", "not_confirmed")).toBe(false);
+    expect(canTransition("cancelled", "confirmed")).toBe(false);
+  });
+
+  it("allows undoing a confirmation", () => {
+    expect(canTransition("confirmed", "not_confirmed")).toBe(true);
   });
 
   it("assertTransition throws a DomainError for an invalid move", () => {

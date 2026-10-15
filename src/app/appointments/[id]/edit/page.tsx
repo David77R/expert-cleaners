@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DateInput } from "@/components/date-jump";
 import { notFound, redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { z } from "zod";
@@ -203,7 +204,7 @@ export default async function EditAppointmentPage({ params, searchParams }: Page
                 <ActionForm action={rescheduleAction.bind(null, id)} submit="Guardar horario" pendingText="Guardando…">
                   <label className="flex flex-col gap-1 text-xs font-medium text-soft">
                     Fecha
-                    <input type="date" name="date" required defaultValue={appointment.date} className={FIELD} />
+                    <DateInput name="date" required defaultValue={appointment.date} className={FIELD} />
                   </label>
                   <div className="grid grid-cols-2 gap-3">
                     <TimeRangeField

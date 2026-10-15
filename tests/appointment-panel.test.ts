@@ -5,6 +5,7 @@ describe("acciones disponibles según el estado", () => {
   it("una cita nueva se puede confirmar, completar, reprogramar y cancelar", () => {
     expect(panelActions("not_confirmed", "unpaid", "not_generated")).toEqual({
       confirm: true,
+      unconfirm: false,
       complete: true,
       pay: true,
       invoice: "generate",
@@ -16,6 +17,7 @@ describe("acciones disponibles según el estado", () => {
   it("una cita confirmada ya no ofrece confirmar", () => {
     const actions = panelActions("confirmed", "unpaid", "not_generated");
     expect(actions.confirm).toBe(false);
+    expect(actions.unconfirm).toBe(true);
     expect(actions.complete).toBe(true);
   });
 
@@ -26,6 +28,7 @@ describe("acciones disponibles según el estado", () => {
   it("una completada solo permite cobrar y facturar", () => {
     expect(panelActions("completed", "unpaid", "generated")).toEqual({
       confirm: false,
+      unconfirm: false,
       complete: false,
       pay: true,
       invoice: "send",
@@ -37,6 +40,7 @@ describe("acciones disponibles según el estado", () => {
   it("una cancelada no permite nada", () => {
     expect(panelActions("cancelled", "unpaid", "not_generated")).toEqual({
       confirm: false,
+      unconfirm: false,
       complete: false,
       pay: false,
       invoice: null,

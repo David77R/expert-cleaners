@@ -301,6 +301,10 @@ export async function confirmAppointment(db: Db, actor: Actor, id: string): Prom
   return transition(db, actor, id, "confirmed");
 }
 
+export async function unconfirmAppointment(db: Db, actor: Actor, id: string): Promise<Mutation> {
+  return transition(db, actor, id, "not_confirmed");
+}
+
 export async function completeAppointment(db: Db, actor: Actor, id: string): Promise<Mutation> {
   return transition(db, actor, id, "completed");
 }

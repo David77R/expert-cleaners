@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DateInput } from "@/components/date-jump";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
 import { formatPhone } from "@/domain/customer-rules";
@@ -166,11 +167,24 @@ export default async function CustomersPage({ searchParams }: PageProps<"/custom
                   </label>
                   <label className="flex flex-col gap-1 text-xs font-medium text-soft">
                     Creados desde
-                    <input type="date" name="createdFrom" defaultValue={filters.createdFrom ?? ""} className={SELECT} />
+                    <DateInput
+                      name="createdFrom"
+                      clearable
+                      placeholder="Cualquier fecha"
+                      defaultValue={filters.createdFrom ?? ""}
+                      className={SELECT}
+                    />
                   </label>
                   <label className="flex flex-col gap-1 text-xs font-medium text-soft">
                     Creados hasta
-                    <input type="date" name="createdTo" defaultValue={filters.createdTo ?? ""} className={SELECT} />
+                    <DateInput
+                      name="createdTo"
+                      clearable
+                      align="right"
+                      placeholder="Cualquier fecha"
+                      defaultValue={filters.createdTo ?? ""}
+                      className={SELECT}
+                    />
                   </label>
                 </div>
               </details>

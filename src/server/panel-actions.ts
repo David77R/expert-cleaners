@@ -9,6 +9,7 @@ import type { Db } from "@/server/appointments";
 
 export type PanelAction =
   | "confirm"
+  | "unconfirm"
   | "complete"
   | "mark_paid"
   | "advance_invoice"

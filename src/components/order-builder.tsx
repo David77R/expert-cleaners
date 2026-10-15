@@ -1,5 +1,6 @@
 "use client";
 
+import { DateInput } from "@/components/date-jump";
 import Link from "next/link";
 import { useState, useTransition, type FormEvent } from "react";
 import { scheduleOrderAction } from "@/app/orders/new/actions";
@@ -173,7 +174,7 @@ function ScheduleForm({
           </legend>
           <label className={LABEL}>
             Fecha
-            <input type="date" name="pickupDate" defaultValue={pickupDate} className={FIELD} />
+            <DateInput name="pickupDate" defaultValue={pickupDate} className={FIELD} />
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className={LABEL}>
@@ -206,7 +207,7 @@ function ScheduleForm({
           </label>
           <label className={LABEL}>
             Listo en (opcional)
-            <input type="date" name="readyDate" defaultValue={initial?.readyDate ?? ""} className={FIELD} />
+            <DateInput name="readyDate" clearable defaultValue={initial?.readyDate ?? ""} className={FIELD} />
           </label>
         </fieldset>
 
@@ -227,8 +228,7 @@ function ScheduleForm({
             <>
               <label className={LABEL}>
                 Fecha
-                <input
-                  type="date"
+                <DateInput
                   name="deliveryDate"
                   min={pickupDate}
                   defaultValue={initial?.delivery?.date ?? addDays(pickupDate, 1)}
