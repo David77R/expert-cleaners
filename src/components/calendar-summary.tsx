@@ -1,4 +1,6 @@
+import Link from "next/link";
 import type { Summary } from "@/domain/calendar-view";
+import { filterForSummaryKey, type StatusFilter } from "@/domain/status-filter";
 import { Icon, type IconName } from "@/components/icons";
 
 type Card = {
@@ -64,12 +66,30 @@ const CARDS: Card[] = [
   },
 ];
 
-export function CalendarSummary({ summary, showConflicts = true }: { summary: Summary; showConflicts?: boolean }) {
+export function CalendarSummary({
+  summary,
+  showConflicts = true,
+  hrefFor,
+  activeFilter = null,
+}: {
+  summary: Summary;
+  showConflicts?: boolean;
+  hrefFor: (filter: StatusFilter | null) => string;
+  activeFilter?: StatusFilter | null;
+}) {
   const cards = CARDS.filter((card) => showConflicts || card.key !== "overlaps");
 
   return (
     <section aria-label="Resumen de citas" className="grid grid-cols-[repeat(auto-fit,minmax(7.75rem,1fr))] gap-2.5">
-      <div className="flex min-w-0 flex-col gap-1.5 rounded-xl bg-rail px-3.5 py-3 text-white">
+      <Link
+        href={hrefFor(null)}
+        scroll={false}
+        aria-current={activeFilter === null ? "true" : undefined}
+        title="Ver todas las citas"
+        className={`flex min-w-0 flex-col gap-1.5 rounded-xl bg-rail px-3.5 py-3 text-white transition-all hover:-translate-y-0.5 hover:shadow-md ${
+          activeFilter === null ? "ring-2 ring-brand ring-offset-2" : ""
+        }`}
+      >
         <span className="flex items-center justify-between gap-2">
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10">
             <Icon name="calendar" size={15} />
@@ -79,16 +99,22 @@ export function CalendarSummary({ summary, showConflicts = true }: { summary: Su
         <span className="truncate text-xs font-medium text-rail-text">
           {summary.total === 1 ? "Cita activa" : "Citas activas"}
         </span>
-      </div>
+      </Link>
       {cards.map((card) => {
         const value = summary[card.key];
         const active = value > 0;
+        const filter = filterForSummaryKey(card.key);
+        const selected = filter !== null && filter === activeFilter;
         return (
-          <div
+          <Link
             key={card.key}
-            className={`flex min-w-0 flex-col gap-1.5 rounded-xl border px-3.5 py-3 transition-colors ${
+            href={hrefFor(selected ? null : filter)}
+            scroll={false}
+            aria-current={selected ? "true" : undefined}
+            title={selected ? "Quitar el filtro" : `Ver solo: ${card.plural.toLowerCase()}`}
+            className={`flex min-w-0 flex-col gap-1.5 rounded-xl border px-3.5 py-3 transition-all hover:-translate-y-0.5 hover:shadow-md ${
               active && card.alert ? card.alert : "border-hair bg-paper"
-            } ${active ? "" : "opacity-60"}`}
+            } ${active || selected ? "" : "opacity-60"} ${selected ? "ring-2 ring-brand ring-offset-2" : ""}`}
           >
             <span className="flex items-center justify-between gap-2">
               <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${card.bubble}`}>
@@ -101,7 +127,7 @@ export function CalendarSummary({ summary, showConflicts = true }: { summary: Su
               </span>
             </span>
             <span className="truncate text-xs font-medium text-soft">{value === 1 ? card.label : card.plural}</span>
-          </div>
+          </Link>
         );
       })}
     </section>

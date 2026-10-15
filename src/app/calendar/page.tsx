@@ -20,8 +20,9 @@ import { CalendarToolbar } from "@/components/calendar-toolbar";
 import { DayGrid } from "@/components/day-grid";
 import { MapViewLoader } from "@/components/map-view-loader";
 import { appointmentNeedsPickup } from "@/domain/pickup";
+import { STATUS_FILTERS, matchesStatusFilter, parseStatusFilter } from "@/domain/status-filter";
 import { formatMinutes } from "@/domain/appointment-rules";
-import { formatDayLabel } from "@/domain/calendar-view";
+import { formatDayLabel, initialsOf, readableOn } from "@/domain/calendar-view";
 import { hasDelivery } from "@/domain/delivery";
 import { calendarHref } from "@/lib/calendar-links";
 import type { MapRouteDraft, MapServiceOption, MapStop, MapTechnicianOption } from "@/components/map-view";
@@ -56,7 +57,8 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
   const allTechnicians = (await db.select().from(techniciansTable)).filter((t) => t.active);
   const requested = z.uuid().safeParse(first(params.tech));
   const tech = requested.success && allTechnicians.some((t) => t.id === requested.data) ? requested.data : null;
-  const nav = { view, date, tech, entregas };
+  const estado = parseStatusFilter(first(params.estado));
+  const nav = { view, date, tech, entregas, estado };
 
   const data =
     view === "day" || mapa
@@ -79,7 +81,13 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
     const entry = asDeliveryEntry(row);
     return entry ? [entry] : [];
   });
-  const entries: CalendarAppointment[] = entregas ? [...data.appointments, ...deliveryEntries] : data.appointments;
+  const overlapSet = new Set(data.overlapIds);
+  const filtered = data.appointments.filter((a) => matchesStatusFilter(a, estado, overlapSet));
+  const entries: CalendarAppointment[] = estado
+    ? filtered
+    : entregas
+      ? [...data.appointments, ...deliveryEntries]
+      : data.appointments;
   const summary = summarize(data.appointments, data.overlapIds);
   // En el Mapa no mostramos el aviso de "citas con solape": ese indicador es de choques de
   // horario del día normal, no de rutas, y ahí solo estorba la vista. Más adelante lo
@@ -107,7 +115,10 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
       createdAt: d.createdAt.toISOString(),
     }));
 
-    const activeMapAppointments = mapData.appointments.filter((a) => a.status !== "cancelled");
+    const mapOverlap = new Set(mapData.overlapIds);
+    const activeMapAppointments = mapData.appointments.filter(
+      (a) => a.status !== "cancelled" && matchesStatusFilter(a, estado, mapOverlap),
+    );
     const unlocated = activeMapAppointments.filter((a) => a.address.lat == null || a.address.lng == null);
     if (unlocated.length > 0) {
       const located = await locateMissingAddresses(
@@ -218,8 +229,63 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
           mapa={mapa}
           entregas={entregas}
           deliveryCount={deliveryEntries.length}
+          estado={estado}
         />
-        <CalendarSummary summary={summaryForDisplay} showConflicts={!mapa} />
+        <CalendarSummary
+          summary={summaryForDisplay}
+          showConflicts={!mapa}
+          activeFilter={estado}
+          hrefFor={(filter) => calendarHref({ ...nav, mapa, estado: filter })}
+        />
+        {estado && (
+          <section
+            aria-label="Citas filtradas"
+            className="-mt-1 flex flex-col gap-2 rounded-xl border border-brand/30 bg-brand-soft/30 px-4 py-3"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-semibold">
+                Mostrando solo: {STATUS_FILTERS[estado].label.toLowerCase()} ({filtered.length})
+              </p>
+              <Link
+                href={calendarHref({ ...nav, mapa, estado: null })}
+                scroll={false}
+                className="rounded-full border border-hair bg-paper px-3 py-1 text-xs font-semibold hover:bg-canvas"
+              >
+                Quitar filtro
+              </Link>
+            </div>
+            {filtered.length === 0 ? (
+              <p className="text-sm text-soft">No hay citas con ese estado en este periodo.</p>
+            ) : (
+              <ul className="flex flex-wrap gap-2">
+                {filtered.map((a) => (
+                  <li key={a.id}>
+                    <Link
+                      href={calendarHref({ ...nav, view: "day", date: a.date, appt: a.id })}
+                      scroll={false}
+                      className="flex items-center gap-2 rounded-full border border-hair bg-paper py-1 pl-1 pr-3 text-xs hover:border-brand/50 hover:bg-brand-soft/40"
+                    >
+                      <span
+                        className="font-display flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold"
+                        style={{ backgroundColor: a.technician.color, color: readableOn(a.technician.color) }}
+                      >
+                        {initialsOf(a.technician.name)}
+                      </span>
+                      <span className="font-semibold tabular-nums">
+                        {view === "day" ? "" : `${formatDayLabel(a.date)} · `}
+                        {formatMinutes(a.startMin)}
+                      </span>
+                      <span>
+                        {a.customer.firstName} {a.customer.lastName}
+                      </span>
+                      <span className="text-muted">{serviceLabel(a)}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
 
         {mapa && (
           <>

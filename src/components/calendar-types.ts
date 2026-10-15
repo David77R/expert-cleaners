@@ -9,4 +9,10 @@ export type CalendarTechnician = Pick<
   Technician,
   "id" | "name" | "color" | "zone" | "shiftStartMin" | "shiftEndMin" | "workDays"
 >;
-export type CalendarNav = { view: CalendarView; date: string; tech: string | null; entregas?: boolean };
+export type CalendarNav = {
+  view: CalendarView;
+  date: string;
+  tech: string | null;
+  entregas?: boolean;
+  estado?: string | null;
+};

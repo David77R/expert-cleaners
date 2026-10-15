@@ -7,6 +7,7 @@ export function calendarHref(options: {
   appt?: string | null;
   mapa?: boolean;
   entregas?: boolean;
+  estado?: string | null;
 }): string {
   const params = new URLSearchParams();
   if (options.view && options.view !== "day") params.set("view", options.view);
@@ -15,6 +16,7 @@ export function calendarHref(options: {
   if (options.appt) params.set("appt", options.appt);
   if (options.mapa) params.set("mapa", "1");
   if (options.entregas === false) params.set("entregas", "0");
+  if (options.estado) params.set("estado", options.estado);
   const query = params.toString();
   return query ? `/calendar?${query}` : "/calendar";
 }
