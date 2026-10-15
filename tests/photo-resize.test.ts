@@ -81,6 +81,7 @@ describe("textos de la galería", () => {
     expect(uploadErrorMessage(401, null)).toMatch(/sesión/);
     expect(uploadErrorMessage(403, {})).toMatch(/permiso/);
     expect(uploadErrorMessage(413, null)).toMatch(/4 MB/);
-    expect(uploadErrorMessage(500, "<html>")).toMatch(/Inténtalo de nuevo/);
+    expect(uploadErrorMessage(500, "<html>")).toMatch(/error 500/);
+    expect(uploadErrorMessage(409, null)).toMatch(/error 409/);
   });
 });

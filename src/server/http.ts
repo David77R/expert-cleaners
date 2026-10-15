@@ -11,6 +11,7 @@ const STATUS_BY_CODE: Record<string, number> = {
   photo_empty: 422,
   photo_too_large: 413,
   photo_unsupported_type: 415,
+  storage_error: 502,
 };
 
 export function toErrorResponse(error: unknown): NextResponse {

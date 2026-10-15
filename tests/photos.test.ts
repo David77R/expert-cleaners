@@ -67,6 +67,20 @@ describe("subir fotos", () => {
     expect(detail.history.some((entry) => entry.field === "photo" && entry.toValue === "added")).toBe(true);
   });
 
+  it("no deja la foto huérfana si falla la URL firmada después de guardarla", async () => {
+    const storage = createMemoryStorage();
+    storage.signedUrl = async () => {
+      throw new Error("firma caída");
+    };
+    const appointment = await newAppointment();
+
+    const photo = await uploadPhoto(ctx.db, storage, AGENT_JOSUE, appointment.id, jpeg());
+
+    expect(photo.url).toBe("");
+    expect(storage.files.size).toBe(1);
+    expect((await getAppointment(ctx.db, appointment.id)).photos).toHaveLength(1);
+  });
+
   it("liga la foto a un artículo de la misma cita y la conserva al editar los artículos", async () => {
     const storage = createMemoryStorage();
     const appointment = await newAppointment();
@@ -392,5 +406,46 @@ describe("adaptador de Supabase Storage", () => {
     await expect(storage.put("a", jpeg(4), "image/jpeg")).rejects.toThrow("boom");
     await expect(storage.remove("a")).rejects.toThrow("boom");
     await expect(storage.signedUrl("a")).rejects.toThrow("boom");
+  });
+
+  it("crea el bucket privado si no existe y reintenta la subida", async () => {
+    const uploads: string[] = [];
+    let exists = false;
+    const created: unknown[] = [];
+    const client = {
+      storage: {
+        from: () => ({
+          upload: async (path: string) => {
+            uploads.push(path);
+            return { error: exists ? null : { message: "Bucket not found" } };
+          },
+        }),
+        createBucket: async (...args: unknown[]) => {
+          created.push(args);
+          exists = true;
+          return { error: null };
+        },
+      },
+    };
+    await createSupabasePhotoStorage(client as never).put("a/b.jpg", jpeg(4), "image/jpeg");
+    expect(uploads).toEqual(["a/b.jpg", "a/b.jpg"]);
+    expect(created).toEqual([
+      [
+        "appointment-photos",
+        { public: false, fileSizeLimit: MAX_PHOTO_BYTES, allowedMimeTypes: ["image/jpeg", "image/png", "image/webp"] },
+      ],
+    ]);
+  });
+
+  it("explica en español por qué Supabase rechazó la foto", async () => {
+    const reject = (message: string) =>
+      createSupabasePhotoStorage(fakeClient({ error: { message } }).client).put("a", jpeg(4), "image/jpeg");
+    await expect(reject("Invalid Compact JWS")).rejects.toMatchObject({
+      code: "storage_error",
+      message: expect.stringMatching(/SUPABASE_SERVICE_ROLE_KEY/),
+    });
+    await expect(reject("new row violates row-level security policy")).rejects.toThrow(/service_role/);
+    await expect(reject("The object exceeded the maximum allowed size")).rejects.toThrow(/límite de tamaño/);
+    await expect(reject("Bucket not found")).rejects.toThrow(/Créalo como privado/);
   });
 });

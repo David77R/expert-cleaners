@@ -42,5 +42,6 @@ export function uploadErrorMessage(status: number, body: unknown): string {
   if (status === 403) return "No tienes permiso para hacer esto.";
   if (status === 413) return `La foto supera el máximo de ${MAX_PHOTO_BYTES / (1024 * 1024)} MB.`;
   if (status === 422) return "La foto no es válida.";
-  return "No se pudo completar la operación. Inténtalo de nuevo.";
+  if (status >= 500) return `El servidor no pudo guardar la foto (error ${status}). Inténtalo de nuevo en un momento.`;
+  return `No se pudo completar la operación (error ${status}). Inténtalo de nuevo.`;
 }

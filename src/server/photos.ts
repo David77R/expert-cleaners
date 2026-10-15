@@ -83,8 +83,9 @@ export async function uploadPhoto(
   const storagePath = photoStoragePath(appointmentId, photoId, contentType);
   await storage.put(storagePath, bytes, contentType);
 
+  let row: schema.Photo;
   try {
-    const row = await db.transaction(async (tx) => {
+    row = await db.transaction(async (tx) => {
       const [created] = await tx
         .insert(appointmentPhotos)
         .values({ id: photoId, appointmentId, itemId, storagePath, contentType, sizeBytes, uploadedBy: actor.id })
@@ -100,11 +101,20 @@ export async function uploadPhoto(
       });
       return created;
     });
-    return await toView(storage, row, actor.name);
   } catch (error) {
     await storage.remove(storagePath).catch((cleanup) => console.error(cleanup));
     throw error;
   }
+  return toView(storage, row, actor.name).catch(() => ({
+    id: row.id,
+    itemId: row.itemId,
+    url: "",
+    contentType: row.contentType,
+    sizeBytes: row.sizeBytes,
+    uploadedBy: row.uploadedBy,
+    uploadedByName: actor.name,
+    createdAt: row.createdAt,
+  }));
 }
 
 export async function listPhotos(db: Db, storage: PhotoStorage, rawAppointmentId: string): Promise<PhotoView[]> {
