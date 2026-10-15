@@ -36,6 +36,24 @@ describe("mensaje de confirmación del pedido", () => {
     expect(text).not.toContain("Entrega:");
   });
 
+  it("agrupa los artículos iguales con el total y el precio por unidad", () => {
+    const text = confirmationMessage({
+      customerName: "Blanquita",
+      code: "SVC-9",
+      pickup: { date: "2026-10-14", startMin: 540 },
+      items: [
+        ...Array.from({ length: 5 }, () => ({ name: "SILLA", priceCents: 10000 })),
+        { name: "SOFA", priceCents: 12000 },
+        { name: "SILLA", priceCents: 8000 },
+      ],
+      totalCents: 70000,
+    });
+    expect(text).toContain("• SILLA x5: $500.00 ($100.00 c/u)");
+    expect(text).toContain("• SOFA: $120.00");
+    expect(text).toContain("• SILLA: $80.00");
+    expect(text.match(/SILLA x5/g)).toHaveLength(1);
+  });
+
   it("arma el enlace de WhatsApp con el código de país de EE. UU.", () => {
     expect(whatsappHref("(305) 555-0142", "Hola")).toBe("https://wa.me/13055550142?text=Hola");
     expect(whatsappHref("+58 414 1234567", "a b")).toBe("https://wa.me/584141234567?text=a%20b");
