@@ -22,9 +22,19 @@ export function Row({ label, children }: { label: string; children: ReactNode })
   );
 }
 
-export function Expandable({ title, tone, children }: { title: string; tone?: "danger"; children: ReactNode }) {
+export function Expandable({
+  title,
+  tone,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  tone?: "danger";
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
   return (
-    <details className="group rounded-md border border-hair bg-paper open:shadow-sm">
+    <details open={defaultOpen} className="group rounded-md border border-hair bg-paper open:shadow-sm">
       <summary
         className={`flex cursor-pointer list-none items-center justify-between px-3.5 py-2.5 text-sm font-semibold ${
           tone === "danger" ? "text-attention" : "text-ink"

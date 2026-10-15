@@ -103,6 +103,21 @@ export function AppointmentTicket({
               Entrega
             </span>
           )}
+          {!delivery && (appointment.address.lat == null || appointment.address.lng == null) && (
+            <HoverHint
+              hint={
+                <span className="flex flex-col gap-1">
+                  <span className="font-semibold">Dirección sin ubicar</span>
+                  <span>No aparece en el mapa. Abre la cita y corrige la dirección.</span>
+                </span>
+              }
+            >
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-attention text-white shadow-sm">
+                <Icon name="pin" size={12} />
+                <span className="sr-only">Dirección sin ubicar</span>
+              </span>
+            </HoverHint>
+          )}
           {conflicting && (
             <HoverHint hint={conflictHint}>
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-attention shadow-sm">

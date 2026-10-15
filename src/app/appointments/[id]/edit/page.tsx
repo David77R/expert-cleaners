@@ -12,6 +12,9 @@ import { FIELD } from "@/components/panel-kit";
 import { PanelItemsForm } from "@/components/panel-items-form";
 import { PhotoGallery } from "@/components/photo-gallery";
 import { StatusBadge } from "@/components/status-badge";
+import { AddressFields } from "@/components/address-fields";
+import { UnlocatedAddressAlert, isUnlocated } from "@/components/unlocated-address";
+import { updateAddressAction } from "@/app/customers/[id]/actions";
 import { TimeRangeField } from "@/components/time-range-fields";
 import { centsToDollars, serviceLabel } from "@/domain/appointment-items";
 import { toFormService } from "@/domain/appointment-form";
@@ -235,6 +238,17 @@ export default async function EditAppointmentPage({ params, searchParams }: Page
             )}
 
             <Card title="Dirección del servicio">
+              {isUnlocated(appointment.address) && <UnlocatedAddressAlert />}
+              {!cancelled && (
+                <ActionForm
+                  action={updateAddressAction.bind(null, customer.id, appointment.address.id)}
+                  submit="Guardar dirección corregida"
+                  pendingText="Guardando…"
+                  tone={isUnlocated(appointment.address) ? "primary" : "secondary"}
+                >
+                  <AddressFields defaults={appointment.address} />
+                </ActionForm>
+              )}
               {!cancelled && customer.addresses.length > 1 ? (
                 <ActionForm action={addressAction.bind(null, id)} submit="Usar esta dirección" pendingText="Guardando…">
                   <fieldset className="flex flex-col gap-2">
@@ -262,13 +276,13 @@ export default async function EditAppointmentPage({ params, searchParams }: Page
                   </fieldset>
                 </ActionForm>
               ) : (
-                <p className="text-sm">{formatAddress(appointment.address)}</p>
+                cancelled && <p className="text-sm">{formatAddress(appointment.address)}</p>
               )}
               <Link
                 href={`/customers/${customer.id}`}
                 className="w-fit text-xs font-semibold text-brand-ink hover:underline"
               >
-                Agregar o corregir direcciones en la ficha del cliente
+                Agregar otra dirección en la ficha del cliente
               </Link>
             </Card>
 

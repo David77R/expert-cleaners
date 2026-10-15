@@ -28,6 +28,9 @@ import { ActionForm } from "@/components/action-form";
 import type { CalendarNav, CalendarTechnician } from "@/components/calendar-types";
 import { Icon } from "@/components/icons";
 import { PanelItemsForm } from "@/components/panel-items-form";
+import { AddressFields } from "@/components/address-fields";
+import { UnlocatedAddressAlert, isUnlocated } from "@/components/unlocated-address";
+import { updateAddressAction } from "@/app/customers/[id]/actions";
 import { TimeRangeField } from "@/components/time-range-fields";
 import { AppointmentDeliverySection } from "@/components/appointment-delivery";
 import { Expandable, FIELD, Row, Section } from "@/components/panel-kit";
@@ -213,15 +216,40 @@ export function AppointmentPanel({
             </span>
             <Icon name="right" className="shrink-0 text-muted" />
           </Link>
+          {isUnlocated(appointment.address) && <UnlocatedAddressAlert />}
           <dl className="flex flex-col gap-2">
-            <Row label="Dirección del servicio">{formatAddress(appointment.address)}</Row>
+            <Row label="Dirección del servicio">
+              <span className={isUnlocated(appointment.address) ? "text-attention" : undefined}>
+                {formatAddress(appointment.address)}
+              </span>
+            </Row>
             {appointment.destinationAddress && (
               <Row label="Dirección de entrega">{formatAddress(appointment.destinationAddress)}</Row>
             )}
             {appointment.billingAddress && <Row label="Facturar a">{formatAddress(appointment.billingAddress)}</Row>}
           </dl>
+          {appointment.status !== "cancelled" && (
+            <Expandable
+              title="Corregir dirección"
+              tone={isUnlocated(appointment.address) ? "danger" : undefined}
+              defaultOpen={isUnlocated(appointment.address)}
+            >
+              <ActionForm
+                action={updateAddressAction.bind(null, customer.id, appointment.address.id)}
+                submit="Guardar dirección"
+                pendingText="Guardando…"
+                tone="primary"
+              >
+                <AddressFields defaults={appointment.address} />
+                <p className="text-xs text-soft">
+                  Escribe la calle con el número y elige la sugerencia verificada. Se corrige en la ficha del cliente y
+                  en todas sus citas con esta dirección.
+                </p>
+              </ActionForm>
+            </Expandable>
+          )}
           {appointment.status !== "cancelled" && customer.addresses.length > 1 && (
-            <Expandable title="Cambiar dirección del servicio">
+            <Expandable title="Usar otra dirección del cliente">
               <ActionForm action={addressAction.bind(null, id)} submit="Usar esta dirección" pendingText="Guardando…">
                 <fieldset className="flex flex-col gap-2">
                   <legend className="sr-only">Direcciones del cliente</legend>

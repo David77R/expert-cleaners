@@ -137,6 +137,7 @@ async function addressActor() {
 function afterAddressChange(customerId: string, previous: ActionState, notice?: string): ActionState {
   revalidatePath(`/customers/${customerId}`);
   revalidatePath("/calendar");
+  revalidatePath("/appointments/[id]/edit", "page");
   return { notice, stamp: previous.stamp + 1 };
 }
 
