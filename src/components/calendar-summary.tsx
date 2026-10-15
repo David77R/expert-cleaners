@@ -68,14 +68,16 @@ export function CalendarSummary({ summary, showConflicts = true }: { summary: Su
   const cards = CARDS.filter((card) => showConflicts || card.key !== "overlaps");
 
   return (
-    <section aria-label="Resumen de citas" className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 xl:grid-cols-7">
-      <div className="flex items-center gap-3 rounded-xl bg-rail px-4 py-3 text-white">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/10">
-          <Icon name="calendar" size={18} />
+    <section aria-label="Resumen de citas" className="grid grid-cols-[repeat(auto-fit,minmax(7.75rem,1fr))] gap-2.5">
+      <div className="flex min-w-0 flex-col gap-1.5 rounded-xl bg-rail px-3.5 py-3 text-white">
+        <span className="flex items-center justify-between gap-2">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/10">
+            <Icon name="calendar" size={15} />
+          </span>
+          <span className="font-display text-2xl font-semibold leading-none tabular-nums">{summary.total}</span>
         </span>
-        <span className="leading-tight">
-          <span className="font-display block text-2xl font-semibold tabular-nums">{summary.total}</span>
-          <span className="block text-xs text-rail-text">{summary.total === 1 ? "Cita activa" : "Citas activas"}</span>
+        <span className="truncate text-xs font-medium text-rail-text">
+          {summary.total === 1 ? "Cita activa" : "Citas activas"}
         </span>
       </div>
       {cards.map((card) => {
@@ -84,21 +86,21 @@ export function CalendarSummary({ summary, showConflicts = true }: { summary: Su
         return (
           <div
             key={card.key}
-            className={`flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors ${
+            className={`flex min-w-0 flex-col gap-1.5 rounded-xl border px-3.5 py-3 transition-colors ${
               active && card.alert ? card.alert : "border-hair bg-paper"
             } ${active ? "" : "opacity-60"}`}
           >
-            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${card.bubble}`}>
-              <Icon name={card.icon} size={18} />
-            </span>
-            <span className="leading-tight">
+            <span className="flex items-center justify-between gap-2">
+              <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${card.bubble}`}>
+                <Icon name={card.icon} size={15} />
+              </span>
               <span
-                className={`font-display block text-2xl font-semibold tabular-nums ${active ? card.number : "text-muted"}`}
+                className={`font-display text-2xl font-semibold leading-none tabular-nums ${active ? card.number : "text-muted"}`}
               >
                 {value}
               </span>
-              <span className="block text-xs text-soft">{value === 1 ? card.label : card.plural}</span>
             </span>
+            <span className="truncate text-xs font-medium text-soft">{value === 1 ? card.label : card.plural}</span>
           </div>
         );
       })}
