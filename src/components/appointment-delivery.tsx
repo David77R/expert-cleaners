@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { TimeInput } from "@/components/time-input";
 import { minutesToTimeInput } from "@/domain/appointment-panel";
 import { formatDayLabel, formatRange } from "@/domain/calendar-view";
 import { STAGE_KEYS, STAGE_LABELS, hasDelivery } from "@/domain/delivery";
@@ -44,10 +45,10 @@ function DeliveryFields({ appointment, technicians }: { appointment: Detail; tec
         </label>
         <label className="flex flex-col gap-1 text-xs font-medium text-soft">
           Hora
-          <input
-            type="time"
+          <TimeInput
             name="deliveryTime"
             required
+            aria-label="Hora de entrega"
             defaultValue={minutesToTimeInput(scheduled ? appointment.deliveryStartMin : appointment.startMin)}
             className={FIELD}
           />

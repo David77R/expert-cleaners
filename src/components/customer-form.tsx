@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useActionState, type ComponentProps } from "react";
 import { createCustomerAction, type CustomerFormState } from "@/app/customers/new/actions";
-import { emptyCustomerForm, type CustomerFormField } from "@/domain/customer-form";
+import { emptyCustomerForm, type CustomerFormField, type CustomerPrefill } from "@/domain/customer-form";
 import { AddressAutocomplete } from "@/components/address-autocomplete";
 import { Card, Field, INPUT } from "@/components/form-kit";
 
@@ -11,8 +11,8 @@ function CustomerField(props: Omit<ComponentProps<typeof Field>, "prefix" | "nam
   return <Field prefix="customer" {...props} />;
 }
 
-export function CustomerForm() {
-  const initial: CustomerFormState = { values: emptyCustomerForm(), errors: {} };
+export function CustomerForm({ prefill = {} }: { prefill?: CustomerPrefill }) {
+  const initial: CustomerFormState = { values: { ...emptyCustomerForm(), ...prefill }, errors: {} };
   const [state, action, pending] = useActionState(createCustomerAction, initial);
   const { values, errors } = state;
 

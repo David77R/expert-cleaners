@@ -133,7 +133,18 @@ export function GlobalSearch() {
           className="absolute left-0 right-0 top-12 z-40 overflow-hidden rounded-md border border-hair bg-paper py-1 shadow-lg"
         >
           {results.length === 0 ? (
-            <li className="px-4 py-3 text-sm text-muted">No hay clientes con esa búsqueda.</li>
+            <li className="flex flex-col gap-1.5 px-4 py-3 text-sm">
+              <span className="text-muted">No hay clientes con esa búsqueda.</span>
+              <Link
+                href={`/customers/new?q=${encodeURIComponent(query.trim())}`}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => go(`/customers/new?q=${encodeURIComponent(query.trim())}`)}
+                className="flex w-fit items-center gap-1.5 rounded-full bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"
+              >
+                <Icon name="plus" size={13} />
+                Crear cliente con «{query.trim()}»
+              </Link>
+            </li>
           ) : (
             results.map((customer, index) => (
               <li key={customer.id} role="option" aria-selected={index === active}>

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { TimeInput } from "@/components/time-input";
 import { useActionState, type ComponentProps } from "react";
 import { createTechnicianAction, updateTechnicianAction, type TechnicianFormState } from "@/app/technicians/actions";
 import { WEEKDAY_LONG } from "@/domain/calendar-view";
@@ -87,19 +88,12 @@ export function TechnicianForm({
       <Card title="Horario" hint="Fuera de este horario el calendario sombrea la columna del técnico.">
         <TechnicianField name="shiftStart" label="Entrada" error={errors.shiftStart}>
           {(props) => (
-            <input
-              {...props}
-              type="time"
-              name="shiftStart"
-              defaultValue={values.shiftStart}
-              required
-              className={INPUT}
-            />
+            <TimeInput {...props} name="shiftStart" defaultValue={values.shiftStart} required className={INPUT} />
           )}
         </TechnicianField>
         <TechnicianField name="shiftEnd" label="Salida" error={errors.shiftEnd}>
           {(props) => (
-            <input {...props} type="time" name="shiftEnd" defaultValue={values.shiftEnd} required className={INPUT} />
+            <TimeInput {...props} name="shiftEnd" defaultValue={values.shiftEnd} required className={INPUT} />
           )}
         </TechnicianField>
         <fieldset className="flex flex-col gap-2 sm:col-span-2">

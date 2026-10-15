@@ -2,11 +2,14 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-header";
 import { CustomerForm } from "@/components/customer-form";
 import { BackLink } from "@/components/back-link";
+import { prefillFromSearch } from "@/domain/customer-form";
 import { getActor } from "@/server/auth";
 
-export default async function NewCustomerPage() {
+export default async function NewCustomerPage({ searchParams }: PageProps<"/customers/new">) {
   const actor = await getActor();
   if (!actor) redirect("/login");
+  const q = (await searchParams).q;
+  const prefill = prefillFromSearch(Array.isArray(q) ? q[0] : q);
 
   return (
     <AppShell active="customers" actor={actor}>
@@ -18,7 +21,7 @@ export default async function NewCustomerPage() {
             Registra los datos de contacto y la dirección donde se prestará el servicio.
           </p>
         </div>
-        <CustomerForm />
+        <CustomerForm prefill={prefill} />
       </main>
     </AppShell>
   );

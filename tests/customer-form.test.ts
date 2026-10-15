@@ -6,6 +6,7 @@ import {
   customerInputFromForm,
   emptyCustomerForm,
   parseDuplicateIds,
+  prefillFromSearch,
   readCustomerForm,
 } from "@/domain/customer-form";
 import { createCustomerSchema } from "@/domain/schemas";
@@ -211,5 +212,24 @@ describe("coordenadas elegidas en el autocompletado", () => {
     expect(coordinatesFrom("", "-80.26")).toEqual({});
     expect(coordinatesFrom("abc", "1")).toEqual({});
     expect(coordinatesFrom(undefined, undefined)).toEqual({});
+  });
+});
+
+describe("crear cliente desde la búsqueda", () => {
+  it("usa el número buscado como teléfono", () => {
+    expect(prefillFromSearch("786 344 9143")).toEqual({ phone: "786 344 9143" });
+    expect(prefillFromSearch("(786) 344-9143")).toEqual({ phone: "(786) 344-9143" });
+  });
+
+  it("usa el texto como nombre y apellido, o como correo", () => {
+    expect(prefillFromSearch("María José Pérez")).toEqual({ firstName: "María", lastName: "José Pérez" });
+    expect(prefillFromSearch("sonny")).toEqual({ firstName: "sonny" });
+    expect(prefillFromSearch("ana@mail.com")).toEqual({ email: "ana@mail.com" });
+  });
+
+  it("no rellena nada con códigos o números cortos", () => {
+    expect(prefillFromSearch("CLI-1008")).toEqual({});
+    expect(prefillFromSearch("3449")).toEqual({});
+    expect(prefillFromSearch("")).toEqual({});
   });
 });

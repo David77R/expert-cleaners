@@ -40,7 +40,14 @@ async function createSofaAppointment(
   await page.locator("label", { hasText: technician }).click();
 
   await page.getByLabel("Fecha").fill(localToday());
-  await page.getByLabel("Hora de inicio").fill(time);
+  const [hours, minutes] = time.split(":").map(Number);
+  await page.getByLabel("Hora de inicio").selectOption(String(hours % 12 === 0 ? 12 : hours % 12));
+  await page.getByLabel("Minutos").first().selectOption(String(minutes).padStart(2, "0"));
+  await page
+    .getByRole("group", { name: "AM o PM" })
+    .first()
+    .getByRole("button", { name: hours >= 12 ? "PM" : "AM" })
+    .click();
 
   await page.getByRole("button", { name: "Crear cita" }).click();
   await expect(page).toHaveURL(/\/calendar\?.*appt=/, { timeout: 15_000 });

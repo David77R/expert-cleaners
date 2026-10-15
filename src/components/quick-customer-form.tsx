@@ -5,14 +5,16 @@ import { quickCreateCustomerAction, type QuickCustomerState } from "@/app/orders
 import { AddressAutocomplete } from "@/components/address-autocomplete";
 import { Field, INPUT } from "@/components/form-kit";
 import type { PickerCustomer } from "@/domain/appointment-form";
-import { DEFAULT_STATE } from "@/domain/customer-form";
+import { DEFAULT_STATE, type CustomerFormValues, type CustomerPrefill } from "@/domain/customer-form";
 
 export function QuickCustomerForm({
   onCreated,
   onCancel,
+  prefill = {},
 }: {
   onCreated: (customer: PickerCustomer, existing: boolean) => void;
   onCancel: () => void;
+  prefill?: CustomerPrefill;
 }) {
   const [state, action, pending] = useActionState(
     async (previous: QuickCustomerState, formData: FormData) => {
@@ -22,7 +24,7 @@ export function QuickCustomerForm({
     },
     { errors: {}, stamp: 0 },
   );
-  const values = state.values;
+  const values: Partial<CustomerFormValues> | undefined = state.values ?? prefill;
   const errors = state.errors;
 
   return (

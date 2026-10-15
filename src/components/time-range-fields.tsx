@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import { TimeInput } from "@/components/time-input";
 import { minutesToTimeInput, parseTimeInput } from "@/domain/appointment-panel";
 import { formatMinutes } from "@/domain/appointment-rules";
 import { formatDuration } from "@/domain/calendar-view";
@@ -49,11 +50,13 @@ export function TimeRange({
 }) {
   const id = useId();
   const [endError, setEndError] = useState<string | null>(null);
+  const [endDraft, setEndDraft] = useState<string | null>(null);
   const end = endTimeFor(start, duration);
   const minutes = Number(duration);
   const error = endError ?? durationError;
 
   function changeEnd(value: string) {
+    setEndDraft(value);
     if (value === "") return;
     if (parseTimeInput(start) === null) {
       setEndError("Primero elige la hora de inicio.");
@@ -69,6 +72,7 @@ export function TimeRange({
       return;
     }
     setEndError(null);
+    setEndDraft(null);
     onDuration(String(between));
   }
 
@@ -77,14 +81,14 @@ export function TimeRange({
       <input type="hidden" name={durationName} value={duration} />
       <div className={labelClassName}>
         <label htmlFor={`${id}-start`}>Hora de inicio</label>
-        <input
+        <TimeInput
           id={`${id}-start`}
           name={startName}
-          type="time"
           value={start}
-          onChange={(event) => {
+          onChange={(next) => {
             setEndError(null);
-            onStart(event.target.value);
+            setEndDraft(null);
+            onStart(next);
           }}
           required
           aria-invalid={Boolean(startError)}
@@ -98,11 +102,10 @@ export function TimeRange({
       </div>
       <div className={labelClassName}>
         <label htmlFor={`${id}-end`}>Hora de salida</label>
-        <input
+        <TimeInput
           id={`${id}-end`}
-          type="time"
-          value={end}
-          onChange={(event) => changeEnd(event.target.value)}
+          value={endDraft ?? end}
+          onChange={changeEnd}
           aria-invalid={Boolean(error)}
           className={inputClassName}
         />

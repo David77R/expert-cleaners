@@ -120,3 +120,18 @@ export function parseDuplicateIds(raw: string | undefined, uuid: (value: string)
   if (!raw) return [];
   return [...new Set(raw.split(",").filter(uuid))].slice(0, limit);
 }
+
+export type CustomerPrefill = Partial<Pick<CustomerFormValues, "firstName" | "lastName" | "phone" | "email">>;
+
+export function prefillFromSearch(raw: string | undefined | null): CustomerPrefill {
+  const term = (raw ?? "").trim().slice(0, 80);
+  if (!term) return {};
+  if (/^\S+@\S+\.\S+$/.test(term)) return { email: term.toLowerCase() };
+  const digits = term.replace(/\D/g, "");
+  if (/^[\d\s()+.-]+$/.test(term) && digits.length >= 7) return { phone: term };
+  if (/^[\p{L}\s'.-]+$/u.test(term)) {
+    const [firstName, ...rest] = term.split(/\s+/);
+    return { firstName, ...(rest.length > 0 ? { lastName: rest.join(" ") } : {}) };
+  }
+  return {};
+}

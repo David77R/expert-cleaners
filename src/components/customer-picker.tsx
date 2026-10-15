@@ -39,7 +39,7 @@ export function CustomerPicker({
   onSelect: (customer: PickerCustomer) => void;
   onClear: () => void;
   error?: string;
-  onCreateNew?: () => void;
+  onCreateNew?: (term: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PickerCustomer[]>([]);
@@ -124,13 +124,16 @@ export function CustomerPicker({
           {onCreateNew ? (
             <button
               type="button"
-              onClick={onCreateNew}
+              onClick={() => onCreateNew(term)}
               className="font-medium text-brand-ink underline underline-offset-2"
             >
               Crear cliente nuevo
             </button>
           ) : (
-            <Link href="/customers/new" className="font-medium text-brand-ink underline underline-offset-2">
+            <Link
+              href={`/customers/new?q=${encodeURIComponent(term)}`}
+              className="font-medium text-brand-ink underline underline-offset-2"
+            >
               Crear cliente nuevo
             </Link>
           )}

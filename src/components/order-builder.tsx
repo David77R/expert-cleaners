@@ -9,6 +9,7 @@ import { INPUT } from "@/components/form-kit";
 import { DeleteServiceButton } from "@/components/delete-service-button";
 import { Icon } from "@/components/icons";
 import { Modal } from "@/components/modal";
+import { TimeInput } from "@/components/time-input";
 import { QuickCustomerForm } from "@/components/quick-customer-form";
 import { ServiceIcon } from "@/components/service-icon";
 import { preparePhoto } from "@/lib/image-resize";
@@ -35,6 +36,7 @@ import {
   type PickerCustomer,
 } from "@/domain/appointment-form";
 import { formatMinutes } from "@/domain/appointment-rules";
+import { prefillFromSearch } from "@/domain/customer-form";
 import { formatDayLabel } from "@/domain/calendar-view";
 import { formatAddress, formatMoney } from "@/domain/invoice";
 import { addDays, confirmationMessage, whatsappHref } from "@/domain/order";
@@ -175,9 +177,9 @@ function ScheduleForm({
           <div className="grid grid-cols-2 gap-3">
             <label className={LABEL}>
               Hora
-              <input
-                type="time"
+              <TimeInput
                 name="pickupTime"
+                aria-label="Hora de recogida"
                 defaultValue={initial ? minutesToTimeInput(initial.pickup.startMin) : "09:00"}
                 className={FIELD}
               />
@@ -235,9 +237,9 @@ function ScheduleForm({
               <div className="grid grid-cols-2 gap-3">
                 <label className={LABEL}>
                   Hora
-                  <input
-                    type="time"
+                  <TimeInput
                     name="deliveryTime"
+                    aria-label="Hora de entrega"
                     defaultValue={initial?.delivery ? minutesToTimeInput(initial.delivery.startMin) : "09:00"}
                     className={FIELD}
                   />
@@ -361,6 +363,8 @@ export function OrderBuilder({
   const [notes, setNotes] = useState("");
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [modal, setModal] = useState<"customer" | "schedule" | null>(null);
+  const [customerSeed, setCustomerSeed] = useState("");
+  const [openGroups, setOpenGroups] = useState<string[]>([]);
   const [itemErrors, setItemErrors] = useState<ItemErrors>({});
   const [message, setMessage] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -370,6 +374,10 @@ export function OrderBuilder({
   const byId = new Map(services.map((service) => [service.id, service]));
   const shownCategories = filters.length === 0 ? categories : categories.filter((name) => filters.includes(name));
   const photoCount = lines.reduce((sum, line) => sum + line.photos.length, 0);
+  const groups = [...new Set(lines.map((line) => line.serviceId))].map((serviceId) => ({
+    serviceId,
+    units: lines.flatMap((line, index) => (line.serviceId === serviceId ? [{ line, index }] : [])),
+  }));
 
   function toggleFilter(name: string | null) {
     if (name === null) return setFilters([]);
@@ -390,19 +398,144 @@ export function OrderBuilder({
 
   function addService(service: FormService) {
     const hasRequired = fieldsForService(service).some((field) => field.required);
-    setLines((current) => [
-      ...current.map((line) => ({ ...line, open: false })),
-      {
-        uid: current.reduce((max, line) => Math.max(max, line.uid), 0) + 1,
+    setLines((current) => {
+      const last = current.map((line) => line.serviceId).lastIndexOf(service.id);
+      const line: Line = {
+        uid: current.reduce((max, item) => Math.max(max, item.uid), 0) + 1,
         serviceId: service.id,
-        price: centsToDollars(service.basePriceCents),
-        specs: {},
+        price: last >= 0 ? current[last].price : centsToDollars(service.basePriceCents),
+        specs: last >= 0 ? { ...current[last].specs } : {},
         details: {},
         photos: [],
-        open: hasRequired,
-      },
-    ]);
+        open: hasRequired && last < 0,
+      };
+      const closed = current.map((item) => ({ ...item, open: false }));
+      return last < 0 ? [...closed, line] : [...closed.slice(0, last + 1), line, ...closed.slice(last + 1)];
+    });
     setDone(null);
+  }
+
+  function renderUnit(line: Line, index: number, expanded: boolean) {
+    const service = byId.get(line.serviceId);
+    if (!service) return null;
+    const fields = fieldsForService(service);
+    const priceKey = itemKey(index, "price");
+    return (
+      <>
+        {!expanded && (line.photos.length > 0 || Object.values(line.details).some(Boolean)) && (
+          <div className="flex flex-col gap-1.5 px-2.5 pb-2">
+            <span className="flex flex-wrap items-center gap-1.5 text-[11px] text-soft">
+              {line.details.color && (
+                <span className="flex items-center gap-1 rounded-full bg-paper px-2 py-0.5">
+                  {swatchFor(line.details.color) && (
+                    <span
+                      className="h-2.5 w-2.5 rounded-full border border-ink/20"
+                      style={{ backgroundColor: swatchFor(line.details.color) ?? undefined }}
+                    />
+                  )}
+                  {line.details.color}
+                </span>
+              )}
+              {line.details.size && <span className="rounded-full bg-paper px-2 py-0.5">{line.details.size}</span>}
+              {line.details.dimensions && (
+                <span className="rounded-full bg-paper px-2 py-0.5">{line.details.dimensions}</span>
+              )}
+              {line.details.notes && (
+                <span className="max-w-full truncate rounded-full bg-paper px-2 py-0.5">{line.details.notes}</span>
+              )}
+            </span>
+            <TicketPhotoStrip photos={line.photos} />
+          </div>
+        )}
+        {expanded && (
+          <div className="flex flex-col gap-3 border-t border-hair px-2.5 py-2.5">
+            {fields.length > 0 && (
+              <div className="grid grid-cols-2 gap-2">
+                {fields.map((field) => {
+                  const key = itemSpecKey(index, field.key);
+                  const value = line.specs[field.key] ?? "";
+                  const set = (next: string) => updateLine(line.uid, { specs: { ...line.specs, [field.key]: next } });
+                  return (
+                    <label key={field.key} className={LABEL}>
+                      <span>
+                        {field.label}
+                        {field.required && <span className="text-attention"> *</span>}
+                      </span>
+                      {field.type === "select" ? (
+                        <select
+                          value={value}
+                          onChange={(event) => set(event.target.value)}
+                          aria-invalid={Boolean(itemErrors[key])}
+                          className={FIELD}
+                        >
+                          <option value="">Elige</option>
+                          {(field.options ?? []).map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          min={0}
+                          step="any"
+                          value={value}
+                          onChange={(event) => set(event.target.value)}
+                          aria-invalid={Boolean(itemErrors[key])}
+                          className={FIELD}
+                        />
+                      )}
+                      {itemErrors[key] && <span className="text-attention">{itemErrors[key]}</span>}
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+            <TicketLineExtras
+              details={line.details}
+              photos={line.photos}
+              photoRoom={MAX_PHOTOS_PER_APPOINTMENT - photoCount}
+              onDetail={(key, value) => setDetail(line.uid, key, value)}
+              onAddPhotos={(files) => addPhotos(line.uid, files)}
+              onRemovePhoto={(key) => removePhoto(line.uid, key)}
+            />
+          </div>
+        )}
+        {itemErrors[priceKey] && <p className="px-2.5 pb-2 text-xs text-attention">{itemErrors[priceKey]}</p>}
+      </>
+    );
+  }
+
+  function toggleGroup(serviceId: string) {
+    setOpenGroups((current) =>
+      current.includes(serviceId) ? current.filter((id) => id !== serviceId) : [...current, serviceId],
+    );
+  }
+
+  function setGroupPrice(serviceId: string, price: string) {
+    setLines((current) => current.map((line) => (line.serviceId === serviceId ? { ...line, price } : line)));
+  }
+
+  function removeGroup(serviceId: string) {
+    lines
+      .filter((line) => line.serviceId === serviceId)
+      .forEach((line) => line.photos.forEach((photo) => URL.revokeObjectURL(photo.url)));
+    setLines((current) => current.filter((line) => line.serviceId !== serviceId));
+    setItemErrors({});
+  }
+
+  function copyFirstToAll(serviceId: string) {
+    setLines((current) => {
+      const first = current.find((line) => line.serviceId === serviceId);
+      if (!first) return current;
+      return current.map((line) =>
+        line.serviceId === serviceId && line.uid !== first.uid
+          ? { ...line, price: first.price, specs: { ...first.specs }, details: { ...first.details } }
+          : line,
+      );
+    });
   }
 
   function updateLine(uid: number, patch: Partial<Line>) {
@@ -712,7 +845,10 @@ export function OrderBuilder({
                 {!customer && (
                   <button
                     type="button"
-                    onClick={() => setModal("customer")}
+                    onClick={() => {
+                      setCustomerSeed("");
+                      setModal("customer");
+                    }}
                     className="flex h-8 w-8 items-center justify-center rounded-md bg-brand text-white hover:opacity-90"
                     aria-label="Crear cliente nuevo"
                     title="Crear cliente nuevo"
@@ -728,7 +864,10 @@ export function OrderBuilder({
                   setCustomer(null);
                   setAddressId("");
                 }}
-                onCreateNew={() => setModal("customer")}
+                onCreateNew={(term) => {
+                  setCustomerSeed(term);
+                  setModal("customer");
+                }}
               />
               {customer && customer.addresses.length > 1 && (
                 <div role="radiogroup" aria-label="Dirección del servicio" className="flex flex-col gap-1.5">
@@ -764,22 +903,31 @@ export function OrderBuilder({
                 </p>
               ) : (
                 <ul className="flex flex-col gap-2">
-                  {lines.map((line, index) => {
-                    const service = byId.get(line.serviceId);
+                  {groups.map(({ serviceId, units }) => {
+                    const service = byId.get(serviceId);
                     if (!service) return null;
-                    const fields = fieldsForService(service);
-                    const priceKey = itemKey(index, "price");
-                    const lineHasError = Object.keys(itemErrors).some((key) => key.startsWith(`items.${index}.`));
+                    const count = units.length;
+                    const prices = [...new Set(units.map(({ line }) => line.price))];
+                    const subtotal = units.reduce((sum, { line }) => sum + lineCents(line, service), 0);
+                    const groupHasError = units.some(({ index }) =>
+                      Object.keys(itemErrors).some((key) => key.startsWith(`items.${index}.`)),
+                    );
+                    const groupOpen =
+                      groupHasError || (count === 1 ? units[0].line.open : openGroups.includes(serviceId));
                     return (
                       <li
-                        key={line.uid}
-                        className={`rounded-md border ${lineHasError ? "border-attention" : "border-hair"} bg-canvas/40`}
+                        key={serviceId}
+                        className={`rounded-md border ${groupHasError ? "border-attention" : "border-hair"} bg-canvas/40`}
                       >
                         <div className="flex items-center gap-2 px-2.5 py-2">
                           <button
                             type="button"
-                            onClick={() => updateLine(line.uid, { open: !line.open })}
-                            aria-expanded={line.open}
+                            onClick={() =>
+                              count === 1
+                                ? updateLine(units[0].line.uid, { open: !units[0].line.open })
+                                : toggleGroup(serviceId)
+                            }
+                            aria-expanded={groupOpen}
                             className="flex min-w-0 flex-1 items-center gap-2 text-left"
                           >
                             <ServiceIcon
@@ -787,123 +935,131 @@ export function OrderBuilder({
                               size={20}
                               className="shrink-0 text-brand-ink"
                             />
-                            <span className="truncate text-sm font-medium">{service.name}</span>
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-medium">
+                                {service.name}
+                                {count > 1 && <span className="font-display ml-1.5 text-brand-ink">x{count}</span>}
+                              </span>
+                              {count > 1 && (
+                                <span className="block text-[11px] tabular-nums text-soft">
+                                  Subtotal {formatMoney(subtotal)}
+                                </span>
+                              )}
+                            </span>
                             <Icon
                               name="down"
                               size={14}
-                              className={`shrink-0 text-muted transition-transform ${line.open ? "rotate-180" : ""}`}
+                              className={`shrink-0 text-muted transition-transform ${groupOpen ? "rotate-180" : ""}`}
                             />
                           </button>
-                          <span className="relative w-24 shrink-0">
-                            <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted">
+                          <span className="flex shrink-0 items-center rounded-md border border-hair bg-paper">
+                            <button
+                              type="button"
+                              onClick={() => removeLine(units[units.length - 1].line.uid)}
+                              aria-label={`Quitar un ${service.name}`}
+                              className="flex h-7 w-6 items-center justify-center text-soft hover:text-ink"
+                            >
+                              −
+                            </button>
+                            <span className="w-5 text-center text-xs font-semibold tabular-nums">{count}</span>
+                            <button
+                              type="button"
+                              onClick={() => addService(service)}
+                              aria-label={`Agregar otro ${service.name}`}
+                              className="flex h-7 w-6 items-center justify-center text-soft hover:text-ink"
+                            >
+                              +
+                            </button>
+                          </span>
+                          <span className="relative w-20 shrink-0">
+                            <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted">
                               $
                             </span>
                             <input
-                              aria-label={`Precio de ${service.name}`}
+                              aria-label={count > 1 ? `Precio de cada ${service.name}` : `Precio de ${service.name}`}
+                              title={count > 1 ? "Precio de cada uno" : undefined}
                               inputMode="decimal"
-                              value={line.price}
-                              onChange={(event) => updateLine(line.uid, { price: event.target.value })}
-                              aria-invalid={Boolean(itemErrors[priceKey])}
-                              className="w-full rounded-md border border-hair bg-paper py-1.5 pl-5 pr-2 text-right text-sm tabular-nums focus:border-brand focus:outline-none aria-[invalid=true]:border-attention"
+                              value={prices.length === 1 ? prices[0] : ""}
+                              placeholder={prices.length === 1 ? undefined : "varios"}
+                              onChange={(event) => setGroupPrice(serviceId, event.target.value)}
+                              aria-invalid={units.some(({ index }) => Boolean(itemErrors[itemKey(index, "price")]))}
+                              className="w-full rounded-md border border-hair bg-paper py-1.5 pl-4 pr-1.5 text-right text-sm tabular-nums focus:border-brand focus:outline-none aria-[invalid=true]:border-attention"
                             />
                           </span>
                           <button
                             type="button"
-                            onClick={() => removeLine(line.uid)}
-                            aria-label={`Quitar ${service.name}`}
+                            onClick={() => removeGroup(serviceId)}
+                            aria-label={count > 1 ? `Quitar todos los ${service.name}` : `Quitar ${service.name}`}
                             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted hover:bg-attention-soft hover:text-attention"
                           >
                             <Icon name="close" size={14} />
                           </button>
                         </div>
-                        {!line.open && (line.photos.length > 0 || Object.values(line.details).some(Boolean)) && (
-                          <div className="flex flex-col gap-1.5 px-2.5 pb-2">
-                            <span className="flex flex-wrap items-center gap-1.5 text-[11px] text-soft">
-                              {line.details.color && (
-                                <span className="flex items-center gap-1 rounded-full bg-paper px-2 py-0.5">
-                                  {swatchFor(line.details.color) && (
-                                    <span
-                                      className="h-2.5 w-2.5 rounded-full border border-ink/20"
-                                      style={{ backgroundColor: swatchFor(line.details.color) ?? undefined }}
-                                    />
-                                  )}
-                                  {line.details.color}
-                                </span>
-                              )}
-                              {line.details.size && (
-                                <span className="rounded-full bg-paper px-2 py-0.5">{line.details.size}</span>
-                              )}
-                              {line.details.dimensions && (
-                                <span className="rounded-full bg-paper px-2 py-0.5">{line.details.dimensions}</span>
-                              )}
-                              {line.details.notes && (
-                                <span className="max-w-full truncate rounded-full bg-paper px-2 py-0.5">
-                                  {line.details.notes}
-                                </span>
-                              )}
-                            </span>
-                            <TicketPhotoStrip photos={line.photos} />
-                          </div>
-                        )}
-                        {line.open && (
-                          <div className="flex flex-col gap-3 border-t border-hair px-2.5 py-2.5">
-                            {fields.length > 0 && (
-                              <div className="grid grid-cols-2 gap-2">
-                                {fields.map((field) => {
-                                  const key = itemSpecKey(index, field.key);
-                                  const value = line.specs[field.key] ?? "";
-                                  const set = (next: string) =>
-                                    updateLine(line.uid, { specs: { ...line.specs, [field.key]: next } });
-                                  return (
-                                    <label key={field.key} className={LABEL}>
-                                      <span>
-                                        {field.label}
-                                        {field.required && <span className="text-attention"> *</span>}
+                        {groupOpen && count === 1 && renderUnit(units[0].line, units[0].index, true)}
+                        {!groupOpen && count === 1 && renderUnit(units[0].line, units[0].index, false)}
+                        {groupOpen && count > 1 && (
+                          <div className="flex flex-col gap-1.5 border-t border-hair px-2.5 py-2.5">
+                            <button
+                              type="button"
+                              onClick={() => copyFirstToAll(serviceId)}
+                              className="w-fit rounded-full bg-brand-soft px-3 py-1 text-[11px] font-semibold text-brand-ink hover:bg-brand hover:text-white"
+                            >
+                              Copiar datos del #1 a todos
+                            </button>
+                            <ul className="flex flex-col gap-1.5">
+                              {units.map(({ line, index }, position) => (
+                                <li key={line.uid} className="rounded-md border border-hair bg-paper">
+                                  <div className="flex items-center gap-2 px-2 py-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => updateLine(line.uid, { open: !line.open })}
+                                      aria-expanded={line.open}
+                                      className="flex min-w-0 flex-1 items-center gap-2 text-left text-xs"
+                                    >
+                                      <span className="font-semibold tabular-nums text-muted">#{position + 1}</span>
+                                      <span className="truncate text-soft">
+                                        {[line.details.color, line.details.size, line.details.dimensions]
+                                          .filter(Boolean)
+                                          .join(" · ") || "Sin detalles"}
                                       </span>
-                                      {field.type === "select" ? (
-                                        <select
-                                          value={value}
-                                          onChange={(event) => set(event.target.value)}
-                                          aria-invalid={Boolean(itemErrors[key])}
-                                          className={FIELD}
-                                        >
-                                          <option value="">Elige</option>
-                                          {(field.options ?? []).map((option) => (
-                                            <option key={option} value={option}>
-                                              {option}
-                                            </option>
-                                          ))}
-                                        </select>
-                                      ) : (
-                                        <input
-                                          type="number"
-                                          inputMode="decimal"
-                                          min={0}
-                                          step="any"
-                                          value={value}
-                                          onChange={(event) => set(event.target.value)}
-                                          aria-invalid={Boolean(itemErrors[key])}
-                                          className={FIELD}
-                                        />
-                                      )}
-                                      {itemErrors[key] && <span className="text-attention">{itemErrors[key]}</span>}
-                                    </label>
-                                  );
-                                })}
-                              </div>
-                            )}
-                            <TicketLineExtras
-                              details={line.details}
-                              photos={line.photos}
-                              photoRoom={MAX_PHOTOS_PER_APPOINTMENT - photoCount}
-                              onDetail={(key, value) => setDetail(line.uid, key, value)}
-                              onAddPhotos={(files) => addPhotos(line.uid, files)}
-                              onRemovePhoto={(key) => removePhoto(line.uid, key)}
-                            />
+                                      <Icon
+                                        name="down"
+                                        size={12}
+                                        className={`shrink-0 text-muted transition-transform ${line.open ? "rotate-180" : ""}`}
+                                      />
+                                    </button>
+                                    <span className="relative w-20 shrink-0">
+                                      <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted">
+                                        $
+                                      </span>
+                                      <input
+                                        aria-label={`Precio de ${service.name} #${position + 1}`}
+                                        inputMode="decimal"
+                                        value={line.price}
+                                        onChange={(event) => updateLine(line.uid, { price: event.target.value })}
+                                        aria-invalid={Boolean(itemErrors[itemKey(index, "price")])}
+                                        className="w-full rounded-md border border-hair bg-paper py-1 pl-4 pr-1.5 text-right text-xs tabular-nums focus:border-brand focus:outline-none aria-[invalid=true]:border-attention"
+                                      />
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => removeLine(line.uid)}
+                                      aria-label={`Quitar ${service.name} #${position + 1}`}
+                                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted hover:bg-attention-soft hover:text-attention"
+                                    >
+                                      <Icon name="close" size={12} />
+                                    </button>
+                                  </div>
+                                  {renderUnit(
+                                    line,
+                                    index,
+                                    line.open ||
+                                      Object.keys(itemErrors).some((key) => key.startsWith(`items.${index}.`)),
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
                           </div>
-                        )}
-                        {itemErrors[priceKey] && (
-                          <p className="px-2.5 pb-2 text-xs text-attention">{itemErrors[priceKey]}</p>
                         )}
                       </li>
                     );
@@ -976,6 +1132,7 @@ export function OrderBuilder({
       {modal === "customer" && (
         <Modal title="Nuevo cliente" onClose={() => setModal(null)} wide>
           <QuickCustomerForm
+            prefill={prefillFromSearch(customerSeed)}
             onCancel={() => setModal(null)}
             onCreated={(created, existing) => {
               chooseCustomer(created);

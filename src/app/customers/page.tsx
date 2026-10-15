@@ -106,7 +106,7 @@ export default async function CustomersPage({ searchParams }: PageProps<"/custom
             <p className="text-sm text-soft">Busca por nombre, teléfono, correo o código de cliente.</p>
           </div>
           <Link
-            href="/customers/new"
+            href={filters.q ? `/customers/new?q=${encodeURIComponent(filters.q)}` : "/customers/new"}
             className="flex items-center gap-2 rounded-md bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
           >
             <Icon name="plus" />
@@ -224,6 +224,14 @@ export default async function CustomersPage({ searchParams }: PageProps<"/custom
                 className="mt-2 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
               >
                 Crear el primer cliente
+              </Link>
+            )}
+            {filters.q && (
+              <Link
+                href={`/customers/new?q=${encodeURIComponent(filters.q)}`}
+                className="mt-2 rounded-md bg-brand px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+              >
+                Crear cliente con «{filters.q}»
               </Link>
             )}
           </div>
