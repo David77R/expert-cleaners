@@ -19,6 +19,7 @@ import { CalendarSummary } from "@/components/calendar-summary";
 import { CalendarToolbar } from "@/components/calendar-toolbar";
 import { DayGrid } from "@/components/day-grid";
 import { MapViewLoader } from "@/components/map-view-loader";
+import { appointmentNeedsPickup } from "@/domain/pickup";
 import { calendarHref } from "@/lib/calendar-links";
 import type { MapRouteDraft, MapServiceOption, MapStop, MapTechnicianOption } from "@/components/map-view";
 import { MonthView } from "@/components/month-view";
@@ -124,6 +125,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
       lat: a.address.lat as number,
       lng: a.address.lng as number,
       status: a.status,
+      rug: appointmentNeedsPickup(a),
       technicianId: a.technician.id,
       technicianName: a.technician.name,
       technicianColor: a.technician.color,

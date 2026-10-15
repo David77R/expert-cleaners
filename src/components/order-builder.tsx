@@ -39,6 +39,7 @@ import {
 } from "@/domain/appointment-form";
 import { formatMinutes } from "@/domain/appointment-rules";
 import { prefillFromSearch } from "@/domain/customer-form";
+import { needsPickup } from "@/domain/pickup";
 import { formatDayLabel } from "@/domain/calendar-view";
 import { formatAddress, formatMoney } from "@/domain/invoice";
 import { addDays, confirmationMessage, whatsappHref } from "@/domain/order";
@@ -93,6 +94,7 @@ function ScheduleForm({
   suggestedDuration,
   today,
   needsDestination,
+  pickupMode,
   onApply,
   onCancel,
 }: {
@@ -101,10 +103,13 @@ function ScheduleForm({
   suggestedDuration: number;
   today: string;
   needsDestination: boolean;
+  pickupMode: boolean;
   onApply: (schedule: Schedule) => void;
   onCancel: () => void;
 }) {
-  const [withDelivery, setWithDelivery] = useState(initial ? initial.delivery !== null : true);
+  const [wantsDelivery, setWithDelivery] = useState(initial ? initial.delivery !== null : true);
+  const withDelivery = pickupMode && wantsDelivery;
+  const visitWord = pickupMode ? "de la recogida" : "de la cita";
   const [error, setError] = useState<string | null>(null);
   const pickupDate = initial?.pickup.date ?? today;
   const defaultTech = initial?.pickup.technicianId ?? technicians[0]?.id ?? "";
@@ -121,7 +126,7 @@ function ScheduleForm({
       technicianId: text("pickupTech"),
     };
     if (!pickup.date || pickup.startMin < 0 || !pickup.technicianId) {
-      setError("Completa la fecha, la hora y el técnico de la recogida.");
+      setError(`Completa la fecha, la hora y el técnico ${visitWord}.`);
       return;
     }
     if (!Number.isInteger(pickup.durationMin) || pickup.durationMin < 0 || pickup.durationMin > 720) {
@@ -156,7 +161,7 @@ function ScheduleForm({
       setError("Completa la dirección de entrega.");
       return;
     }
-    onApply({ pickup, delivery, readyDate: text("readyDate"), destination });
+    onApply({ pickup, delivery, readyDate: pickupMode ? text("readyDate") : "", destination });
   }
 
   const techOptions = technicians.map((technician) => (
@@ -167,10 +172,18 @@ function ScheduleForm({
 
   return (
     <form onSubmit={apply} className="flex flex-col gap-5" noValidate>
-      <div className="grid gap-5 md:grid-cols-2">
+      <div className={`grid gap-5 ${pickupMode ? "md:grid-cols-2" : ""}`}>
         <fieldset className="flex flex-col gap-3 rounded-md border border-hair p-4">
           <legend className="flex items-center gap-2 px-1 text-sm font-semibold">
-            <ServiceIcon icon="truck" size={18} className="text-brand-ink" /> Recogida
+            {pickupMode ? (
+              <>
+                <ServiceIcon icon="truck" size={18} className="text-brand-ink" /> Recogida
+              </>
+            ) : (
+              <>
+                <Icon name="calendar" size={16} className="text-brand-ink" /> Cita
+              </>
+            )}
           </legend>
           <label className={LABEL}>
             Fecha
@@ -205,74 +218,78 @@ function ScheduleForm({
               {techOptions}
             </select>
           </label>
-          <label className={LABEL}>
-            Listo en (opcional)
-            <DateInput name="readyDate" clearable defaultValue={initial?.readyDate ?? ""} className={FIELD} />
-          </label>
-        </fieldset>
-
-        <fieldset className="flex flex-col gap-3 rounded-md border border-hair p-4">
-          <legend className="flex items-center gap-2 px-1 text-sm font-semibold">
-            <ServiceIcon icon="house" size={18} className="text-brand-ink" /> Entrega
-          </legend>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={withDelivery}
-              onChange={(event) => setWithDelivery(event.target.checked)}
-              className="h-4 w-4 accent-brand"
-            />
-            Programar la entrega ahora
-          </label>
-          {withDelivery ? (
-            <>
-              <label className={LABEL}>
-                Fecha
-                <DateInput
-                  name="deliveryDate"
-                  min={pickupDate}
-                  defaultValue={initial?.delivery?.date ?? addDays(pickupDate, 1)}
-                  className={FIELD}
-                />
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <label className={LABEL}>
-                  Hora
-                  <TimeInput
-                    name="deliveryTime"
-                    aria-label="Hora de entrega"
-                    defaultValue={initial?.delivery ? minutesToTimeInput(initial.delivery.startMin) : "09:00"}
-                    className={FIELD}
-                  />
-                </label>
-                <label className={LABEL}>
-                  Duración (min)
-                  <input
-                    type="number"
-                    name="deliveryDuration"
-                    min={0}
-                    max={720}
-                    step={1}
-                    defaultValue={initial?.delivery?.durationMin ?? 0}
-                    className={FIELD}
-                  />
-                </label>
-              </div>
-              <label className={LABEL}>
-                Técnico
-                <select
-                  name="deliveryTech"
-                  defaultValue={initial?.delivery?.technicianId ?? defaultTech}
-                  className={FIELD}
-                >
-                  {techOptions}
-                </select>
-              </label>
-            </>
-          ) : (
-            <p className="text-sm text-soft">Puedes programarla después desde la cita.</p>
+          {pickupMode && (
+            <label className={LABEL}>
+              Listo en (opcional)
+              <DateInput name="readyDate" clearable defaultValue={initial?.readyDate ?? ""} className={FIELD} />
+            </label>
           )}
         </fieldset>
+
+        {pickupMode && (
+          <fieldset className="flex flex-col gap-3 rounded-md border border-hair p-4">
+            <legend className="flex items-center gap-2 px-1 text-sm font-semibold">
+              <ServiceIcon icon="house" size={18} className="text-brand-ink" /> Entrega
+            </legend>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={wantsDelivery}
+                onChange={(event) => setWithDelivery(event.target.checked)}
+                className="h-4 w-4 accent-brand"
+              />
+              Programar la entrega ahora
+            </label>
+            {withDelivery ? (
+              <>
+                <label className={LABEL}>
+                  Fecha
+                  <DateInput
+                    name="deliveryDate"
+                    min={pickupDate}
+                    defaultValue={initial?.delivery?.date ?? addDays(pickupDate, 1)}
+                    className={FIELD}
+                  />
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className={LABEL}>
+                    Hora
+                    <TimeInput
+                      name="deliveryTime"
+                      aria-label="Hora de entrega"
+                      defaultValue={initial?.delivery ? minutesToTimeInput(initial.delivery.startMin) : "09:00"}
+                      className={FIELD}
+                    />
+                  </label>
+                  <label className={LABEL}>
+                    Duración (min)
+                    <input
+                      type="number"
+                      name="deliveryDuration"
+                      min={0}
+                      max={720}
+                      step={1}
+                      defaultValue={initial?.delivery?.durationMin ?? 0}
+                      className={FIELD}
+                    />
+                  </label>
+                </div>
+                <label className={LABEL}>
+                  Técnico
+                  <select
+                    name="deliveryTech"
+                    defaultValue={initial?.delivery?.technicianId ?? defaultTech}
+                    className={FIELD}
+                  >
+                    {techOptions}
+                  </select>
+                </label>
+              </>
+            ) : (
+              <p className="text-sm text-soft">Puedes programarla después desde la cita.</p>
+            )}
+          </fieldset>
+        )}
       </div>
 
       {needsDestination && (
@@ -390,6 +407,7 @@ export function OrderBuilder({
   }
   const totalCents = lines.reduce((sum, line) => sum + lineCents(line, byId.get(line.serviceId)), 0);
   const needsDestination = lines.some((line) => byId.get(line.serviceId)?.twoAddresses);
+  const pickupOrder = needsPickup(lines.map((line) => byId.get(line.serviceId)));
   const suggestedDuration = Math.min(
     720,
     Math.max(
@@ -656,10 +674,14 @@ export function OrderBuilder({
     }
     if (!customer) return setMessage("Elige o crea el cliente del pedido.");
     if (!addressId) return setMessage("Elige la dirección del cliente.");
-    if (!schedule) return setMessage("Programa la recogida con el botón del camión.");
+    if (!schedule) {
+      return setMessage(
+        pickupOrder ? "Programa la recogida con el botón del camión." : "Programa la fecha y hora de la cita.",
+      );
+    }
 
     const chosen = customer;
-    const plan = schedule;
+    const plan = pickupOrder ? schedule : { ...schedule, delivery: null, readyDate: "" };
     const sent = lines;
     const payload = {
       customerId: chosen.id,
@@ -706,6 +728,7 @@ export function OrderBuilder({
           code: result.code,
           pickup: plan.pickup,
           delivery: plan.delivery,
+          kind: pickupOrder ? "pickup" : "visit",
           items: summary,
           totalCents,
         }),
@@ -1138,20 +1161,29 @@ export function OrderBuilder({
                 schedule ? "border-brand/50 bg-brand-soft/40" : "border-dashed border-hair hover:bg-canvas"
               }`}
             >
-              <ServiceIcon icon="truck" size={22} className="shrink-0 text-brand-ink" />
+              {pickupOrder ? (
+                <ServiceIcon icon="truck" size={22} className="shrink-0 text-brand-ink" />
+              ) : (
+                <Icon name="calendar" size={20} className="shrink-0 text-brand-ink" />
+              )}
               {schedule ? (
                 <span className="min-w-0 leading-tight">
                   <span className="block font-medium">
-                    Recogida: {formatDayLabel(schedule.pickup.date)}, {formatMinutes(schedule.pickup.startMin)}
+                    {pickupOrder ? "Recogida" : "Cita"}: {formatDayLabel(schedule.pickup.date)},{" "}
+                    {formatMinutes(schedule.pickup.startMin)}
                   </span>
-                  <span className="block text-xs text-soft">
-                    {schedule.delivery
-                      ? `Entrega: ${formatDayLabel(schedule.delivery.date)}, ${formatMinutes(schedule.delivery.startMin)}`
-                      : "Entrega sin programar"}
-                  </span>
+                  {pickupOrder && (
+                    <span className="block text-xs text-soft">
+                      {schedule.delivery
+                        ? `Entrega: ${formatDayLabel(schedule.delivery.date)}, ${formatMinutes(schedule.delivery.startMin)}`
+                        : "Entrega sin programar"}
+                    </span>
+                  )}
                 </span>
               ) : (
-                <span className="font-medium text-soft">Programar recogida y entrega</span>
+                <span className="font-medium text-soft">
+                  {pickupOrder ? "Programar recogida y entrega (alfombras)" : "Programar fecha y hora de la cita"}
+                </span>
               )}
             </button>
 
@@ -1197,13 +1229,18 @@ export function OrderBuilder({
         </Modal>
       )}
       {modal === "schedule" && (
-        <Modal title="Recogida y entrega" onClose={() => setModal(null)} wide>
+        <Modal
+          title={pickupOrder ? "Recogida y entrega de alfombras" : "Programar la cita"}
+          onClose={() => setModal(null)}
+          wide
+        >
           <ScheduleForm
             technicians={technicians}
             initial={schedule}
             suggestedDuration={suggestedDuration}
             today={today}
             needsDestination={needsDestination}
+            pickupMode={pickupOrder}
             onCancel={() => setModal(null)}
             onApply={(next) => {
               setSchedule(next);

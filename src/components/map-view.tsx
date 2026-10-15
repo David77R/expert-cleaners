@@ -26,6 +26,7 @@ export type MapStop = {
   notes: string;
   kind?: "delivery";
   status?: string;
+  rug?: boolean;
 };
 
 export type MapTechnicianOption = { id: string; name: string; color: string };
@@ -484,6 +485,15 @@ export function MapView({
           >
             <Tooltip direction="top" offset={[0, -16]} opacity={1}>
               <div className="text-xs">
+                {(stop.rug || stop.kind === "delivery") && (
+                  <p
+                    className={`mb-1 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white ${
+                      stop.kind === "delivery" ? "bg-success" : "bg-indigo"
+                    }`}
+                  >
+                    {stop.kind === "delivery" ? "Alfombras · Entrega" : "Alfombras · Recogida"}
+                  </p>
+                )}
                 {stop.kind !== "delivery" && stop.status === "not_confirmed" && (
                   <p className="mb-1 rounded bg-warning px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
                     Sin confirmar
@@ -868,6 +878,11 @@ export function MapView({
                   )}
                 </p>
                 <p className="text-sm text-muted">{selectedStop.serviceName}</p>
+                {selectedStop.kind !== "delivery" && selectedStop.rug && (
+                  <p className="mt-1.5 w-fit rounded bg-indigo-soft px-2 py-0.5 text-xs font-semibold text-indigo">
+                    Alfombras: recogida, luego se programa la entrega
+                  </p>
+                )}
                 {selectedStop.kind !== "delivery" && selectedStop.status === "not_confirmed" && (
                   <p className="mt-1.5 flex w-fit items-center gap-1 rounded bg-warning-soft px-2 py-0.5 text-xs font-semibold text-warning">
                     Sin confirmar: llama al cliente para confirmar

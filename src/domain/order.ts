@@ -29,13 +29,14 @@ export function confirmationMessage(order: {
   code: string;
   pickup: OrderVisit;
   delivery?: OrderVisit | null;
+  kind?: "pickup" | "visit";
   items: readonly { name: string; priceCents: number }[];
   totalCents: number;
 }): string {
   const lines = [
     `Hola ${order.customerName.trim()}, le confirmamos su servicio con Expert Cleaners.`,
     "",
-    `Recogida: ${formatDayLabel(order.pickup.date)}, ${formatMinutes(order.pickup.startMin)}`,
+    `${order.kind === "visit" ? "Cita" : "Recogida"}: ${formatDayLabel(order.pickup.date)}, ${formatMinutes(order.pickup.startMin)}`,
   ];
   if (order.delivery) {
     lines.push(`Entrega: ${formatDayLabel(order.delivery.date)}, ${formatMinutes(order.delivery.startMin)}`);

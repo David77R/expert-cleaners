@@ -69,7 +69,7 @@ export function CalendarLegend({ technicians }: { technicians: CalendarTechnicia
 
       <div className="flex flex-col gap-2">
         <h2 className="font-display text-sm font-semibold">Cómo leer cada cita</h2>
-        <ul className="grid grid-cols-[repeat(auto-fill,minmax(19rem,1fr))] gap-2">
+        <ul className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-2">
           <Item
             title="Sin confirmar"
             text="Franja amarilla arriba. Llama al cliente para confirmar."
@@ -121,13 +121,35 @@ export function CalendarLegend({ technicians }: { technicians: CalendarTechnicia
             }
           />
           <Item
-            title="Entrega"
-            text="Borde punteado. Se ven al activar «Entregas»."
+            title="Cita estándar"
+            text="Sin franja: una sola visita, sin recogida ni entrega."
+            sample={
+              <Sample>
+                <Header />
+              </Sample>
+            }
+          />
+          <Item
+            title="Alfombras: recogida"
+            text="Franja morada. Solo las alfombras llevan recogida y entrega."
+            sample={
+              <Sample>
+                <span className="flex h-3 shrink-0 items-center whitespace-nowrap bg-indigo px-1 text-[6.5px] font-bold uppercase text-white">
+                  Recogida
+                </span>
+                <Header />
+              </Sample>
+            }
+          />
+          <Item
+            title="Alfombras: entrega"
+            text="Franja verde y borde punteado. Se ven al activar «Entregas»."
             sample={
               <Sample className="!border-2 border-dashed">
-                <Header>
-                  <span className="rounded-sm bg-white px-0.5 font-bold uppercase text-brand-ink">Entrega</span>
-                </Header>
+                <span className="flex h-3 shrink-0 items-center whitespace-nowrap bg-success px-1 text-[6.5px] font-bold uppercase text-white">
+                  Entrega
+                </span>
+                <Header />
               </Sample>
             }
           />

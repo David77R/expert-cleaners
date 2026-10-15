@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import { serviceBreakdown, serviceLabel } from "@/domain/appointment-items";
+import { appointmentNeedsPickup } from "@/domain/pickup";
 import { blocksOverlap, formatMinutes } from "@/domain/appointment-rules";
 import { formatDuration, formatRange, initialsOf, readableOn } from "@/domain/calendar-view";
 import { formatPhone } from "@/domain/customer-rules";
@@ -54,6 +55,7 @@ export function AppointmentTicket({
   const partners = conflicting ? conflictPartners(appointment, peers) : [];
   const dashed = delivery;
   const unconfirmed = !delivery && appointment.status === "not_confirmed";
+  const rugPickup = !delivery && appointmentNeedsPickup(appointment);
 
   const conflictHint = (
     <span className="flex flex-col gap-1">
@@ -84,6 +86,16 @@ export function AppointmentTicket({
       } ${className}`}
       style={{ ...style, backgroundColor: `${color}1f`, borderColor: conflicting ? undefined : `${color}99` }}
     >
+      {(rugPickup || delivery) && (
+        <span
+          className={`flex shrink-0 items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white ${
+            delivery ? "bg-success" : "bg-indigo"
+          }`}
+        >
+          <Icon name={delivery ? "home" : "truck"} size={11} />
+          {delivery ? "Alfombras · Entrega" : "Alfombras · Recogida"}
+        </span>
+      )}
       {unconfirmed && (
         <span className="flex shrink-0 items-center gap-1 bg-warning px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
           <Icon name="clock" size={11} />
@@ -105,11 +117,6 @@ export function AppointmentTicket({
           )}
         </span>
         <span className="flex shrink-0 items-center gap-1">
-          {delivery && (
-            <span className="rounded-[3px] bg-white/90 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-brand-ink">
-              Entrega
-            </span>
-          )}
           {!delivery && (appointment.address.lat == null || appointment.address.lng == null) && (
             <HoverHint
               hint={

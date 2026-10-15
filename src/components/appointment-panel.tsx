@@ -35,6 +35,8 @@ import { UnlocatedAddressAlert, isUnlocated } from "@/components/unlocated-addre
 import { updateAddressAction } from "@/app/customers/[id]/actions";
 import { TimeRangeField } from "@/components/time-range-fields";
 import { AppointmentDeliverySection } from "@/components/appointment-delivery";
+import { appointmentNeedsPickup } from "@/domain/pickup";
+import { hasDelivery } from "@/domain/delivery";
 import { Expandable, FIELD, Row, Section } from "@/components/panel-kit";
 import { PhotoGallery } from "@/components/photo-gallery";
 import { StatusBadge } from "@/components/status-badge";
@@ -419,7 +421,9 @@ export function AppointmentPanel({
           )}
         </Section>
 
-        <AppointmentDeliverySection appointment={appointment} technicians={technicians} nav={nav} />
+        {(appointmentNeedsPickup(appointment) || hasDelivery(appointment)) && (
+          <AppointmentDeliverySection appointment={appointment} technicians={technicians} nav={nav} />
+        )}
 
         <Section title="Notas de la cita">
           <ActionForm action={notesAction.bind(null, id)} submit="Guardar notas" pendingText="Guardando…">
