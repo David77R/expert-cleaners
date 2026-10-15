@@ -31,6 +31,8 @@ export function DragTicket({
   className,
   style,
   children,
+  startHour = START_HOUR,
+  endHour = END_HOUR,
 }: {
   appointmentId: string;
   code: string;
@@ -43,6 +45,8 @@ export function DragTicket({
   className?: string;
   style?: CSSProperties;
   children: ReactNode;
+  startHour?: number;
+  endHour?: number;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const session = useRef<{ cancel: () => void; stop: () => void } | null>(null);
@@ -93,11 +97,17 @@ export function DragTicket({
       pointerOffsetPx: clientY - lane.top,
       grabOffsetMin: grabMin,
       durationMin,
-      startHour: START_HOUR,
-      endHour: END_HOUR,
+      startHour,
+      endHour,
       hourPx: HOUR_PX,
     });
-    return { technicianId: lane.id, startMin: start, left: lane.left, width: lane.width, top: lane.top + toPx(start) };
+    return {
+      technicianId: lane.id,
+      startMin: start,
+      left: lane.left,
+      width: lane.width,
+      top: lane.top + toPx(start, startHour),
+    };
   }
 
   function onPointerDown(event: ReactPointerEvent<HTMLDivElement>) {

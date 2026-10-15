@@ -52,13 +52,18 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
   const allTechnicians = (await db.select().from(techniciansTable)).filter((t) => t.active);
   const requested = z.uuid().safeParse(first(params.tech));
   const tech = requested.success && allTechnicians.some((t) => t.id === requested.data) ? requested.data : null;
-  const visibleTechnicians = tech ? allTechnicians.filter((t) => t.id === tech) : allTechnicians;
   const nav = { view, date, tech, entregas };
 
   const data =
     view === "day" || mapa
       ? await getDay(db, date, tech ?? undefined)
       : await getRange(db, { ...viewRange(view, date), technicianId: tech ?? undefined });
+  const laneTechnicians = [...allTechnicians];
+  for (const appointment of data.appointments) {
+    if (appointment.status === "cancelled") continue;
+    if (!laneTechnicians.some((t) => t.id === appointment.technician.id)) laneTechnicians.push(appointment.technician);
+  }
+  const visibleTechnicians = tech ? laneTechnicians.filter((t) => t.id === tech) : laneTechnicians;
   const deliveryRange = view === "day" || mapa ? { from: date, to: date } : viewRange(view, date);
   const deliveryRows = await getDeliveries(
     db,

@@ -5,11 +5,8 @@ import { AppointmentTicket } from "@/components/appointment-ticket";
 import { DragTicket } from "@/components/drag-ticket";
 import { isDraggable } from "@/domain/drag-target";
 import { entryKey } from "@/domain/delivery";
-import { END_HOUR, HOUR_PX, START_HOUR, toPx } from "@/lib/day-grid";
+import { HOUR_PX, gridHours, toPx as baseToPx } from "@/lib/day-grid";
 import type { CalendarAppointment, CalendarNav, CalendarTechnician } from "@/components/calendar-types";
-
-const HOURS = Array.from({ length: END_HOUR - START_HOUR }, (_, index) => START_HOUR + index);
-const GRID_HEIGHT = HOURS.length * HOUR_PX;
 
 export function DayGrid({
   appointments,
@@ -27,8 +24,12 @@ export function DayGrid({
   nowMin: number | null;
 }) {
   const overlap = new Set(overlapIds);
+  const { startHour, endHour } = gridHours(appointments);
+  const hours = Array.from({ length: endHour - startHour }, (_, index) => startHour + index);
+  const gridHeight = hours.length * HOUR_PX;
+  const toPx = (min: number) => baseToPx(min, startHour);
   const laneNames = technicians.map((technician) => ({ id: technician.id, name: technician.name }));
-  const showNow = nowMin !== null && nowMin >= START_HOUR * 60 && nowMin <= END_HOUR * 60;
+  const showNow = nowMin !== null && nowMin >= startHour * 60 && nowMin <= endHour * 60;
 
   return (
     <div className="overflow-x-auto rounded-md border border-hair bg-paper">
@@ -65,14 +66,15 @@ export function DayGrid({
           );
         })}
 
-        <div className="relative" style={{ height: GRID_HEIGHT }}>
-          {HOURS.slice(1)
+        <div className="relative" style={{ height: gridHeight }}>
+          {hours
+            .slice(1)
             .filter((hour) => !showNow || Math.abs(nowMin - hour * 60) >= 15)
             .map((hour) => (
               <span
                 key={hour}
                 className="font-display absolute right-3 -translate-y-1/2 whitespace-nowrap text-xs font-medium tabular-nums text-muted"
-                style={{ top: (hour - START_HOUR) * HOUR_PX }}
+                style={{ top: (hour - startHour) * HOUR_PX }}
               >
                 {formatMinutes(hour * 60)}
               </span>
@@ -90,13 +92,13 @@ export function DayGrid({
         {technicians.map((technician) => {
           const own = appointments.filter((a) => a.technicianId === technician.id);
           const layout = layoutSlots(own.map((a) => ({ ...a, id: entryKey(a) })));
-          const off = offShiftRanges(technician, nav.date, START_HOUR * 60, END_HOUR * 60);
+          const off = offShiftRanges(technician, nav.date, startHour * 60, endHour * 60);
           return (
             <div
               key={technician.id}
               data-lane={technician.id}
               className="relative border-l border-hair"
-              style={{ height: GRID_HEIGHT }}
+              style={{ height: gridHeight }}
             >
               {off.map(([start, end]) => (
                 <div
@@ -106,15 +108,15 @@ export function DayGrid({
                   style={{ top: toPx(start), height: toPx(end) - toPx(start) }}
                 />
               ))}
-              {HOURS.map((hour) => (
+              {hours.map((hour) => (
                 <div key={hour}>
                   <div
                     className="absolute inset-x-0 border-t border-hair"
-                    style={{ top: (hour - START_HOUR) * HOUR_PX }}
+                    style={{ top: (hour - startHour) * HOUR_PX }}
                   />
                   <div
                     className="absolute inset-x-0 border-t border-dotted border-hair/80"
-                    style={{ top: (hour - START_HOUR) * HOUR_PX + HOUR_PX / 2 }}
+                    style={{ top: (hour - startHour) * HOUR_PX + HOUR_PX / 2 }}
                   />
                 </div>
               ))}
@@ -134,6 +136,8 @@ export function DayGrid({
                     technicianId={appointment.technicianId}
                     technicians={laneNames}
                     draggable={appointment.kind !== "delivery" && isDraggable(appointment.status)}
+                    startHour={startHour}
+                    endHour={endHour}
                     className="absolute z-10"
                     style={{
                       top: toPx(appointment.startMin) + 1,
