@@ -8,6 +8,7 @@ import {
   type CalendarView,
 } from "@/domain/calendar-view";
 import { calendarHref } from "@/lib/calendar-links";
+import { DateJump } from "@/components/date-jump";
 import { Icon } from "@/components/icons";
 import type { CalendarTechnician } from "@/components/calendar-types";
 
@@ -34,8 +35,8 @@ export function CalendarToolbar({
   deliveryCount: number;
 }) {
   const heading = viewHeading(view, date);
-  const previous = calendarHref({ view, date: shiftAnchor(view, date, -1), tech, entregas });
-  const next = calendarHref({ view, date: shiftAnchor(view, date, 1), tech, entregas });
+  const previous = calendarHref({ view, date: shiftAnchor(view, date, -1), tech, mapa, entregas });
+  const next = calendarHref({ view, date: shiftAnchor(view, date, 1), tech, mapa, entregas });
   const toggleHref = calendarHref({ view, date, tech, mapa, entregas: !entregas });
   const atToday = view === "day" ? date === today : false;
   const newAppointmentParams = new URLSearchParams({ date });
@@ -55,7 +56,7 @@ export function CalendarToolbar({
               <Icon name="left" />
             </Link>
             <Link
-              href={calendarHref({ view, date: today, tech, entregas })}
+              href={calendarHref({ view, date: today, tech, mapa, entregas })}
               aria-current={atToday ? "date" : undefined}
               className={`flex h-10 items-center border-x border-hair px-4 text-sm font-semibold transition-colors ${
                 atToday ? "bg-brand-soft text-brand-ink" : "text-ink hover:bg-canvas"
@@ -70,6 +71,9 @@ export function CalendarToolbar({
             >
               <Icon name="right" />
             </Link>
+            <span className="border-l border-hair">
+              <DateJump view={view} date={date} tech={tech} mapa={mapa} entregas={entregas} />
+            </span>
           </div>
 
           <h1 className="flex flex-col leading-none">

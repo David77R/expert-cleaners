@@ -1,9 +1,10 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import type { Actor } from "@/db/schema";
 import { WEEKDAY_LONG, initialsOf, viewHeading, weekdayIndex } from "@/domain/calendar-view";
 import { todayIn } from "@/domain/date-rules";
 import { logout } from "@/app/login/actions";
+import { AlertsBell, BellLink } from "@/components/alerts-bell";
 import { Icon, type IconName } from "@/components/icons";
 
 type Section =
@@ -15,7 +16,6 @@ const LINKS: { key: Section; href: string; label: string; icon: IconName; adminO
   { key: "customers", href: "/customers", label: "Clientes", icon: "users" },
   { key: "services", href: "/services", label: "Servicios", icon: "tag", adminOnly: true },
   { key: "calendar", href: "/calendar", label: "Calendario", icon: "calendar" },
-  { key: "alerts", href: "/alerts", label: "Alertas", icon: "alert" },
   { key: "agents", href: "/agents", label: "Agentes", icon: "agent", adminOnly: true },
   { key: "technicians", href: "/technicians", label: "Técnicos", icon: "wrench", adminOnly: true },
   { key: "reports", href: "/reports", label: "Reportes", icon: "report" },
@@ -140,6 +140,9 @@ export function AppShell({ active, actor, children }: { active: Section; actor: 
             );
           })}
         </nav>
+        <Suspense fallback={<BellLink count={null} active={active === "alerts"} tone="dark" />}>
+          <AlertsBell active={active === "alerts"} tone="dark" />
+        </Suspense>
         <form action={logout}>
           <button type="submit" aria-label="Cerrar sesión" className="rounded-md p-2 text-rail-text hover:text-white">
             <Icon name="logout" />
@@ -147,7 +150,14 @@ export function AppShell({ active, actor, children }: { active: Section; actor: 
         </form>
       </header>
 
-      <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="sticky top-0 z-30 hidden items-center justify-end gap-3 border-b border-hair bg-paper/85 px-8 py-2 backdrop-blur lg:flex">
+          <Suspense fallback={<BellLink count={null} active={active === "alerts"} tone="light" />}>
+            <AlertsBell active={active === "alerts"} tone="light" />
+          </Suspense>
+        </div>
+        {children}
+      </div>
     </div>
   );
 }

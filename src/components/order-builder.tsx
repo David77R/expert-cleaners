@@ -656,7 +656,7 @@ export function OrderBuilder({
         )}
       </section>
 
-      <aside className="flex flex-col gap-4 self-start rounded-md border border-hair bg-paper p-4 lg:sticky lg:top-4">
+      <aside className="flex flex-col gap-4 self-start rounded-md border border-hair bg-paper p-4 lg:sticky lg:top-20">
         {done ? (
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-1 rounded-md bg-success-soft px-4 py-3 text-success">
