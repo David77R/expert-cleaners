@@ -52,7 +52,8 @@ export function AppointmentTicket({
   const shownLines = detail === "full" ? lines.slice(0, 4) : lines.slice(0, 1);
   const hiddenLines = lines.length - shownLines.length;
   const partners = conflicting ? conflictPartners(appointment, peers) : [];
-  const dashed = delivery || appointment.status === "not_confirmed";
+  const dashed = delivery;
+  const unconfirmed = !delivery && appointment.status === "not_confirmed";
 
   const conflictHint = (
     <span className="flex flex-col gap-1">
@@ -78,11 +79,17 @@ export function AppointmentTicket({
       aria-current={selected ? "true" : undefined}
       className={`group relative flex flex-col overflow-hidden rounded-md text-xs shadow-[0_1px_2px_rgba(18,24,31,0.08)] transition-shadow hover:shadow-md ${
         dashed ? "border-2 border-dashed" : "border"
-      } ${conflicting ? "!border-2 !border-attention" : ""} ${cancelled ? "opacity-60" : ""} ${
+      } ${unconfirmed ? "!border-2 !border-warning" : ""} ${conflicting ? "!border-2 !border-attention" : ""} ${cancelled ? "opacity-60" : ""} ${
         selected ? "ring-2 ring-ink ring-offset-1" : ""
       } ${className}`}
       style={{ ...style, backgroundColor: `${color}1f`, borderColor: conflicting ? undefined : `${color}99` }}
     >
+      {unconfirmed && (
+        <span className="flex shrink-0 items-center gap-1 bg-warning px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
+          <Icon name="clock" size={11} />
+          Sin confirmar
+        </span>
+      )}
       <span
         className="flex shrink-0 items-center justify-between gap-1.5 px-2 py-1"
         style={{ backgroundColor: color, color: ink }}

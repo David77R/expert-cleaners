@@ -25,6 +25,7 @@ export type MapStop = {
   address: string;
   notes: string;
   kind?: "delivery";
+  status?: string;
 };
 
 export type MapTechnicianOption = { id: string; name: string; color: string };
@@ -43,13 +44,22 @@ const DRAFT_ROUTE_COLOR = "#7c3aed";
 const DEFAULT_CENTER: [number, number] = [25.7617, -80.1918]; // Miami-Dade
 const DEFAULT_ZOOM = 10;
 
-function numberedIcon(order: number, color: string, draggable = false, delivery = false): L.DivIcon {
+function numberedIcon(
+  order: number,
+  color: string,
+  draggable = false,
+  delivery = false,
+  unconfirmed = false,
+): L.DivIcon {
   const textColor = readableOn(color);
   const border = draggable ? "border:2px dashed #fff;cursor:grab" : "border:2px solid #fff;cursor:pointer";
   const shape = delivery ? "rounded-[5px] rotate-45" : "rounded-full";
   const label = delivery ? `<span class="-rotate-45">${order}</span>` : `${order}`;
+  const flag = unconfirmed
+    ? `<span title="Sin confirmar" style="background:var(--warning);color:#fff;border:2px solid #fff" class="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-black leading-none shadow">!</span>`
+    : "";
   return L.divIcon({
-    html: `<div style="background:${color};color:${textColor};${border}" class="flex h-7 w-7 items-center justify-center ${shape} text-[11px] font-bold shadow-md">${label}</div>`,
+    html: `<div class="relative"><div style="background:${color};color:${textColor};${border}" class="flex h-7 w-7 items-center justify-center ${shape} text-[11px] font-bold shadow-md ${unconfirmed ? "ring-2 ring-warning ring-offset-1" : ""}">${label}</div>${flag}</div>`,
     className: "",
     iconSize: [28, 28],
     iconAnchor: [14, 14],
@@ -459,7 +469,13 @@ export function MapView({
           <Marker
             key={stop.id}
             position={positions.get(stop.id) ?? [stop.lat, stop.lng]}
-            icon={numberedIcon(index + 1, group.color, isEditingThis, stop.kind === "delivery")}
+            icon={numberedIcon(
+              index + 1,
+              group.color,
+              isEditingThis,
+              stop.kind === "delivery",
+              stop.kind !== "delivery" && stop.status === "not_confirmed",
+            )}
             draggable={isEditingThis}
             eventHandlers={{
               click: () => setSelectedStop(stop),
@@ -468,6 +484,11 @@ export function MapView({
           >
             <Tooltip direction="top" offset={[0, -16]} opacity={1}>
               <div className="text-xs">
+                {stop.kind !== "delivery" && stop.status === "not_confirmed" && (
+                  <p className="mb-1 rounded bg-warning px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                    Sin confirmar
+                  </p>
+                )}
                 <p className="font-semibold">
                   {stop.kind === "delivery" && "Entrega · "}
                   {stop.code} — {stop.customerName}
@@ -847,6 +868,11 @@ export function MapView({
                   )}
                 </p>
                 <p className="text-sm text-muted">{selectedStop.serviceName}</p>
+                {selectedStop.kind !== "delivery" && selectedStop.status === "not_confirmed" && (
+                  <p className="mt-1.5 flex w-fit items-center gap-1 rounded bg-warning-soft px-2 py-0.5 text-xs font-semibold text-warning">
+                    Sin confirmar: llama al cliente para confirmar
+                  </p>
+                )}
               </div>
               <button
                 type="button"

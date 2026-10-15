@@ -123,6 +123,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
       customerName: `${a.customer.firstName} ${a.customer.lastName}`,
       lat: a.address.lat as number,
       lng: a.address.lng as number,
+      status: a.status,
       technicianId: a.technician.id,
       technicianName: a.technician.name,
       technicianColor: a.technician.color,
@@ -210,7 +211,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
           entregas={entregas}
           deliveryCount={deliveryEntries.length}
         />
-        <CalendarSummary summary={summaryForDisplay} />
+        <CalendarSummary summary={summaryForDisplay} showConflicts={!mapa} />
 
         {mapa && (
           <>
