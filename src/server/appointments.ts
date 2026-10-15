@@ -36,6 +36,7 @@ import {
 import { formatAddress, formatMoney } from "@/domain/invoice";
 import { hasDelivery } from "@/domain/delivery";
 import { geocodeIfNeeded } from "@/server/geocoding";
+import { isPickupService } from "@/domain/pickup";
 
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -227,7 +228,7 @@ export async function createAppointment(db: Db, actor: Actor, raw: CreateAppoint
     if (twoAddresses && !input.destinationAddress) {
       throw new DomainError("destination_required", "Este servicio requiere dirección de entrega");
     }
-    if (!twoAddresses && input.destinationAddress) {
+    if (!twoAddresses && !items.some((item) => isPickupService(item.service)) && input.destinationAddress) {
       throw new DomainError("destination_not_allowed", "Este servicio no usa dirección de entrega");
     }
 
@@ -423,13 +424,17 @@ export async function advanceInvoice(db: Db, actor: Actor, id: string): Promise<
 }
 
 export async function setDestinationAddress(db: Db, actor: Actor, id: string, raw: unknown): Promise<Mutation> {
-  const parsed = addressSnapshotSchema.parse(raw);
-  const address = await geocodeIfNeeded(parsed);
+  const parsed = raw === null ? null : addressSnapshotSchema.parse(raw);
+  const address = parsed ? await geocodeIfNeeded(parsed) : null;
   return db.transaction(async (tx) => {
     const current = await load(tx, id);
     const items = await currentItems(tx, current);
-    if (!items.some((item) => item.service.twoAddresses)) {
+    const twoAddresses = items.some((item) => item.service.twoAddresses);
+    if (!twoAddresses && !items.some((item) => isPickupService(item.service))) {
       throw new DomainError("destination_not_allowed", "Este servicio no usa dirección de entrega");
+    }
+    if (!address && twoAddresses) {
+      throw new DomainError("destination_required", "Este servicio requiere dirección de entrega");
     }
     const updated = await persist(tx, actor, current, { destinationAddress: address }, [
       { field: "destination_address", from: JSON.stringify(current.destinationAddress), to: JSON.stringify(address) },
@@ -497,6 +502,8 @@ export async function updateAppointmentItems(db: Db, actor: Actor, id: string, r
       if (!destinationAddress) {
         throw new DomainError("destination_required", "Agrega la dirección de entrega para este servicio");
       }
+    } else if (items.some((item) => isPickupService(item.service))) {
+      destinationAddress = destination ?? destinationAddress;
     } else {
       destinationAddress = null;
     }

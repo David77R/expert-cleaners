@@ -265,6 +265,10 @@ export function AppointmentPanel({
           </Section>
         )}
 
+        {(appointmentNeedsPickup(appointment) || hasDelivery(appointment)) && (
+          <AppointmentDeliverySection appointment={appointment} technicians={technicians} nav={nav} />
+        )}
+
         <Section title="Cliente">
           <Link
             href={`/customers/${customer.id}`}
@@ -420,10 +424,6 @@ export function AppointmentPanel({
             </Expandable>
           )}
         </Section>
-
-        {(appointmentNeedsPickup(appointment) || hasDelivery(appointment)) && (
-          <AppointmentDeliverySection appointment={appointment} technicians={technicians} nav={nav} />
-        )}
 
         <Section title="Notas de la cita">
           <ActionForm action={notesAction.bind(null, id)} submit="Guardar notas" pendingText="Guardando…">

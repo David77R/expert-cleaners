@@ -21,7 +21,8 @@ export type PanelAction =
   | "set_stage"
   | "set_ready_date"
   | "schedule_delivery"
-  | "clear_delivery";
+  | "clear_delivery"
+  | "set_destination";
 
 export type ActionResult = { ok: true; notice?: string } | { ok: false; error: string };
 
@@ -49,6 +50,24 @@ export function payloadFromForm(action: PanelAction, form: FormData): Record<str
       return { action, addressId: text(form, "addressId") };
     case "set_stage":
       return { action, stage: text(form, "stage"), done: text(form, "done") === "1" };
+    case "set_destination": {
+      if (text(form, "destinationMode") !== "custom") return { action, address: null };
+      const lat = Number(text(form, "lat"));
+      const lng = Number(text(form, "lng"));
+      return {
+        action,
+        address: {
+          line1: text(form, "line1"),
+          unit: text(form, "unit"),
+          city: text(form, "city"),
+          state: text(form, "state") || "FL",
+          zip: text(form, "zip"),
+          ...(text(form, "lat") && text(form, "lng") && Number.isFinite(lat) && Number.isFinite(lng)
+            ? { lat, lng }
+            : {}),
+        },
+      };
+    }
     case "set_ready_date":
       return { action, readyDate: text(form, "readyDate") || null };
     case "schedule_delivery":
@@ -76,6 +95,8 @@ function friendlyIssue(issue: ZodIssue): string {
   switch (issue.path[0]) {
     case "reason":
       return issue.code === "invalid_value" ? "Elige un motivo de cancelación" : issue.message;
+    case "address":
+      return "Completa la calle, la ciudad y el código postal de la entrega";
     case "date":
       return "Elige una fecha válida";
     case "startMin":

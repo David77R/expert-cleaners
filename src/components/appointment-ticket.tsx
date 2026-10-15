@@ -3,7 +3,8 @@ import type { CSSProperties } from "react";
 import { serviceBreakdown, serviceLabel } from "@/domain/appointment-items";
 import { appointmentNeedsPickup } from "@/domain/pickup";
 import { blocksOverlap, formatMinutes } from "@/domain/appointment-rules";
-import { formatDuration, formatRange, initialsOf, readableOn } from "@/domain/calendar-view";
+import { formatDayLabel, formatDuration, formatRange, initialsOf, readableOn } from "@/domain/calendar-view";
+import { hasDelivery } from "@/domain/delivery";
 import { formatPhone } from "@/domain/customer-rules";
 import { calendarHref } from "@/lib/calendar-links";
 import { HoverHint } from "@/components/hover-hint";
@@ -159,6 +160,24 @@ export function AppointmentTicket({
             {detail === "full" && appointment.customer.phone && (
               <span className="truncate tabular-nums">· {formatPhone(appointment.customer.phone)}</span>
             )}
+          </span>
+        )}
+        {rugPickup && detail !== "minimal" && (
+          <span
+            className={`flex items-center gap-1 truncate text-[11px] font-semibold ${
+              hasDelivery(appointment) ? "text-indigo" : "text-warning"
+            }`}
+          >
+            <Icon name="home" size={11} />
+            {hasDelivery(appointment)
+              ? `Entrega: ${formatDayLabel(appointment.deliveryDate)} · ${formatMinutes(appointment.deliveryStartMin)}`
+              : "Entrega sin programar"}
+          </span>
+        )}
+        {delivery && appointment.destinationAddress && detail !== "minimal" && (
+          <span className="flex items-center gap-1 truncate text-[11px] font-semibold text-success">
+            <Icon name="pin" size={11} />
+            Entregar en: {appointment.destinationAddress.line1}, {appointment.destinationAddress.city}
           </span>
         )}
         <span className="mt-0.5 flex flex-col">

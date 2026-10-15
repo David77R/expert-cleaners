@@ -247,3 +247,67 @@ describe("resumen del cliente para el formulario", () => {
     expect(await getCustomerSummary(ctx.db, "00000000-0000-4000-8000-000000000099")).toBeNull();
   });
 });
+
+describe("entrega de alfombras en Nueva cita", () => {
+  const rug = {
+    id: "11111111-1111-4111-8111-111111111111",
+    name: "RUGS",
+    category: "Alfombras",
+    basePriceCents: 9000,
+    durationMin: 60,
+    twoAddresses: false,
+    fields: [],
+  };
+  const sofa = { ...rug, id: "22222222-2222-4222-8222-222222222222", name: "SOFA", category: "Sofás" };
+  const find = (id: string) => [rug, sofa].find((service) => service.id === id);
+  const base = {
+    customerId: "c",
+    addressId: "a",
+    technicianId: "t",
+    date: "2026-11-02",
+    time: "09:00",
+    durationMin: "60",
+  };
+
+  it("programa la entrega si hay alfombras y se eligió fecha", () => {
+    const { input } = appointmentInputFromForm(
+      {
+        ...base,
+        "items.0.serviceId": rug.id,
+        "items.0.price": "90",
+        deliveryDate: "2026-11-05",
+        deliveryTime: "14:30",
+        deliveryDuration: "30",
+        deliveryTechnicianId: "t2",
+      },
+      find,
+    );
+    expect(input).toMatchObject({
+      delivery: { date: "2026-11-05", startMin: 870, durationMin: 30, technicianId: "t2" },
+    });
+    expect(input.destinationAddress).toBeUndefined();
+  });
+
+  it("sin alfombras ignora la entrega", () => {
+    const { input } = appointmentInputFromForm(
+      { ...base, "items.0.serviceId": sofa.id, "items.0.price": "90", deliveryDate: "2026-11-05" },
+      find,
+    );
+    expect("delivery" in input).toBe(false);
+  });
+
+  it("usa otra dirección de entrega solo si se escribió", () => {
+    const { input } = appointmentInputFromForm(
+      {
+        ...base,
+        "items.0.serviceId": rug.id,
+        "items.0.price": "90",
+        dest_line1: "1200 Brickell Ave",
+        dest_city: "Miami",
+        dest_zip: "33131",
+      },
+      find,
+    );
+    expect(input.destinationAddress).toMatchObject({ line1: "1200 Brickell Ave", city: "Miami" });
+  });
+});

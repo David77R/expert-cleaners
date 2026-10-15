@@ -41,7 +41,7 @@ export const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("cancel") }).extend(cancelSchema.shape),
   z.object({ action: z.literal("reschedule") }).extend(rescheduleSchema.shape),
   z.object({ action: z.literal("move") }).extend(moveSchema.shape),
-  z.object({ action: z.literal("set_destination"), address: addressSnapshotSchema }),
+  z.object({ action: z.literal("set_destination"), address: addressSnapshotSchema.nullable() }),
   z.object({ action: z.literal("set_billing"), address: addressSnapshotSchema }),
   z.object({ action: z.literal("update_notes"), notes: z.string() }),
   z.object({ action: z.literal("set_address"), addressId: z.string() }),

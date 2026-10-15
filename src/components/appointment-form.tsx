@@ -6,6 +6,8 @@ import { useActionState, useState, useTransition, type ComponentProps, type Form
 import { createAppointmentAction, type AppointmentFormState } from "@/app/appointments/new/actions";
 import { AddressAutocomplete } from "@/components/address-autocomplete";
 import { TimeRange } from "@/components/time-range-fields";
+import { TimeInput } from "@/components/time-input";
+import { needsPickup } from "@/domain/pickup";
 import { AppointmentItemsEditor, itemsDuration, type EditorItem } from "@/components/appointment-items-editor";
 import { CustomerPicker } from "@/components/customer-picker";
 import { Card, Field, INPUT } from "@/components/form-kit";
@@ -71,7 +73,9 @@ export function AppointmentForm({
   const [duration, setDuration] = useState(initialValues.durationMin ?? "");
   const [time, setTime] = useState(initialValues.time ?? "");
 
-  const needsDestination = items.some((item) => item.service?.twoAddresses);
+  const twoAddresses = items.some((item) => item.service?.twoAddresses);
+  const pickupOrder = needsPickup(items.map((item) => item.service));
+  const needsDestination = twoAddresses || pickupOrder;
   const [destinationMode, setDestinationMode] = useState<"same" | "custom">("same");
   const sameDestination = customer?.addresses.find((address) => address.id === addressId) ?? null;
 
@@ -168,14 +172,15 @@ export function AppointmentForm({
               sameDestination ? (
                 <>
                   <p className="text-sm text-soft sm:col-span-2">{formatAddress(sameDestination)}</p>
-                  {(["line1", "unit", "city", "state", "zip"] as const).map((field) => (
-                    <input
-                      key={field}
-                      type="hidden"
-                      name={`${DESTINATION_PREFIX}${field}`}
-                      value={sameDestination[field] ?? ""}
-                    />
-                  ))}
+                  {twoAddresses &&
+                    (["line1", "unit", "city", "state", "zip"] as const).map((field) => (
+                      <input
+                        key={field}
+                        type="hidden"
+                        name={`${DESTINATION_PREFIX}${field}`}
+                        value={sameDestination[field] ?? ""}
+                      />
+                    ))}
                 </>
               ) : (
                 <p className="text-sm text-soft sm:col-span-2">Elige primero el cliente y su dirección.</p>
@@ -310,6 +315,67 @@ export function AppointmentForm({
           labelClassName="flex flex-col gap-1.5 text-sm font-medium"
         />
       </Card>
+
+      {pickupOrder && (
+        <Card
+          title="Entrega de alfombras"
+          hint="Las alfombras se recogen y se devuelven otro día. Puedes programar la entrega ahora o después desde la cita."
+        >
+          <AppointmentField name="deliveryDate" label="Fecha de entrega" error={errors.deliveryDate} optional>
+            {(props) => (
+              <DateInput
+                {...props}
+                name="deliveryDate"
+                clearable
+                min={values.date || undefined}
+                placeholder="Sin programar todavía"
+                defaultValue={values.deliveryDate ?? ""}
+                className={INPUT}
+              />
+            )}
+          </AppointmentField>
+          <AppointmentField name="deliveryTechnicianId" label="Técnico de la entrega" optional>
+            {(props) => (
+              <select
+                {...props}
+                name="deliveryTechnicianId"
+                defaultValue={values.deliveryTechnicianId ?? technicianId}
+                className={INPUT}
+              >
+                {technicians.map((technician) => (
+                  <option key={technician.id} value={technician.id}>
+                    {technician.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </AppointmentField>
+          <AppointmentField name="deliveryTime" label="Hora de entrega" optional>
+            {(props) => (
+              <TimeInput
+                {...props}
+                name="deliveryTime"
+                defaultValue={values.deliveryTime ?? "09:00"}
+                className={INPUT}
+              />
+            )}
+          </AppointmentField>
+          <AppointmentField name="deliveryDuration" label="Duración de la entrega (min)" optional>
+            {(props) => (
+              <input
+                {...props}
+                name="deliveryDuration"
+                type="number"
+                min={0}
+                max={720}
+                step={1}
+                defaultValue={values.deliveryDuration ?? "30"}
+                className={INPUT}
+              />
+            )}
+          </AppointmentField>
+        </Card>
+      )}
 
       <Card title="Notas de la cita">
         <AppointmentField name="notes" label="Indicaciones para el técnico" wide optional>

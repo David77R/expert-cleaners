@@ -244,6 +244,33 @@ describe("pago, factura y direcciones", () => {
     expect(changed.appointment.destinationAddress?.line1).toBe("5500 NW 36th St");
   });
 
+  it("las alfombras pueden llevar otra dirección de entrega y volver a la misma", async () => {
+    const rugSpecs = { length: 8, width: 10, carpetType: "Lana", quantity: 1 };
+    const rug = await createAppointment(ctx.db, AGENT_JOSUE, {
+      ...appointmentInput(ctx, { date: "2026-11-23", serviceId: ctx.services.carpet.id, specs: rugSpecs }),
+      destinationAddress: destination,
+    });
+    expect(rug.appointment.destinationAddress?.line1).toBe("1200 Brickell Ave");
+    const same = await setDestinationAddress(ctx.db, AGENT_JOSUE, rug.appointment.id, null);
+    expect(same.appointment.destinationAddress).toBeNull();
+    const plain = await createAppointment(
+      ctx.db,
+      AGENT_JOSUE,
+      appointmentInput(ctx, { date: "2026-11-23", serviceId: ctx.services.carpet.id, specs: rugSpecs }),
+    );
+    expect(plain.appointment.destinationAddress).toBeNull();
+  });
+
+  it("un servicio de dos direcciones no puede quedarse sin dirección de entrega", async () => {
+    const pickup = await createAppointment(ctx.db, AGENT_JOSUE, {
+      ...appointmentInput(ctx, { date: "2026-11-24", serviceId: ctx.services["rug-pickup"].id, specs: {} }),
+      destinationAddress: destination,
+    });
+    await expect(setDestinationAddress(ctx.db, AGENT_JOSUE, pickup.appointment.id, null)).rejects.toMatchObject({
+      code: "destination_required",
+    });
+  });
+
   it("cambia la dirección del servicio a otra del mismo cliente y lo deja en el historial", async () => {
     const [second] = await ctx.db
       .insert(addresses)

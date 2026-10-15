@@ -56,6 +56,10 @@ export async function addressAction(id: string, previous: ActionState, formData:
   return run(id, previous, "set_address", formData);
 }
 
+export async function destinationAction(id: string, previous: ActionState, formData: FormData) {
+  return run(id, previous, "set_destination", formData);
+}
+
 export async function itemsAction(id: string, previous: ActionState, formData: FormData) {
   return run(id, previous, "update_items", formData);
 }

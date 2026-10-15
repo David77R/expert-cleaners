@@ -1,4 +1,5 @@
 import type { ServiceField } from "@/db/schema";
+import { needsPickup } from "./pickup";
 import { ITEM_PREFIX, itemKey, readItemValues, validateItems } from "./appointment-items";
 import { parseTimeInput } from "./appointment-panel";
 import { serviceIconOf, type ServiceIconKey } from "./service-icons";
@@ -104,6 +105,18 @@ export function appointmentInputFromForm(
 ) {
   const { inputs, errors } = validateItems(readItemValues(values), findService);
   const twoAddresses = inputs.some((item) => findService(item.serviceId)?.twoAddresses);
+  const pickup = needsPickup(inputs.map((item) => findService(item.serviceId)));
+  const customDestination = pickup && (values[`${DESTINATION_PREFIX}line1`] ?? "").trim() !== "";
+  const deliveryDate = (values.deliveryDate ?? "").trim();
+  const delivery =
+    pickup && deliveryDate
+      ? {
+          date: deliveryDate,
+          startMin: parseTimeInput(values.deliveryTime) ?? Number.NaN,
+          durationMin: Number((values.deliveryDuration ?? "").trim() || "0"),
+          technicianId: values.deliveryTechnicianId ?? "",
+        }
+      : undefined;
 
   return {
     input: {
@@ -115,7 +128,8 @@ export function appointmentInputFromForm(
       durationMin: values.durationMin?.trim() === "" ? Number.NaN : Number(values.durationMin),
       items: inputs,
       notes: (values.notes ?? "").trim(),
-      destinationAddress: twoAddresses ? destinationFromValues(values) : undefined,
+      destinationAddress: twoAddresses || customDestination ? destinationFromValues(values) : undefined,
+      ...(delivery ? { delivery } : {}),
     },
     itemErrors: errors,
   };
@@ -129,6 +143,7 @@ function itemMessage(key: string): string {
 function keyFor(path: readonly PropertyKey[]): string | null {
   const [root, leaf, field] = path;
   if (root === "startMin") return "time";
+  if (root === "delivery") return "deliveryDate";
   if (root === "items") {
     const index = typeof leaf === "number" ? leaf : 0;
     return itemKey(index, field === "priceCents" ? "price" : "serviceId");

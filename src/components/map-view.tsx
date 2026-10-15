@@ -27,6 +27,7 @@ export type MapStop = {
   kind?: "delivery";
   status?: string;
   rug?: boolean;
+  deliveryLabel?: string;
 };
 
 export type MapTechnicianOption = { id: string; name: string; color: string };
@@ -504,6 +505,11 @@ export function MapView({
                   {stop.code} — {stop.customerName}
                 </p>
                 <p className="text-muted">{stop.serviceName}</p>
+                {stop.kind !== "delivery" && stop.rug && (
+                  <p className="text-indigo">
+                    {stop.deliveryLabel ? `Entrega: ${stop.deliveryLabel}` : "Entrega sin programar"}
+                  </p>
+                )}
                 <p className="text-muted">
                   {stop.technicianName} · {formatRange(stop.startMin, stop.durationMin)}
                 </p>
@@ -879,8 +885,14 @@ export function MapView({
                 </p>
                 <p className="text-sm text-muted">{selectedStop.serviceName}</p>
                 {selectedStop.kind !== "delivery" && selectedStop.rug && (
-                  <p className="mt-1.5 w-fit rounded bg-indigo-soft px-2 py-0.5 text-xs font-semibold text-indigo">
-                    Alfombras: recogida, luego se programa la entrega
+                  <p
+                    className={`mt-1.5 w-fit rounded px-2 py-0.5 text-xs font-semibold ${
+                      selectedStop.deliveryLabel ? "bg-indigo-soft text-indigo" : "bg-warning-soft text-warning"
+                    }`}
+                  >
+                    {selectedStop.deliveryLabel
+                      ? `Alfombras · entrega el ${selectedStop.deliveryLabel}`
+                      : "Alfombras · entrega sin programar"}
                   </p>
                 )}
                 {selectedStop.kind !== "delivery" && selectedStop.status === "not_confirmed" && (

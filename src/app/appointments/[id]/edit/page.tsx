@@ -13,6 +13,9 @@ import { FIELD } from "@/components/panel-kit";
 import { PanelItemsForm } from "@/components/panel-items-form";
 import { PhotoGallery } from "@/components/photo-gallery";
 import { StatusBadge } from "@/components/status-badge";
+import { AppointmentDeliverySection } from "@/components/appointment-delivery";
+import { appointmentNeedsPickup } from "@/domain/pickup";
+import { hasDelivery } from "@/domain/delivery";
 import { AddressFields } from "@/components/address-fields";
 import { UnlocatedAddressAlert, isUnlocated } from "@/components/unlocated-address";
 import { updateAddressAction } from "@/app/customers/[id]/actions";
@@ -236,6 +239,16 @@ export default async function EditAppointmentPage({ params, searchParams }: Page
                   </label>
                 </ActionForm>
               </Card>
+            )}
+
+            {(appointmentNeedsPickup(appointment) || hasDelivery(appointment)) && (
+              <div className="overflow-hidden rounded-md border border-indigo/40 bg-paper [&>section]:border-t-0">
+                <AppointmentDeliverySection
+                  appointment={appointment}
+                  technicians={technicians}
+                  nav={{ view: "day", date: appointment.date, tech: null }}
+                />
+              </div>
             )}
 
             <Card title="Dirección del servicio">

@@ -1,11 +1,19 @@
 import Link from "next/link";
+import { formatAddress } from "@/domain/invoice";
+import { DeliveryDestinationFields } from "@/components/delivery-destination-fields";
 import { DateInput } from "@/components/date-jump";
 import { TimeInput } from "@/components/time-input";
 import { minutesToTimeInput } from "@/domain/appointment-panel";
 import { formatDayLabel, formatRange } from "@/domain/calendar-view";
 import { STAGE_KEYS, STAGE_LABELS, hasDelivery } from "@/domain/delivery";
 import { calendarHref } from "@/lib/calendar-links";
-import { clearDeliveryAction, deliveryAction, readyDateAction, stageAction } from "@/app/calendar/actions";
+import {
+  clearDeliveryAction,
+  deliveryAction,
+  destinationAction,
+  readyDateAction,
+  stageAction,
+} from "@/app/calendar/actions";
 import { ActionForm } from "@/components/action-form";
 import type { CalendarNav, CalendarTechnician } from "@/components/calendar-types";
 import { Icon } from "@/components/icons";
@@ -103,7 +111,7 @@ export function AppointmentDeliverySection({
   const deliveryTech = appointment.deliveryTechnician;
 
   return (
-    <Section title="Etapas y entrega">
+    <Section title="Alfombras: recogida y entrega">
       <ul className="flex flex-col gap-2">
         {STAGE_KEYS.map((stage) => {
           const mark = appointment.stages[stage];
@@ -153,6 +161,20 @@ export function AppointmentDeliverySection({
         appointment.readyDate && <p className="text-sm text-soft">Listo en: {formatDayLabel(appointment.readyDate)}</p>
       )}
 
+      {editable && (
+        <Expandable title="Dirección de entrega">
+          <ActionForm
+            action={destinationAction.bind(null, id)}
+            submit="Guardar dirección de entrega"
+            pendingText="Guardando…"
+          >
+            <DeliveryDestinationFields
+              serviceAddress={formatAddress(appointment.address)}
+              destination={appointment.destinationAddress}
+            />
+          </ActionForm>
+        </Expandable>
+      )}
       {hasDelivery(appointment) && deliveryTech ? (
         <div className="flex flex-col gap-2 rounded-md border border-dashed border-brand/50 bg-brand-soft/30 px-3.5 py-3 text-sm">
           <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-brand-ink">
@@ -166,6 +188,15 @@ export function AppointmentDeliverySection({
             <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: deliveryTech.color }} />
             {deliveryTech.name}
           </span>
+          <span className="flex items-start gap-1.5 text-soft">
+            <Icon name="pin" size={13} className="mt-0.5 shrink-0" />
+            <span>
+              {appointment.destinationAddress ? "Se entrega en otra dirección: " : "Se entrega en la misma dirección: "}
+              <span className="font-medium text-ink">
+                {formatAddress(appointment.destinationAddress ?? appointment.address)}
+              </span>
+            </span>
+          </span>
           <Link
             href={calendarHref({
               view: "day",
@@ -175,9 +206,10 @@ export function AppointmentDeliverySection({
               appt: id,
             })}
             scroll={false}
-            className="w-fit text-xs font-semibold text-brand-ink underline underline-offset-2"
+            className="flex w-fit items-center gap-1.5 rounded-md bg-success px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"
           >
-            Ver ese día con las entregas
+            <Icon name="calendar" size={13} />
+            Ir a la entrega en el calendario
           </Link>
           {editable && (
             <div className="flex flex-col gap-2">
@@ -197,16 +229,21 @@ export function AppointmentDeliverySection({
         </div>
       ) : (
         editable && (
-          <Expandable title="Programar entrega">
-            <ActionForm
-              action={deliveryAction.bind(null, id)}
-              submit="Programar entrega"
-              pendingText="Guardando…"
-              tone="primary"
-            >
-              <DeliveryFields appointment={appointment} technicians={technicians} />
-            </ActionForm>
-          </Expandable>
+          <>
+            <p className="flex items-center gap-1.5 rounded-md bg-warning-soft px-3 py-2 text-xs font-semibold text-warning">
+              <Icon name="clock" size={13} /> Entrega sin programar
+            </p>
+            <Expandable title="Programar entrega" defaultOpen>
+              <ActionForm
+                action={deliveryAction.bind(null, id)}
+                submit="Programar entrega"
+                pendingText="Guardando…"
+                tone="primary"
+              >
+                <DeliveryFields appointment={appointment} technicians={technicians} />
+              </ActionForm>
+            </Expandable>
+          </>
         )
       )}
     </Section>

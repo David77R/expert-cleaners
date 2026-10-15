@@ -14,7 +14,7 @@ export function calendarHref(options: {
   if (options.tech) params.set("tech", options.tech);
   if (options.appt) params.set("appt", options.appt);
   if (options.mapa) params.set("mapa", "1");
-  if (options.entregas) params.set("entregas", "1");
+  if (options.entregas === false) params.set("entregas", "0");
   const query = params.toString();
   return query ? `/calendar?${query}` : "/calendar";
 }

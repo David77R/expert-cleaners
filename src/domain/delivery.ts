@@ -39,10 +39,10 @@ export function hasDelivery<T extends DeliveryFields>(
   deliveryTechnicianId: string;
 } {
   return (
-    appointment.deliveryDate !== null &&
-    appointment.deliveryStartMin !== null &&
-    appointment.deliveryDurationMin !== null &&
-    appointment.deliveryTechnicianId !== null
+    appointment.deliveryDate != null &&
+    appointment.deliveryStartMin != null &&
+    appointment.deliveryDurationMin != null &&
+    appointment.deliveryTechnicianId != null
   );
 }
 

@@ -20,6 +20,9 @@ import { CalendarToolbar } from "@/components/calendar-toolbar";
 import { DayGrid } from "@/components/day-grid";
 import { MapViewLoader } from "@/components/map-view-loader";
 import { appointmentNeedsPickup } from "@/domain/pickup";
+import { formatMinutes } from "@/domain/appointment-rules";
+import { formatDayLabel } from "@/domain/calendar-view";
+import { hasDelivery } from "@/domain/delivery";
 import { calendarHref } from "@/lib/calendar-links";
 import type { MapRouteDraft, MapServiceOption, MapStop, MapTechnicianOption } from "@/components/map-view";
 import { MonthView } from "@/components/month-view";
@@ -46,7 +49,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
   const date = parsedDate.data;
   const view = parseView(first(params.view));
   const mapa = first(params.mapa) === "1";
-  const entregas = first(params.entregas) === "1";
+  const entregas = first(params.entregas) !== "0";
   const nowMin = date === today ? minutesNowIn() : null;
 
   const db = getDb();
@@ -126,6 +129,9 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
       lng: a.address.lng as number,
       status: a.status,
       rug: appointmentNeedsPickup(a),
+      deliveryLabel: hasDelivery(a)
+        ? `${formatDayLabel(a.deliveryDate)} · ${formatMinutes(a.deliveryStartMin)}`
+        : undefined,
       technicianId: a.technician.id,
       technicianName: a.technician.name,
       technicianColor: a.technician.color,
