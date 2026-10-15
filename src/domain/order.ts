@@ -5,14 +5,23 @@ import { formatMoney } from "./invoice";
 export type OrderVisit = { date: string; startMin: number };
 
 export function groupOrderItems(items: readonly { name: string; priceCents: number }[]) {
-  const groups = new Map<string, { name: string; priceCents: number; count: number }>();
+  const groups = new Map<string, { name: string; prices: number[] }>();
   for (const item of items) {
-    const key = `${item.name}|${item.priceCents}`;
-    const group = groups.get(key) ?? { name: item.name, priceCents: item.priceCents, count: 0 };
-    group.count += 1;
-    groups.set(key, group);
+    const group = groups.get(item.name) ?? { name: item.name, prices: [] };
+    group.prices.push(item.priceCents);
+    groups.set(item.name, group);
   }
-  return [...groups.values()];
+  return [...groups.values()].map((group) => {
+    const totalCents = group.prices.reduce((sum, price) => sum + price, 0);
+    const uniform = group.prices.every((price) => price === group.prices[0]);
+    return {
+      name: group.name,
+      count: group.prices.length,
+      totalCents,
+      unitCents: uniform ? group.prices[0] : Math.round(totalCents / group.prices.length),
+      exactUnit: uniform,
+    };
+  });
 }
 
 export function confirmationMessage(order: {
@@ -35,8 +44,8 @@ export function confirmationMessage(order: {
   for (const group of groupOrderItems(order.items)) {
     lines.push(
       group.count === 1
-        ? `• ${group.name}: ${formatMoney(group.priceCents)}`
-        : `• ${group.name} x${group.count}: ${formatMoney(group.priceCents * group.count)} (${formatMoney(group.priceCents)} c/u)`,
+        ? `• ${group.name}: ${formatMoney(group.totalCents)}`
+        : `• ${group.name} x${group.count}: ${formatMoney(group.totalCents)} (${group.exactUnit ? "" : "≈ "}${formatMoney(group.unitCents)} c/u)`,
     );
   }
   lines.push(

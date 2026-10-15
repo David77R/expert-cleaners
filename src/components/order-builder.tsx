@@ -22,6 +22,7 @@ import {
   itemKey,
   itemSpecKey,
   parseDollars,
+  splitTotal,
   validateItems,
   type DetailKey,
   type ItemDetails,
@@ -365,6 +366,7 @@ export function OrderBuilder({
   const [modal, setModal] = useState<"customer" | "schedule" | null>(null);
   const [customerSeed, setCustomerSeed] = useState("");
   const [openGroups, setOpenGroups] = useState<string[]>([]);
+  const [totalDrafts, setTotalDrafts] = useState<Record<string, string>>({});
   const [itemErrors, setItemErrors] = useState<ItemErrors>({});
   const [message, setMessage] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -512,6 +514,22 @@ export function OrderBuilder({
     setOpenGroups((current) =>
       current.includes(serviceId) ? current.filter((id) => id !== serviceId) : [...current, serviceId],
     );
+  }
+
+  function setGroupTotal(serviceId: string, raw: string) {
+    setTotalDrafts((current) => ({ ...current, [serviceId]: raw }));
+    const cents = parseDollars(raw);
+    if (cents === null || Number.isNaN(cents)) return;
+    setLines((current) => {
+      const prices = splitTotal(cents, current.filter((line) => line.serviceId === serviceId).length);
+      let position = 0;
+      return current.map((line) => {
+        if (line.serviceId !== serviceId) return line;
+        const price = centsToDollars(prices[position] ?? 0);
+        position += 1;
+        return { ...line, price };
+      });
+    });
   }
 
   function setGroupPrice(serviceId: string, price: string) {
@@ -943,9 +961,8 @@ export function OrderBuilder({
                               {count > 1 && (
                                 <span className="block text-[11px] tabular-nums text-soft">
                                   {prices.length === 1
-                                    ? `${formatMoney(lineCents(units[0].line, service))} c/u · `
-                                    : "Precios distintos · "}
-                                  Subtotal {formatMoney(subtotal)}
+                                    ? `${formatMoney(lineCents(units[0].line, service))} c/u`
+                                    : `≈ ${formatMoney(Math.round(subtotal / count))} c/u`}
                                 </span>
                               )}
                             </span>
@@ -1005,6 +1022,31 @@ export function OrderBuilder({
                             <Icon name="close" size={14} />
                           </button>
                         </div>
+                        {count > 1 && (
+                          <div className="flex items-center justify-end gap-2 px-2.5 pb-2">
+                            <span className="text-[11px] font-medium text-soft">Total de los {count}</span>
+                            <span className="relative w-28 shrink-0">
+                              <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted">
+                                $
+                              </span>
+                              <input
+                                aria-label={`Total de los ${count} ${service.name}`}
+                                inputMode="decimal"
+                                value={totalDrafts[serviceId] ?? centsToDollars(subtotal)}
+                                onChange={(event) => setGroupTotal(serviceId, event.target.value)}
+                                onBlur={() =>
+                                  setTotalDrafts((current) => {
+                                    const next = { ...current };
+                                    delete next[serviceId];
+                                    return next;
+                                  })
+                                }
+                                className="w-full rounded-md border border-brand/40 bg-brand-soft/30 py-1 pl-4 pr-2 text-right text-sm font-semibold tabular-nums focus:border-brand focus:outline-none"
+                              />
+                            </span>
+                            <span className="w-7 shrink-0" />
+                          </div>
+                        )}
                         {groupOpen && count === 1 && renderUnit(units[0].line, units[0].index, true)}
                         {!groupOpen && count === 1 && renderUnit(units[0].line, units[0].index, false)}
                         {groupOpen && count > 1 && (

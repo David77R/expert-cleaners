@@ -48,10 +48,20 @@ describe("mensaje de confirmación del pedido", () => {
       ],
       totalCents: 70000,
     });
-    expect(text).toContain("• SILLA x5: $500.00 ($100.00 c/u)");
+    expect(text).toContain("• SILLA x6: $580.00 (≈ $96.67 c/u)");
     expect(text).toContain("• SOFA: $120.00");
-    expect(text).toContain("• SILLA: $80.00");
-    expect(text.match(/SILLA x5/g)).toHaveLength(1);
+    expect(text.match(/SILLA/g)).toHaveLength(1);
+  });
+
+  it("muestra el precio exacto por unidad cuando todos cuestan lo mismo", () => {
+    const text = confirmationMessage({
+      customerName: "Ana",
+      code: "SVC-2",
+      pickup: { date: "2026-10-14", startMin: 540 },
+      items: Array.from({ length: 10 }, () => ({ name: "ALFOMBRA", priceCents: 3000 })),
+      totalCents: 30000,
+    });
+    expect(text).toContain("• ALFOMBRA x10: $300.00 ($30.00 c/u)");
   });
 
   it("arma el enlace de WhatsApp con el código de país de EE. UU.", () => {

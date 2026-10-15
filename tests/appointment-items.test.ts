@@ -10,6 +10,7 @@ import {
   parseDollars,
   readItemValues,
   serviceLabel,
+  splitTotal,
   summarizeItems,
   validateItems,
 } from "@/domain/appointment-items";
@@ -130,5 +131,22 @@ describe("detalles del artículo", () => {
       { label: "Notas", value: "Mancha de vino" },
     ]);
     expect(describeDetails(null)).toEqual([]);
+  });
+});
+
+describe("repartir un total entre varias unidades", () => {
+  it("reparte exacto cuando divide bien", () => {
+    expect(splitTotal(30000, 10)).toEqual(Array(10).fill(3000));
+  });
+
+  it("reparte los centavos que sobran sin perder ni uno", () => {
+    const prices = splitTotal(30000, 7);
+    expect(prices.reduce((a, b) => a + b, 0)).toBe(30000);
+    expect(Math.max(...prices) - Math.min(...prices)).toBeLessThanOrEqual(1);
+  });
+
+  it("no falla con cero unidades o total cero", () => {
+    expect(splitTotal(500, 0)).toEqual([]);
+    expect(splitTotal(0, 3)).toEqual([0, 0, 0]);
   });
 });

@@ -254,3 +254,10 @@ export function serviceBreakdown(appointment: {
   }
   return [...lines.values()];
 }
+
+export function splitTotal(totalCents: number, count: number): number[] {
+  if (count <= 0) return [];
+  const base = Math.floor(totalCents / count);
+  const remainder = totalCents - base * count;
+  return Array.from({ length: count }, (_, index) => base + (index < remainder ? 1 : 0));
+}
