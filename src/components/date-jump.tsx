@@ -23,20 +23,16 @@ export function monthGrid(start: string): string[] {
   return Array.from({ length: 42 }, (_, index) => addDays(first, index));
 }
 
-export function DateJump({
-  view,
+export function DatePicker({
   date,
   today,
-  tech,
-  mapa,
-  entregas,
+  hrefFor,
+  align = "left",
 }: {
-  view: CalendarView;
   date: string;
   today: string;
-  tech: string | null;
-  mapa: boolean;
-  entregas: boolean;
+  hrefFor: (date: string) => string;
+  align?: "left" | "right";
 }) {
   const router = useRouter();
   const box = useRef<HTMLDivElement>(null);
@@ -66,7 +62,7 @@ export function DateJump({
 
   function pick(value: string) {
     setOpen(false);
-    router.push(calendarHref({ view, date: value, tech, mapa, entregas }));
+    router.push(hrefFor(value));
   }
 
   const days = monthGrid(shown);
@@ -93,7 +89,7 @@ export function DateJump({
         <div
           role="dialog"
           aria-label="Elegir día"
-          className="absolute left-0 top-12 z-40 w-[18.5rem] overflow-hidden rounded-xl border border-hair bg-paper shadow-xl"
+          className={`absolute top-12 z-40 w-[18.5rem] ${align === "right" ? "right-0" : "left-0"} overflow-hidden rounded-xl border border-hair bg-paper shadow-xl`}
         >
           <div className="flex items-center justify-between bg-brand px-3 py-2.5 text-white">
             <button
@@ -170,4 +166,32 @@ export function DateJump({
       )}
     </div>
   );
+}
+
+export function DateJump({
+  view,
+  date,
+  today,
+  tech,
+  mapa,
+  entregas,
+}: {
+  view: CalendarView;
+  date: string;
+  today: string;
+  tech: string | null;
+  mapa: boolean;
+  entregas: boolean;
+}) {
+  return (
+    <DatePicker
+      date={date}
+      today={today}
+      hrefFor={(value) => calendarHref({ view, date: value, tech, mapa, entregas })}
+    />
+  );
+}
+
+export function AlertsDatePicker({ date, today }: { date: string; today: string }) {
+  return <DatePicker date={date} today={today} align="right" hrefFor={(value) => `/alerts?date=${value}`} />;
 }

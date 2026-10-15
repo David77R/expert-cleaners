@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import type { AlertLevel, AlertType } from "@/domain/alert-rules";
-import { formatTime } from "@/domain/calendar-view";
+import { formatDayLabel, formatTime } from "@/domain/calendar-view";
 import { addDays, todayIn } from "@/domain/date-rules";
 import { isoDate } from "@/domain/schemas";
 import { AppShell } from "@/components/app-header";
@@ -9,6 +9,7 @@ import { Icon, type IconName } from "@/components/icons";
 import { getDb } from "@/db/client";
 import { getActor } from "@/server/auth";
 import { getAlerts } from "@/server/alerts";
+import { AlertsDatePicker } from "@/components/date-jump";
 import { MarkAlertsSeen } from "@/components/mark-alerts-seen";
 import { alertKeys } from "@/domain/alert-seen";
 
@@ -60,33 +61,36 @@ export default async function AlertsPage({ searchParams }: PageProps<"/alerts">)
           <div>
             <h1 className="font-display text-2xl font-semibold tracking-tight">Centro de alertas</h1>
             <p className="mt-1.5 text-sm text-soft">
-              Lo que necesita atención hasta el {date === today ? "día de hoy" : date}.
+              Lo que necesita atención hasta el {date === today ? "día de hoy" : formatDayLabel(date)}.
             </p>
           </div>
-          <div className="flex items-center overflow-hidden rounded-md border border-hair bg-paper">
-            <Link
-              href={hrefFor(addDays(date, -1))}
-              aria-label="Día anterior"
-              className="flex h-10 w-10 items-center justify-center text-soft transition-colors hover:bg-canvas"
-            >
-              <Icon name="left" />
-            </Link>
-            <Link
-              href={hrefFor(today)}
-              aria-current={date === today ? "date" : undefined}
-              className={`flex h-10 items-center border-x border-hair px-4 text-sm font-semibold transition-colors ${
-                date === today ? "bg-brand-soft text-brand-ink" : "text-ink hover:bg-canvas"
-              }`}
-            >
-              Hoy
-            </Link>
-            <Link
-              href={hrefFor(addDays(date, 1))}
-              aria-label="Día siguiente"
-              className="flex h-10 w-10 items-center justify-center text-soft transition-colors hover:bg-canvas"
-            >
-              <Icon name="right" />
-            </Link>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center overflow-hidden rounded-md border border-hair bg-paper">
+              <Link
+                href={hrefFor(addDays(date, -1))}
+                aria-label="Día anterior"
+                className="flex h-10 w-10 items-center justify-center text-soft transition-colors hover:bg-canvas"
+              >
+                <Icon name="left" />
+              </Link>
+              <Link
+                href={hrefFor(today)}
+                aria-current={date === today ? "date" : undefined}
+                className={`flex h-10 items-center border-x border-hair px-4 text-sm font-semibold transition-colors ${
+                  date === today ? "bg-brand-soft text-brand-ink" : "text-ink hover:bg-canvas"
+                }`}
+              >
+                Hoy
+              </Link>
+              <Link
+                href={hrefFor(addDays(date, 1))}
+                aria-label="Día siguiente"
+                className="flex h-10 w-10 items-center justify-center text-soft transition-colors hover:bg-canvas"
+              >
+                <Icon name="right" />
+              </Link>
+            </div>
+            <AlertsDatePicker date={date} today={today} />
           </div>
         </div>
 
