@@ -75,7 +75,15 @@ export function CalendarToolbar({
                 <Icon name="right" />
               </Link>
             </div>
-            <DateJump view={view} date={date} today={today} tech={tech} mapa={mapa} entregas={entregas} />
+            <DateJump
+              view={view}
+              date={date}
+              today={today}
+              tech={tech}
+              mapa={mapa}
+              entregas={entregas}
+              estado={estado}
+            />
           </div>
 
           <h1 className="flex flex-col leading-none">

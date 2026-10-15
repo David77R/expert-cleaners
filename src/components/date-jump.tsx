@@ -209,6 +209,7 @@ export function DateJump({
   tech,
   mapa,
   entregas,
+  estado = null,
 }: {
   view: CalendarView;
   date: string;
@@ -216,12 +217,13 @@ export function DateJump({
   tech: string | null;
   mapa: boolean;
   entregas: boolean;
+  estado?: string | null;
 }) {
   return (
     <DatePicker
       date={date}
       today={today}
-      hrefFor={(value) => calendarHref({ view, date: value, tech, mapa, entregas })}
+      hrefFor={(value) => calendarHref({ view, date: value, tech, mapa, entregas, estado })}
     />
   );
 }
