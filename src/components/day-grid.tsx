@@ -34,10 +34,10 @@ export function DayGrid({
   return (
     <div className="overflow-x-auto rounded-md border border-hair bg-paper">
       <div
-        className="grid min-w-[760px]"
-        style={{ gridTemplateColumns: `76px repeat(${technicians.length}, minmax(0, 1fr))` }}
+        className="grid [--lane:12.5rem] [--time:62px] md:min-w-[760px] md:[--lane:0px] md:[--time:76px]"
+        style={{ gridTemplateColumns: `var(--time) repeat(${technicians.length}, minmax(var(--lane), 1fr))` }}
       >
-        <div className="border-b border-hair" />
+        <div className="sticky left-0 z-30 border-b border-hair bg-paper" />
         {technicians.map((technician) => {
           const count = appointments.filter(
             (a) => a.technicianId === technician.id && a.status !== "cancelled" && a.kind !== "delivery",
@@ -45,11 +45,11 @@ export function DayGrid({
           return (
             <div
               key={technician.id}
-              className="flex items-center gap-3 border-b-[3px] border-l border-l-hair px-3.5 py-3"
+              className="flex min-w-0 items-center gap-2 border-b-[3px] border-l border-l-hair px-2.5 py-2.5 md:gap-3 md:px-3.5 md:py-3"
               style={{ borderBottomColor: technician.color }}
             >
               <span
-                className="font-display flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-sm font-bold"
+                className="font-display flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-xs font-bold md:h-9 md:w-9 md:text-sm"
                 style={{ backgroundColor: technician.color, color: readableOn(technician.color) }}
               >
                 {initialsOf(technician.name)}
@@ -66,14 +66,14 @@ export function DayGrid({
           );
         })}
 
-        <div className="relative" style={{ height: gridHeight }}>
+        <div className="sticky left-0 z-30 border-r border-hair bg-paper md:border-r-0" style={{ height: gridHeight }}>
           {hours
             .slice(1)
             .filter((hour) => !showNow || Math.abs(nowMin - hour * 60) >= 15)
             .map((hour) => (
               <span
                 key={hour}
-                className="font-display absolute right-3 -translate-y-1/2 whitespace-nowrap text-xs font-medium tabular-nums text-muted"
+                className="font-display absolute right-2 -translate-y-1/2 whitespace-nowrap text-[11px] font-medium tabular-nums text-muted md:right-3 md:text-xs"
                 style={{ top: (hour - startHour) * HOUR_PX }}
               >
                 {formatMinutes(hour * 60)}

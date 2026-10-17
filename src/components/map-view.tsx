@@ -531,7 +531,7 @@ export function MapView({
       )}
 
       <div className="flex flex-col gap-2 lg:flex-row">
-        <div className="h-[520px] min-w-0 flex-1 overflow-hidden rounded-md border border-hair">
+        <div className="h-[60vh] min-h-[340px] w-full min-w-0 lg:h-[520px] lg:min-h-0 lg:flex-1 overflow-hidden rounded-md border border-hair">
           {hasVisibleStops ? (
             <MapContainer
               key={mapKey}
@@ -555,7 +555,7 @@ export function MapView({
           )}
         </div>
 
-        <aside className="flex h-[520px] w-full flex-col overflow-hidden rounded-md border border-hair bg-paper lg:w-64 lg:shrink-0">
+        <aside className="flex max-h-[420px] w-full lg:h-[520px] lg:max-h-none flex-col overflow-hidden rounded-md border border-hair bg-paper lg:w-64 lg:shrink-0">
           {editingGroupKey ? (
             <>
               <div className="flex flex-col border-b border-hair px-3 py-2">

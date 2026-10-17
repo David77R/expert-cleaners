@@ -46,9 +46,9 @@ export function CalendarToolbar({
   const newAppointmentHref = `/appointments/new?${newAppointmentParams.toString()}`;
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4 md:gap-5">
       <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
-        <div className="flex items-center gap-4">
+        <div className="flex w-full items-center gap-3 sm:w-auto md:gap-4">
           <div className="flex items-center gap-2">
             <div className="flex items-center overflow-hidden rounded-md border border-hair bg-paper">
               <Link
@@ -86,18 +86,20 @@ export function CalendarToolbar({
             />
           </div>
 
-          <h1 className="flex flex-col leading-none">
-            <span className="font-display text-xl font-semibold tracking-tight">{heading.primary}</span>
-            <span className="mt-1.5 text-sm text-soft">{heading.secondary}</span>
+          <h1 className="flex min-w-0 flex-col leading-none">
+            <span className="font-display truncate text-lg font-semibold tracking-tight md:text-xl">
+              {heading.primary}
+            </span>
+            <span className="mt-1.5 truncate text-sm text-soft">{heading.secondary}</span>
           </h1>
         </div>
 
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+        <div className="grid w-full grid-cols-2 items-center gap-x-3 gap-y-3 sm:flex sm:w-auto sm:flex-wrap sm:gap-x-6">
           <Link
             href={toggleHref}
             scroll={false}
             aria-pressed={entregas}
-            className={`flex items-center gap-2 rounded-md border px-3.5 py-2.5 text-sm font-semibold transition-colors ${
+            className={`flex items-center justify-center gap-2 rounded-md border px-3.5 py-2.5 text-sm font-semibold transition-colors ${
               entregas
                 ? "border-brand bg-brand-soft text-brand-ink"
                 : "border-dashed border-hair bg-paper text-soft hover:text-ink"
@@ -116,12 +118,16 @@ export function CalendarToolbar({
           </Link>
           <Link
             href={newAppointmentHref}
-            className="flex items-center gap-2 rounded-md bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            className="flex items-center justify-center gap-2 rounded-md bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
           >
             <Icon name="plus" />
             Nueva cita
           </Link>
-          <div role="group" aria-label="Vista" className="flex gap-1 border-b border-hair">
+          <div
+            role="group"
+            aria-label="Vista"
+            className="col-span-2 grid grid-cols-4 gap-1 border-b border-hair sm:flex"
+          >
             {CALENDAR_VIEWS.map((option) => {
               const current = !mapa && option === view;
               return (
@@ -129,7 +135,7 @@ export function CalendarToolbar({
                   key={option}
                   href={calendarHref({ view: option, date, tech, entregas, estado })}
                   aria-current={current ? "true" : undefined}
-                  className={`-mb-px border-b-[3px] px-4 py-2.5 text-sm font-semibold transition-colors ${
+                  className={`-mb-px border-b-[3px] px-2 py-2.5 text-center text-sm font-semibold transition-colors sm:px-4 ${
                     current ? "border-brand text-ink" : "border-transparent text-muted hover:text-ink"
                   }`}
                 >
@@ -140,7 +146,7 @@ export function CalendarToolbar({
             <Link
               href={calendarHref({ view: "day", date, tech, mapa: true, entregas, estado })}
               aria-current={mapa ? "true" : undefined}
-              className={`-mb-px flex items-center gap-1.5 border-b-[3px] px-4 py-2.5 text-sm font-semibold transition-colors ${
+              className={`-mb-px flex items-center justify-center gap-1.5 border-b-[3px] px-2 py-2.5 text-sm font-semibold transition-colors sm:px-4 ${
                 mapa ? "border-brand text-ink" : "border-transparent text-muted hover:text-ink"
               }`}
             >
@@ -151,11 +157,15 @@ export function CalendarToolbar({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-1 gap-y-2" role="group" aria-label="Filtrar por técnico">
+      <div
+        className="no-scrollbar -mx-4 flex items-center gap-x-1 gap-y-2 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0"
+        role="group"
+        aria-label="Filtrar por técnico"
+      >
         <Link
           href={calendarHref({ view, date, entregas, estado })}
           aria-current={tech === null ? "true" : undefined}
-          className={`border-b-2 px-3 py-1.5 text-sm font-medium transition-colors ${
+          className={`shrink-0 whitespace-nowrap border-b-2 px-3 py-1.5 text-sm font-medium transition-colors ${
             tech === null ? "border-ink text-ink" : "border-transparent text-muted hover:text-ink"
           }`}
         >
@@ -168,7 +178,7 @@ export function CalendarToolbar({
               key={technician.id}
               href={calendarHref({ view, date, tech: technician.id, entregas, estado })}
               aria-current={current ? "true" : undefined}
-              className={`flex items-center gap-2 border-b-2 px-3 py-1.5 text-sm font-medium transition-colors ${
+              className={`flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-3 py-1.5 text-sm font-medium transition-colors ${
                 current ? "text-ink" : "border-transparent text-muted hover:text-ink"
               }`}
               style={current ? { borderBottomColor: technician.color } : undefined}

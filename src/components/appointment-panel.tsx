@@ -98,7 +98,7 @@ export function AppointmentPanel({
       />
       <aside
         aria-label={`Cita ${appointment.code}`}
-        className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[25rem] flex-col overflow-y-auto border-l border-hair bg-paper shadow-2xl"
+        className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[25rem] flex-col overflow-y-auto overscroll-contain border-l pb-[env(safe-area-inset-bottom)] border-hair bg-paper shadow-2xl"
       >
         <div className="h-1.5 shrink-0" style={{ backgroundColor: technician.color }} />
         <header className="flex flex-col gap-3 px-5 pb-4 pt-4">

@@ -40,7 +40,7 @@ export function WeekView({
           <section
             key={date}
             aria-label={`${weekday} ${Number(date.slice(8, 10))}`}
-            className={`flex min-h-40 min-w-0 flex-col gap-2.5 p-2.5 md:border-b md:border-hair lg:min-h-[28rem] lg:border-b-0 ${
+            className={`flex min-h-0 min-w-0 flex-col gap-2.5 p-2.5 md:min-h-40 md:border-b md:border-hair lg:min-h-[28rem] lg:border-b-0 ${
               isToday ? "bg-brand-soft/40" : ""
             }`}
           >

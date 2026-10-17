@@ -2,7 +2,7 @@
 
 import { DateInput } from "@/components/date-jump";
 import Link from "next/link";
-import { useState, useTransition, type FormEvent } from "react";
+import { useEffect, useRef, useState, useTransition, type FormEvent } from "react";
 import { scheduleOrderAction } from "@/app/orders/new/actions";
 import { AddressAutocomplete } from "@/components/address-autocomplete";
 import { CustomerPicker } from "@/components/customer-picker";
@@ -450,6 +450,18 @@ export function OrderBuilder({
   const [notice, setNotice] = useState<string | null>(null);
   const [done, setDone] = useState<Done | null>(null);
   const [pending, startTransition] = useTransition();
+  const ticketRef = useRef<HTMLElement>(null);
+  const [ticketInView, setTicketInView] = useState(false);
+
+  useEffect(() => {
+    const node = ticketRef.current;
+    if (!node || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(([entry]) => setTicketInView(entry.isIntersecting), {
+      rootMargin: "0px 0px -35% 0px",
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
 
   const byId = new Map(services.map((service) => [service.id, service]));
   const shownCategories = filters.length === 0 ? categories : categories.filter((name) => filters.includes(name));
@@ -814,7 +826,9 @@ export function OrderBuilder({
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_25rem]">
+    <div
+      className={`grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_25rem] ${!done && lines.length > 0 ? "pb-16 lg:pb-0" : ""}`}
+    >
       <section className="flex min-w-0 flex-col gap-4">
         <div role="group" aria-label="Filtrar por categoría" className="flex flex-wrap gap-2">
           <button
@@ -863,7 +877,7 @@ export function OrderBuilder({
               : "Todavía no hay servicios activos. Pídele al súper admin que los cree."}
           </p>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-6">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3 md:grid-cols-4 xl:grid-cols-6">
             {shownCategories
               .flatMap((name) => services.filter((service) => service.category === name))
               .map((service) => {
@@ -873,12 +887,12 @@ export function OrderBuilder({
                     <button
                       type="button"
                       onClick={() => addService(service)}
-                      className="flex aspect-square w-full flex-col items-center justify-center gap-2.5 rounded-md border border-hair bg-paper p-3 text-center shadow-[0_1px_0_rgba(18,24,31,0.04)] transition-all hover:-translate-y-0.5 hover:border-brand/50 hover:shadow-md"
+                      className="flex aspect-square w-full flex-col items-center justify-center gap-1.5 rounded-md border border-hair bg-paper p-2 text-center shadow-[0_1px_0_rgba(18,24,31,0.04)] transition-all hover:-translate-y-0.5 hover:border-brand/50 hover:shadow-md active:scale-[0.97] sm:gap-2.5 sm:p-3"
                     >
-                      <span className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-soft text-brand-ink transition-colors group-hover:bg-brand group-hover:text-white">
-                        <ServiceIcon icon={service.iconKey ?? guessServiceIcon(service)} size={30} />
+                      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-brand-soft text-brand-ink transition-colors group-hover:bg-brand group-hover:text-white sm:h-14 sm:w-14">
+                        <ServiceIcon icon={service.iconKey ?? guessServiceIcon(service)} size={26} />
                       </span>
-                      <span className="line-clamp-2 text-sm font-medium leading-tight">{service.name}</span>
+                      <span className="line-clamp-2 text-xs font-medium leading-tight sm:text-sm">{service.name}</span>
                       <span className="text-xs tabular-nums text-muted">{formatMoney(service.basePriceCents)}</span>
                     </button>
                     {count > 0 && (
@@ -887,7 +901,7 @@ export function OrderBuilder({
                       </span>
                     )}
                     {isAdmin && (
-                      <div className="absolute left-2 top-2 flex gap-1 transition-opacity focus-within:opacity-100 group-hover:opacity-100 lg:opacity-0">
+                      <div className="absolute left-2 top-2 hidden gap-1 transition-opacity focus-within:opacity-100 group-hover:opacity-100 sm:flex lg:opacity-0">
                         <Link
                           href={`/services/${service.id}?volver=pedido`}
                           aria-label={`Editar ${service.name}`}
@@ -906,7 +920,26 @@ export function OrderBuilder({
         )}
       </section>
 
-      <aside className="flex flex-col gap-4 self-start rounded-md border border-hair bg-paper p-4 lg:sticky lg:top-20">
+      {!done && lines.length > 0 && !ticketInView && (
+        <a
+          href="#ticket"
+          className="fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 flex items-center justify-between gap-3 rounded-full bg-rail px-5 py-3 text-sm font-semibold text-white shadow-xl lg:hidden"
+        >
+          <span className="flex items-center gap-2">
+            <span className="font-display flex h-6 min-w-6 items-center justify-center rounded-full bg-brand px-1.5 text-xs tabular-nums">
+              {lines.length}
+            </span>
+            Ver ticket
+          </span>
+          <span className="font-display tabular-nums">{formatMoney(totalCents)}</span>
+        </a>
+      )}
+
+      <aside
+        ref={ticketRef}
+        id="ticket"
+        className="flex min-w-0 scroll-mt-20 flex-col gap-4 self-start rounded-md border border-hair bg-paper p-4 lg:sticky lg:top-20"
+      >
         {done ? (
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-1 rounded-md bg-success-soft px-4 py-3 text-success">
@@ -1036,7 +1069,7 @@ export function OrderBuilder({
                         key={serviceId}
                         className={`rounded-md border ${groupHasError ? "border-attention" : "border-hair"} bg-canvas/40`}
                       >
-                        <div className="flex items-center gap-2 px-2.5 py-2">
+                        <div className="flex flex-wrap items-center gap-2 px-2.5 py-2 sm:flex-nowrap">
                           <button
                             type="button"
                             onClick={() =>
@@ -1045,7 +1078,7 @@ export function OrderBuilder({
                                 : toggleGroup(serviceId)
                             }
                             aria-expanded={groupOpen}
-                            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                            className="flex min-w-0 flex-1 basis-full items-center gap-2 text-left sm:basis-0"
                           >
                             <ServiceIcon
                               icon={service.iconKey ?? guessServiceIcon(service)}
@@ -1071,12 +1104,12 @@ export function OrderBuilder({
                               className={`shrink-0 text-muted transition-transform ${groupOpen ? "rotate-180" : ""}`}
                             />
                           </button>
-                          <span className="flex shrink-0 items-center rounded-md border border-hair bg-paper">
+                          <span className="ml-auto flex shrink-0 items-center rounded-md border border-hair bg-paper sm:ml-0">
                             <button
                               type="button"
                               onClick={() => removeLine(units[units.length - 1].line.uid)}
                               aria-label={`Quitar un ${service.name}`}
-                              className="flex h-7 w-6 items-center justify-center text-soft hover:text-ink"
+                              className="flex h-8 w-8 items-center justify-center text-soft hover:text-ink sm:h-7 sm:w-6"
                             >
                               −
                             </button>
@@ -1085,7 +1118,7 @@ export function OrderBuilder({
                               type="button"
                               onClick={() => addService(service)}
                               aria-label={`Agregar otro ${service.name}`}
-                              className="flex h-7 w-6 items-center justify-center text-soft hover:text-ink"
+                              className="flex h-8 w-8 items-center justify-center text-soft hover:text-ink sm:h-7 sm:w-6"
                             >
                               +
                             </button>

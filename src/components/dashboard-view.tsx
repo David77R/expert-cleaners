@@ -207,7 +207,7 @@ export function DashboardView({ data, actorName, now }: { data: Dashboard; actor
         />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <Panel
           title="Citas por día"
           action={<span className="text-xs text-muted">Últimas 2 semanas y próximos 7 días</span>}

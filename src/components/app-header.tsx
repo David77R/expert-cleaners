@@ -6,6 +6,7 @@ import { todayIn } from "@/domain/date-rules";
 import { logout } from "@/app/login/actions";
 import { AlertsBell, BellLink } from "@/components/alerts-bell";
 import { Icon, type IconName } from "@/components/icons";
+import { MobileNav } from "@/components/mobile-nav";
 import { GlobalSearch, MiamiClock } from "@/components/top-bar-tools";
 
 type Section =
@@ -21,6 +22,18 @@ const LINKS: { key: Section; href: string; label: string; icon: IconName; adminO
   { key: "technicians", href: "/technicians", label: "Técnicos", icon: "wrench", adminOnly: true },
   { key: "reports", href: "/reports", label: "Reportes", icon: "report" },
 ];
+
+const TITLES: Record<Section, string> = {
+  home: "Inicio",
+  orders: "Nuevo pedido",
+  calendar: "Calendario",
+  customers: "Clientes",
+  services: "Servicios",
+  agents: "Agentes",
+  technicians: "Técnicos",
+  reports: "Reportes",
+  alerts: "Alertas",
+};
 
 function Brand() {
   return (
@@ -115,43 +128,22 @@ export function AppShell({ active, actor, children }: { active: Section; actor: 
         </div>
       </aside>
 
-      <header className="sticky top-0 z-30 flex items-center gap-3 bg-rail px-4 py-2.5 lg:hidden">
-        <Link
-          href="/inicio"
-          aria-label="Expert Cleaners: inicio"
-          className="font-display flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-brand text-sm font-bold text-white"
-        >
-          EC
-        </Link>
-        <nav aria-label="Principal" className="flex min-w-0 flex-1 items-center gap-1">
-          {links.map((link) => {
-            const current = link.key === active;
-            return (
-              <Link
-                key={link.key}
-                href={link.href}
-                aria-current={current ? "page" : undefined}
-                className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
-                  current ? "bg-brand/20 text-white" : "text-rail-text hover:bg-white/[0.06] hover:text-white"
-                }`}
-              >
-                <Icon name={link.icon} />
-                <span className={current ? undefined : "sr-only min-[420px]:not-sr-only"}>{link.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
-        <Suspense fallback={<BellLink count={null} active={active === "alerts"} tone="dark" />}>
-          <AlertsBell active={active === "alerts"} tone="dark" />
-        </Suspense>
-        <form action={logout}>
-          <button type="submit" aria-label="Cerrar sesión" className="rounded-md p-2 text-rail-text hover:text-white">
-            <Icon name="logout" />
-          </button>
-        </form>
-      </header>
+      <MobileNav
+        links={[...links, { key: "alerts", href: "/alerts", label: "Alertas", icon: "bell" }]}
+        active={active}
+        title={TITLES[active]}
+        userName={actor.name}
+        userInitials={initialsOf(actor.name)}
+        roleLabel={actor.role === "admin" ? "Administrador" : "Agente"}
+        logout={logout}
+        bell={
+          <Suspense fallback={<BellLink count={null} active={active === "alerts"} tone="dark" />}>
+            <AlertsBell active={active === "alerts"} tone="dark" />
+          </Suspense>
+        }
+      />
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col pb-[calc(4.5rem+env(safe-area-inset-bottom))] lg:pb-0">
         <div className="sticky top-0 z-30 hidden items-center gap-4 border-b border-hair bg-paper/90 px-8 py-2.5 backdrop-blur lg:flex">
           <GlobalSearch />
           <div className="ml-auto flex items-center gap-3">

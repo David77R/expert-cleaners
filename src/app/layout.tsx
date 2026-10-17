@@ -1,5 +1,5 @@
 import { NavigationTrail } from "@/components/back-link";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 
@@ -25,6 +25,14 @@ const grotesk = localFont({
 export const metadata: Metadata = {
   title: "Expert Cleaners",
   description: "Operación diaria: calendario, rutas y citas",
+  appleWebApp: { capable: true, title: "Expert Cleaners", statusBarStyle: "black-translucent" },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#12181f",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

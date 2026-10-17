@@ -28,9 +28,90 @@ function orderItems(row: Row) {
   return row.items.length > 0 ? row.items : [{ service: row.service }];
 }
 
+function editHref(row: Row, returnHref?: string) {
+  return `/appointments/${row.id}/edit${returnHref ? `?volver=${encodeURIComponent(returnHref)}` : ""}`;
+}
+
+function AppointmentCards({ rows, returnHref }: { rows: Row[]; returnHref?: string }) {
+  return (
+    <ul className="flex flex-col gap-2.5 md:hidden">
+      {rows.map((row) => {
+        const stage = currentStage(row.stages);
+        return (
+          <li key={row.id} className="rounded-md border border-hair bg-paper">
+            <Link
+              href={calendarHref({ view: "day", date: row.date, appt: row.id })}
+              className="flex flex-col gap-2 px-3.5 py-3"
+            >
+              <span className="flex items-center justify-between gap-2">
+                <span className="font-display text-sm font-semibold tabular-nums">{row.code}</span>
+                <StatusBadge status={row.status} compact />
+              </span>
+              <span className="flex items-baseline justify-between gap-2">
+                <span className="text-sm font-medium">
+                  {formatDayLabel(row.date)} · <span className="tabular-nums">{formatMinutes(row.startMin)}</span>
+                </span>
+                <span className="font-display text-base font-semibold tabular-nums">{formatMoney(row.priceCents)}</span>
+              </span>
+              <span className="text-sm">
+                {orderSummary(orderItems(row)).map((line) => (
+                  <span key={line} className="block">
+                    {line}
+                  </span>
+                ))}
+              </span>
+              <span className="text-xs text-soft">{formatAddress(row.address)}</span>
+              {hasDelivery(row) && (
+                <span className="text-xs font-medium text-brand-ink">
+                  Entrega: {formatDayLabel(row.deliveryDate)} {formatMinutes(row.deliveryStartMin)}
+                  {row.deliveryTechnician ? ` · ${row.deliveryTechnician.name}` : ""}
+                </span>
+              )}
+              <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                <span className={`font-semibold ${row.paymentStatus === "paid" ? "text-success" : "text-attention"}`}>
+                  {row.paymentStatus === "paid" ? "Pagado" : "Sin pagar"}
+                </span>
+                <span className="text-soft">{INVOICE_LABELS[row.invoiceStatus]}</span>
+                {stage && row.status !== "cancelled" && (
+                  <span className="font-medium text-success">{STAGE_LABELS[stage]}</span>
+                )}
+              </span>
+            </Link>
+            <div className="grid grid-cols-2 border-t border-hair text-sm font-semibold">
+              <Link
+                href={editHref(row, returnHref)}
+                className="flex items-center justify-center gap-1.5 py-2.5 text-soft hover:bg-canvas hover:text-ink"
+              >
+                <Icon name="wrench" size={14} />
+                Editar
+              </Link>
+              <Link
+                href={calendarHref({ view: "day", date: row.date, appt: row.id })}
+                className="flex items-center justify-center gap-1.5 border-l border-hair py-2.5 text-brand-ink hover:bg-brand-soft"
+              >
+                Ver en calendario
+                <Icon name="right" size={14} />
+              </Link>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export function CustomerAppointmentsTable({ rows, returnHref }: { rows: Row[]; returnHref?: string }) {
   return (
-    <div className="overflow-x-auto rounded-md border border-hair bg-paper">
+    <>
+      <AppointmentCards rows={rows} returnHref={returnHref} />
+      <AppointmentTable rows={rows} returnHref={returnHref} />
+    </>
+  );
+}
+
+function AppointmentTable({ rows, returnHref }: { rows: Row[]; returnHref?: string }) {
+  return (
+    <div className="hidden overflow-x-auto rounded-md border border-hair bg-paper md:block">
       <table className="w-full min-w-[1080px] text-sm">
         <thead className="border-b border-hair bg-canvas/60">
           <tr>
@@ -132,7 +213,7 @@ export function CustomerAppointmentsTable({ rows, returnHref }: { rows: Row[]; r
                 <td className={CELL}>
                   <div className="flex items-center gap-0.5">
                     <Link
-                      href={`/appointments/${row.id}/edit${returnHref ? `?volver=${encodeURIComponent(returnHref)}` : ""}`}
+                      href={editHref(row, returnHref)}
                       aria-label={`Editar la cita ${row.code}`}
                       title="Editar cita"
                       className="flex h-8 w-8 items-center justify-center rounded-md text-soft hover:bg-canvas hover:text-ink"

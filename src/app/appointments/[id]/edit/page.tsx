@@ -135,8 +135,8 @@ export default async function EditAppointmentPage({ params, searchParams }: Page
           </p>
         )}
 
-        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-          <div className="flex flex-col gap-6">
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+          <div className="flex min-w-0 flex-col gap-6">
             <Card
               title="Servicios y precios"
               hint={
@@ -198,7 +198,7 @@ export default async function EditAppointmentPage({ params, searchParams }: Page
             </Card>
           </div>
 
-          <div className="flex flex-col gap-6">
+          <div className="flex min-w-0 flex-col gap-6">
             {actions.reschedule && (
               <Card
                 title="Fecha, horario y técnico"

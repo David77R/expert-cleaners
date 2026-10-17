@@ -63,11 +63,11 @@ export function TimeInput({
   }
 
   const select =
-    "h-full appearance-none bg-transparent px-1.5 text-center tabular-nums focus:outline-none focus-visible:rounded focus-visible:bg-brand-soft";
+    "h-full min-h-10 appearance-none bg-transparent px-1 text-center tabular-nums focus:outline-none focus-visible:rounded focus-visible:bg-brand-soft sm:px-1.5";
 
   return (
     <div
-      className={`${className} flex items-stretch gap-1 !py-0 focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/20`}
+      className={`${className} flex min-w-0 items-stretch gap-0.5 !py-0 focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/20 sm:gap-1`}
       aria-invalid={aria["aria-invalid"]}
     >
       {name && <input type="hidden" name={name} value={current} />}
@@ -79,7 +79,7 @@ export function TimeInput({
         aria-label={id ? undefined : (aria["aria-label"] ?? "Hora")}
         aria-invalid={aria["aria-invalid"]}
         aria-describedby={aria["aria-describedby"]}
-        className={`${select} min-w-[2.75rem]`}
+        className={`${select} min-w-[2.25rem] sm:min-w-[2.75rem]`}
       >
         <option value="">--</option>
         {HOURS.map((hour) => (
@@ -93,7 +93,7 @@ export function TimeInput({
         value={parts.minute}
         onChange={(event) => update({ minute: event.target.value, hour: parts.hour || "12" })}
         aria-label="Minutos"
-        className={`${select} min-w-[2.75rem]`}
+        className={`${select} min-w-[2.25rem] sm:min-w-[2.75rem]`}
       >
         <option value="">--</option>
         {minutes.map((minute) => (
@@ -102,7 +102,15 @@ export function TimeInput({
           </option>
         ))}
       </select>
-      <div role="group" aria-label="AM o PM" className="ml-auto flex items-center gap-0.5 py-1">
+      <button
+        type="button"
+        onClick={() => update({ period: parts.period === "AM" ? "PM" : "AM" })}
+        aria-label={`${parts.period}: toca para cambiar a ${parts.period === "AM" ? "PM" : "AM"}`}
+        className="my-1 ml-auto shrink-0 rounded bg-brand px-2 text-xs font-bold text-white sm:hidden"
+      >
+        {parts.period}
+      </button>
+      <div role="group" aria-label="AM o PM" className="ml-auto hidden items-center gap-0.5 py-1 sm:flex">
         {(["AM", "PM"] as const).map((period) => (
           <button
             key={period}

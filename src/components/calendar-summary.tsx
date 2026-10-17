@@ -80,13 +80,16 @@ export function CalendarSummary({
   const cards = CARDS.filter((card) => showConflicts || card.key !== "overlaps");
 
   return (
-    <section aria-label="Resumen de citas" className="grid grid-cols-[repeat(auto-fit,minmax(7.75rem,1fr))] gap-2.5">
+    <section
+      aria-label="Resumen de citas"
+      className="no-scrollbar -mx-4 flex snap-x gap-2 overflow-x-auto px-4 py-1 sm:mx-0 sm:grid sm:grid-cols-[repeat(auto-fit,minmax(7.75rem,1fr))] sm:gap-2.5 sm:overflow-visible sm:px-0 sm:py-0"
+    >
       <Link
         href={hrefFor(null)}
         scroll={false}
         aria-current={activeFilter === null ? "true" : undefined}
         title="Ver todas las citas"
-        className={`flex min-w-0 flex-col gap-1.5 rounded-xl bg-rail px-3.5 py-3 text-white transition-all hover:-translate-y-0.5 hover:shadow-md ${
+        className={`flex w-[7.25rem] min-w-0 shrink-0 snap-start flex-col gap-1.5 rounded-xl bg-rail px-3 py-2.5 text-white sm:w-auto sm:px-3.5 sm:py-3 transition-all hover:-translate-y-0.5 hover:shadow-md ${
           activeFilter === null ? "ring-2 ring-brand ring-offset-2" : ""
         }`}
       >
@@ -112,7 +115,7 @@ export function CalendarSummary({
             scroll={false}
             aria-current={selected ? "true" : undefined}
             title={selected ? "Quitar el filtro" : `Ver solo: ${card.plural.toLowerCase()}`}
-            className={`flex min-w-0 flex-col gap-1.5 rounded-xl border px-3.5 py-3 transition-all hover:-translate-y-0.5 hover:shadow-md ${
+            className={`flex w-[7.25rem] min-w-0 shrink-0 snap-start flex-col gap-1.5 rounded-xl border px-3 py-2.5 transition-all sm:w-auto sm:px-3.5 sm:py-3 hover:-translate-y-0.5 hover:shadow-md ${
               active && card.alert ? card.alert : "border-hair bg-paper"
             } ${active || selected ? "" : "opacity-60"} ${selected ? "ring-2 ring-brand ring-offset-2" : ""}`}
           >
