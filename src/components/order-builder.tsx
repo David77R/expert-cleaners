@@ -205,7 +205,7 @@ function ScheduleForm({
             Fecha
             <DateInput name="pickupDate" defaultValue={pickupDate} className={FIELD} />
           </label>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))] gap-3">
             <label className={LABEL}>
               Hora
               <TimeInput
@@ -267,7 +267,7 @@ function ScheduleForm({
                     className={FIELD}
                   />
                 </label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))] gap-3">
                   <label className={LABEL}>
                     Hora
                     <TimeInput

@@ -3,6 +3,7 @@ import { DateInput } from "@/components/date-jump";
 import { CANCEL_REASON_LABELS, describeChange, minutesToTimeInput, panelActions } from "@/domain/appointment-panel";
 import { CANCEL_REASONS } from "@/domain/appointment-rules";
 import { formatDayLabel, formatRange, initialsOf, readableOn } from "@/domain/calendar-view";
+import type { ConflictPartner } from "@/server/appointments";
 import { formatPhone } from "@/domain/customer-rules";
 import {
   centsToDollars,
@@ -59,12 +60,14 @@ export function AppointmentPanel({
   services,
   nav,
   photos,
+  conflicts = [],
 }: {
   appointment: Detail;
   technicians: CalendarTechnician[];
   services: FormService[];
   nav: CalendarNav;
   photos: PanelPhotos;
+  conflicts?: ConflictPartner[];
 }) {
   const actions = panelActions(appointment.status, appointment.paymentStatus, appointment.invoiceStatus);
   const closeHref = calendarHref(nav);
@@ -135,6 +138,38 @@ export function AppointmentPanel({
               <span className="block text-xs text-soft">{technician.zone}</span>
             </span>
           </div>
+          {conflicts.length > 0 && (
+            <div
+              role="alert"
+              className="flex flex-col gap-2 rounded-md border border-attention/40 bg-attention-soft px-3.5 py-3"
+            >
+              <p className="flex items-center gap-2 text-sm font-semibold text-attention">
+                <Icon name="alert" size={15} />
+                Choca con {conflicts.length === 1 ? "otra cita" : `${conflicts.length} citas`} de {technician.name}
+              </p>
+              <ul className="flex flex-col gap-1">
+                {conflicts.map((partner) => (
+                  <li key={partner.id}>
+                    <Link
+                      href={calendarHref({ ...nav, date: appointment.date, appt: partner.id })}
+                      scroll={false}
+                      className="flex items-center justify-between gap-2 rounded-md bg-paper px-3 py-2 text-sm hover:bg-canvas"
+                    >
+                      <span>
+                        <span className="font-display font-semibold tabular-nums">{partner.code}</span>
+                        <span className="text-soft"> · {formatRange(partner.startMin, partner.durationMin)}</span>
+                      </span>
+                      <Icon name="right" size={14} className="text-muted" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-soft">
+                Cambia la hora o el técnico en «Fecha y hora», o mantén presionada la cita en el calendario y
+                arrástrala.
+              </p>
+            </div>
+          )}
           <Link
             href={`/appointments/${id}/edit?volver=${encodeURIComponent(calendarHref({ ...nav, appt: id }))}`}
             className="flex items-center justify-center gap-2 rounded-md bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
@@ -232,7 +267,7 @@ export function AppointmentPanel({
                   Fecha
                   <DateInput name="date" required defaultValue={appointment.date} className={FIELD} />
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))] gap-2">
                   <TimeRangeField
                     defaultStart={minutesToTimeInput(appointment.startMin)}
                     defaultDuration={appointment.durationMin}

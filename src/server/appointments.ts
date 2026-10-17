@@ -88,6 +88,36 @@ async function conflictsFor(tx: Tx | Db, candidate: TimeBlock): Promise<TimeBloc
   return findConflicts(candidate, sameDay.map(toBlock));
 }
 
+export type ConflictPartner = { id: string; code: string; startMin: number; durationMin: number };
+
+export async function conflictingAppointments(db: Db, id: string): Promise<ConflictPartner[]> {
+  const current = await load(db, id);
+  if (current.status === "cancelled") return [];
+  const sameDay = await db
+    .select({
+      id: appointments.id,
+      code: appointments.code,
+      technicianId: appointments.technicianId,
+      date: appointments.date,
+      startMin: appointments.startMin,
+      durationMin: appointments.durationMin,
+      status: appointments.status,
+    })
+    .from(appointments)
+    .where(
+      and(
+        eq(appointments.date, current.date),
+        eq(appointments.technicianId, current.technicianId),
+        ne(appointments.status, "cancelled"),
+      ),
+    )
+    .orderBy(asc(appointments.startMin));
+  const clashing = new Set(findConflicts(toBlock(current), sameDay.map(toBlock)).map((block) => block.id));
+  return sameDay
+    .filter((row) => clashing.has(row.id))
+    .map((row) => ({ id: row.id, code: row.code, startMin: row.startMin, durationMin: row.durationMin }));
+}
+
 async function persist(
   tx: Tx,
   actor: Actor,

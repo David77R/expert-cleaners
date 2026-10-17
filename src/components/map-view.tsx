@@ -8,6 +8,7 @@ import { MapContainer, Marker, Polyline, Tooltip, TileLayer } from "react-leafle
 import { formatRange, initialsOf, readableOn } from "@/domain/calendar-view";
 import { appointmentIdFromKey } from "@/domain/delivery";
 import { spreadPositions } from "@/domain/map-positions";
+import { Icon } from "@/components/icons";
 
 export type MapStop = {
   id: string;
@@ -366,6 +367,16 @@ export function MapView({
     setDragOverIndex(null);
   }
 
+  function shiftStop(index: number, delta: number) {
+    setDraftOrder((prev) => {
+      const target = index + delta;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  }
+
   function handleDragEnd() {
     setDragIndex(null);
     setDragOverIndex(null);
@@ -531,7 +542,7 @@ export function MapView({
       )}
 
       <div className="flex flex-col gap-2 lg:flex-row">
-        <div className="h-[60vh] min-h-[340px] w-full min-w-0 lg:h-[520px] lg:min-h-0 lg:flex-1 overflow-hidden rounded-md border border-hair">
+        <div className="isolate h-[60vh] min-h-[340px] w-full min-w-0 lg:h-[520px] lg:min-h-0 lg:flex-1 overflow-hidden rounded-md border border-hair">
           {hasVisibleStops ? (
             <MapContainer
               key={mapKey}
@@ -561,7 +572,7 @@ export function MapView({
               <div className="flex flex-col border-b border-hair px-3 py-2">
                 <p className="text-sm font-semibold">Mejorar ruta</p>
                 <p className="text-xs text-muted">
-                  Arrastra en la lista o en el mapa para reordenar. No toca la ruta real.
+                  Arrastra en la lista o en el mapa, o usa las flechas, para reordenar. No toca la ruta real.
                 </p>
                 {draftRoutes[editingGroupKey]?.status === "ok" && (
                   <p className="mt-1 text-xs font-medium text-muted">
@@ -603,6 +614,26 @@ export function MapView({
                         </p>
                         <p className="truncate text-xs text-muted">{formatRange(stop.startMin, stop.durationMin)}</p>
                       </div>
+                      <span className="flex shrink-0 flex-col">
+                        <button
+                          type="button"
+                          onClick={() => shiftStop(index, -1)}
+                          disabled={index === 0}
+                          aria-label={`Subir ${stop.code} en la ruta`}
+                          className="flex h-6 w-8 items-center justify-center rounded text-soft hover:bg-paper hover:text-ink disabled:opacity-25"
+                        >
+                          <Icon name="up" size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => shiftStop(index, 1)}
+                          disabled={index === draftOrder.length - 1}
+                          aria-label={`Bajar ${stop.code} en la ruta`}
+                          className="flex h-6 w-8 items-center justify-center rounded text-soft hover:bg-paper hover:text-ink disabled:opacity-25"
+                        >
+                          <Icon name="down" size={14} />
+                        </button>
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -667,6 +698,26 @@ export function MapView({
                         </p>
                         <p className="truncate text-xs text-muted">{formatRange(stop.startMin, stop.durationMin)}</p>
                       </div>
+                      <span className="flex shrink-0 flex-col">
+                        <button
+                          type="button"
+                          onClick={() => shiftStop(index, -1)}
+                          disabled={index === 0}
+                          aria-label={`Subir ${stop.code} en la ruta`}
+                          className="flex h-6 w-8 items-center justify-center rounded text-soft hover:bg-paper hover:text-ink disabled:opacity-25"
+                        >
+                          <Icon name="up" size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => shiftStop(index, 1)}
+                          disabled={index === draftOrder.length - 1}
+                          aria-label={`Bajar ${stop.code} en la ruta`}
+                          className="flex h-6 w-8 items-center justify-center rounded text-soft hover:bg-paper hover:text-ink disabled:opacity-25"
+                        >
+                          <Icon name="down" size={14} />
+                        </button>
+                      </span>
                     </div>
                   ))}
                 </div>

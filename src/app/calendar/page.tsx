@@ -28,7 +28,7 @@ import { calendarHref } from "@/lib/calendar-links";
 import type { MapRouteDraft, MapServiceOption, MapStop, MapTechnicianOption } from "@/components/map-view";
 import { MonthView } from "@/components/month-view";
 import { WeekView } from "@/components/week-view";
-import { getAppointment, getDay, getDeliveries, getRange } from "@/server/appointments";
+import { conflictingAppointments, getAppointment, getDay, getDeliveries, getRange } from "@/server/appointments";
 import { getActor } from "@/server/auth";
 import { locateMissingAddresses } from "@/server/customers";
 import { panelPhotos } from "@/server/photos";
@@ -207,6 +207,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
   }
   const selectedId = selected?.id ?? null;
   const photos = selected ? await panelPhotos(db, getPhotoStorage, actor, selected.id) : null;
+  const selectedConflicts = selected ? await conflictingAppointments(db, selected.id) : [];
   const panelServices = selected
     ? (await db.select().from(servicesTable))
         .filter((s) => s.active || selected.items.some((item) => item.serviceId === s.id))
@@ -348,8 +349,13 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
           />
         )}
         {!mapa && view === "day" && (
-          <p className="-mt-3 hidden text-xs text-muted md:block">
-            Arrastra una cita a otra hora o a otro técnico para moverla. Siempre se pide confirmación.
+          <p className="-mt-3 text-xs text-muted">
+            <span className="md:hidden">
+              Mantén presionada una cita y arrástrala para moverla de hora o de técnico. Siempre se pide confirmación.
+            </span>
+            <span className="hidden md:inline">
+              Arrastra una cita a otra hora o a otro técnico para moverla. Siempre se pide confirmación.
+            </span>
           </p>
         )}
         {!mapa && view === "week" && (
@@ -377,6 +383,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
           services={panelServices}
           nav={nav}
           photos={photos}
+          conflicts={selectedConflicts}
         />
       )}
     </AppShell>

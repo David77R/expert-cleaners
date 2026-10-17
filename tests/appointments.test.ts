@@ -19,6 +19,7 @@ import {
   scheduleDelivery,
   clearDelivery,
   getDeliveries,
+  conflictingAppointments,
 } from "@/server/appointments";
 import { asDeliveryEntry, appointmentIdFromKey, currentStage, deliveryKey } from "@/domain/delivery";
 import { describeChange } from "@/domain/appointment-panel";
@@ -149,6 +150,23 @@ describe("flujo de estados", () => {
     await expect(cancelAppointment(ctx.db, AGENT_JOSUE, appointment.id, { reason: "other" })).rejects.toMatchObject({
       code: "explanation_required",
     });
+  });
+
+  it("lista con qué citas choca una cita para mostrarlo en el panel", async () => {
+    const date = "2026-11-21";
+    const first = await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date }));
+    const second = await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date, startMin: 570 }));
+    const partners = await conflictingAppointments(ctx.db, first.appointment.id);
+    expect(partners).toEqual([
+      {
+        id: second.appointment.id,
+        code: second.appointment.code,
+        startMin: 570,
+        durationMin: second.appointment.durationMin,
+      },
+    ]);
+    await cancelAppointment(ctx.db, AGENT_JOSUE, second.appointment.id, { reason: "weather" });
+    expect(await conflictingAppointments(ctx.db, first.appointment.id)).toEqual([]);
   });
 
   it("las canceladas no generan conflicto", async () => {

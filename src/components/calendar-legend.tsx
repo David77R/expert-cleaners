@@ -98,7 +98,7 @@ export function CalendarLegend({ technicians }: { technicians: CalendarTechnicia
             />
             <Item
               title="En conflicto"
-              text="Borde rojo y triángulo. Pasa el mouse para ver con qué cita choca."
+              text="Borde rojo y triángulo. Pasa el mouse o tócalo para ver con qué cita choca."
               sample={
                 <Sample className="!border-2 !border-attention">
                   <Header>

@@ -40,7 +40,7 @@ function DeliveryFields({ appointment, technicians }: { appointment: Detail; tec
   const scheduled = hasDelivery(appointment);
   return (
     <>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))] gap-2">
         <label className="flex flex-col gap-1 text-xs font-medium text-soft">
           Fecha
           <DateInput

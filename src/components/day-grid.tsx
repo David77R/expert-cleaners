@@ -32,12 +32,12 @@ export function DayGrid({
   const showNow = nowMin !== null && nowMin >= startHour * 60 && nowMin <= endHour * 60;
 
   return (
-    <div className="overflow-x-auto rounded-md border border-hair bg-paper">
+    <div data-grid-scroll className="overflow-x-auto rounded-md border border-hair bg-paper">
       <div
         className="grid [--lane:12.5rem] [--time:62px] md:min-w-[760px] md:[--lane:0px] md:[--time:76px]"
         style={{ gridTemplateColumns: `var(--time) repeat(${technicians.length}, minmax(var(--lane), 1fr))` }}
       >
-        <div className="sticky left-0 z-30 border-b border-hair bg-paper" />
+        <div className="sticky left-0 z-[25] border-b border-hair bg-paper" />
         {technicians.map((technician) => {
           const count = appointments.filter(
             (a) => a.technicianId === technician.id && a.status !== "cancelled" && a.kind !== "delivery",
@@ -66,7 +66,10 @@ export function DayGrid({
           );
         })}
 
-        <div className="sticky left-0 z-30 border-r border-hair bg-paper md:border-r-0" style={{ height: gridHeight }}>
+        <div
+          className="sticky left-0 z-[25] border-r border-hair bg-paper md:border-r-0"
+          style={{ height: gridHeight }}
+        >
           {hours
             .slice(1)
             .filter((hour) => !showNow || Math.abs(nowMin - hour * 60) >= 15)

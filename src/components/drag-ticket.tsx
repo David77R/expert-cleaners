@@ -18,6 +18,17 @@ type Slot = { startMin: number; technicianId: string };
 type Preview = Slot & { left: number; width: number; top: number };
 
 const DRAG_THRESHOLD_PX = 6;
+const LONG_PRESS_MS = 380;
+const TOUCH_SLOP_PX = 10;
+const EDGE_PX = 44;
+const MAX_SCROLL_STEP_PX = 7;
+const TOP_BAR_PX = 60;
+const BOTTOM_BAR_PX = 76;
+
+function edgeSpeed(distanceIntoEdge: number): number {
+  if (distanceIntoEdge <= 0) return 0;
+  return Math.ceil(MAX_SCROLL_STEP_PX * Math.min(1, distanceIntoEdge / EDGE_PX));
+}
 
 export function DragTicket({
   appointmentId,
@@ -51,6 +62,9 @@ export function DragTicket({
   const dialogRef = useRef<HTMLDialogElement>(null);
   const session = useRef<{ cancel: () => void; stop: () => void } | null>(null);
   const suppressClick = useRef(false);
+  const root = useRef<HTMLDivElement>(null);
+  const touchDragging = useRef(false);
+  const lastPointer = useRef("mouse");
   const [preview, setPreview] = useState<Preview | null>(null);
   const [pending, setPending] = useState<Slot | null>(null);
   const [busy, setBusy] = useState(false);
@@ -85,6 +99,16 @@ export function DragTicket({
 
   useEffect(() => () => session.current?.stop(), []);
 
+  useEffect(() => {
+    const node = root.current;
+    if (!node) return;
+    function block(event: TouchEvent) {
+      if (touchDragging.current) event.preventDefault();
+    }
+    node.addEventListener("touchmove", block, { passive: false });
+    return () => node.removeEventListener("touchmove", block);
+  }, []);
+
   function locate(clientX: number, clientY: number, grabMin: number): Preview | null {
     const lanes = [...document.querySelectorAll<HTMLElement>("[data-lane]")].map((element) => {
       const box = element.getBoundingClientRect();
@@ -110,8 +134,126 @@ export function DragTicket({
     };
   }
 
+  function propose(target: Preview | null) {
+    setPreview(null);
+    if (target && !isSameSlot(current, target)) {
+      setError(null);
+      setPending({ startMin: target.startMin, technicianId: target.technicianId });
+    }
+  }
+
+  function onTouchPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    session.current?.stop();
+
+    const pointerId = event.pointerId;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const grabMin = ((event.clientY - event.currentTarget.getBoundingClientRect().top) / HOUR_PX) * 60;
+    const scroller = event.currentTarget.closest<HTMLElement>("[data-grid-scroll]");
+    let lastX = startX;
+    let lastY = startY;
+    let active = false;
+    let frame = 0;
+
+    function autoScroll() {
+      if (!active) return;
+      let moved = false;
+      if (scroller) {
+        const box = scroller.getBoundingClientRect();
+        const left = edgeSpeed(box.left + EDGE_PX - lastX);
+        const right = edgeSpeed(lastX - (box.right - EDGE_PX));
+        const maxLeft = scroller.scrollWidth - scroller.clientWidth;
+        if (left > 0 && scroller.scrollLeft > 0) {
+          scroller.scrollLeft -= left;
+          moved = true;
+        } else if (right > 0 && scroller.scrollLeft < maxLeft) {
+          scroller.scrollLeft += right;
+          moved = true;
+        }
+        const bottomLimit = window.innerHeight - BOTTOM_BAR_PX;
+        const up = edgeSpeed(TOP_BAR_PX + EDGE_PX - lastY);
+        const down = edgeSpeed(lastY - (bottomLimit - EDGE_PX));
+        if (up > 0 && box.top < TOP_BAR_PX) {
+          window.scrollBy(0, -up);
+          moved = true;
+        } else if (down > 0 && box.bottom > bottomLimit) {
+          window.scrollBy(0, down);
+          moved = true;
+        }
+      }
+      if (moved) setPreview(locate(lastX, lastY, grabMin));
+      frame = requestAnimationFrame(autoScroll);
+    }
+
+    const timer = setTimeout(() => {
+      active = true;
+      touchDragging.current = true;
+      navigator.vibrate?.(15);
+      setPreview(locate(lastX, lastY, grabMin));
+      frame = requestAnimationFrame(autoScroll);
+    }, LONG_PRESS_MS);
+
+    function stop() {
+      clearTimeout(timer);
+      cancelAnimationFrame(frame);
+      touchDragging.current = false;
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onCancel);
+      session.current = null;
+    }
+
+    function onMove(moveEvent: PointerEvent) {
+      if (moveEvent.pointerId !== pointerId) return;
+      lastX = moveEvent.clientX;
+      lastY = moveEvent.clientY;
+      if (!active) {
+        if (Math.hypot(lastX - startX, lastY - startY) > TOUCH_SLOP_PX) stop();
+        return;
+      }
+      setPreview(locate(lastX, lastY, grabMin));
+    }
+
+    function end(endEvent: PointerEvent, commit: boolean) {
+      if (endEvent.pointerId !== pointerId) return;
+      const wasActive = active;
+      active = false;
+      stop();
+      if (!wasActive) return;
+      suppressClick.current = true;
+      setTimeout(() => (suppressClick.current = false), 400);
+      propose(commit ? locate(lastX, lastY, grabMin) : null);
+    }
+
+    function onUp(upEvent: PointerEvent) {
+      end(upEvent, true);
+    }
+
+    function onCancel(cancelEvent: PointerEvent) {
+      end(cancelEvent, false);
+    }
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onCancel);
+    session.current = {
+      stop,
+      cancel: () => {
+        active = false;
+        stop();
+        setPreview(null);
+      },
+    };
+  }
+
   function onPointerDown(event: ReactPointerEvent<HTMLDivElement>) {
-    if (!draggable || event.button !== 0 || event.pointerType === "touch") return;
+    lastPointer.current = event.pointerType;
+    if (!draggable) return;
+    if (event.pointerType !== "mouse") {
+      onTouchPointerDown(event);
+      return;
+    }
+    if (event.button !== 0) return;
     session.current?.stop();
 
     const pointerId = event.pointerId;
@@ -143,12 +285,7 @@ export function DragTicket({
       if (!active) return;
       suppressClick.current = true;
       setTimeout(() => (suppressClick.current = false), 0);
-      const target = commit && !cancelled ? locate(endEvent.clientX, endEvent.clientY, grabMin) : null;
-      setPreview(null);
-      if (target && !isSameSlot(current, target)) {
-        setError(null);
-        setPending({ startMin: target.startMin, technicianId: target.technicianId });
-      }
+      propose(commit && !cancelled ? locate(endEvent.clientX, endEvent.clientY, grabMin) : null);
     }
 
     function onUp(upEvent: PointerEvent) {
@@ -191,9 +328,15 @@ export function DragTicket({
 
   return (
     <div
-      className={`${className ?? ""} ${draggable ? "cursor-grab select-none" : ""} ${dragging ? "opacity-40" : ""}`}
+      ref={root}
+      className={`${className ?? ""} ${draggable ? "cursor-grab select-none [-webkit-touch-callout:none]" : ""} ${
+        dragging ? "opacity-40" : ""
+      }`}
       style={style}
       onPointerDown={onPointerDown}
+      onContextMenu={(event) => {
+        if (draggable && lastPointer.current !== "mouse") event.preventDefault();
+      }}
       onClickCapture={(event) => {
         if (suppressClick.current) {
           event.preventDefault();
