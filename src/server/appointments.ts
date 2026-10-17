@@ -408,8 +408,8 @@ export async function moveAppointment(db: Db, actor: Actor, id: string, raw: unk
   const input = moveSchema.parse(raw);
   return db.transaction(async (tx) => {
     const current = await load(tx, id);
-    if (current.status === "cancelled" || current.status === "completed") {
-      throw new DomainError("not_movable", "Esta cita ya no se puede mover");
+    if (current.status === "cancelled") {
+      throw new DomainError("not_movable", "Una cita cancelada no se puede mover");
     }
     const changes: FieldChange[] = [];
     if (input.startMin !== current.startMin) {

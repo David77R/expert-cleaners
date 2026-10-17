@@ -223,6 +223,26 @@ describe("reprogramar y mover", () => {
     expect(result.appointment.startMin).toBe(560);
     expect(result.conflicts).toHaveLength(1);
   });
+
+  it("una cita completada se puede pasar a otro técnico sin perder el estado", async () => {
+    const { appointment } = await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date: "2026-11-23" }));
+    await completeAppointment(ctx.db, AGENT_JOSUE, appointment.id);
+    const { appointment: moved } = await moveAppointment(ctx.db, AGENT_JOSUE, appointment.id, {
+      startMin: 600,
+      technicianId: ctx.techs[1].id,
+    });
+    expect(moved.status).toBe("completed");
+    expect(moved.technicianId).toBe(ctx.techs[1].id);
+    expect(moved.startMin).toBe(600);
+  });
+
+  it("una cita cancelada no se mueve", async () => {
+    const { appointment } = await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date: "2026-11-24" }));
+    await cancelAppointment(ctx.db, AGENT_JOSUE, appointment.id, { reason: "weather" });
+    await expect(
+      moveAppointment(ctx.db, AGENT_JOSUE, appointment.id, { startMin: 600, technicianId: ctx.techs[0].id }),
+    ).rejects.toMatchObject({ code: "not_movable" });
+  });
 });
 
 describe("pago, factura y direcciones", () => {

@@ -8,6 +8,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
+import { useRouter } from "next/navigation";
 import { moveAppointmentAction } from "@/app/calendar/actions";
 import { announce } from "@/components/calendar-notice";
 import { formatMinutes } from "@/domain/appointment-rules";
@@ -59,6 +60,7 @@ export function DragTicket({
   startHour?: number;
   endHour?: number;
 }) {
+  const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const session = useRef<{ cancel: () => void; stop: () => void } | null>(null);
   const suppressClick = useRef(false);
@@ -317,8 +319,17 @@ export function DragTicket({
         setError(result.error);
         return;
       }
-      announce({ text: result.notice ?? "Cita movida.", tone: result.notice ? "warning" : "success" });
+      const url = new URL(window.location.href);
+      const filtered = url.searchParams.has("estado");
+      announce({
+        text: `${result.notice ?? "Cita movida."}${filtered ? " Se quitó el filtro para que la veas en su nuevo lugar." : ""}`,
+        tone: result.notice ? "warning" : "success",
+      });
       setPending(null);
+      if (filtered) {
+        url.searchParams.delete("estado");
+        router.replace(`${url.pathname}${url.search}`, { scroll: false });
+      }
     } catch {
       setError("No se pudo mover la cita. Inténtalo de nuevo.");
     } finally {

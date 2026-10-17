@@ -5,7 +5,7 @@ export const SNAP_MINUTES = 15;
 export type LaneBox = { id: string; left: number; right: number };
 
 export function isDraggable(status: AppointmentStatus): boolean {
-  return status !== "cancelled" && status !== "completed";
+  return status !== "cancelled";
 }
 
 export function snapMinutes(minutes: number, step: number = SNAP_MINUTES): number {

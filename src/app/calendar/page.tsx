@@ -12,6 +12,7 @@ import type { CalendarAppointment } from "@/components/calendar-types";
 import { toFormService } from "@/domain/appointment-form";
 import { isoDate } from "@/domain/schemas";
 import { AppShell } from "@/components/app-header";
+import { Icon } from "@/components/icons";
 import { AppointmentPanel } from "@/components/appointment-panel";
 import { CalendarLegend } from "@/components/calendar-legend";
 import { CalendarNotice } from "@/components/calendar-notice";
@@ -375,6 +376,22 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
       </main>
 
       <CalendarNotice />
+
+      {estado && (
+        <Link
+          href={calendarHref({ ...nav, mapa, estado: null })}
+          scroll={false}
+          className="fixed inset-x-0 bottom-[calc(5.25rem+env(safe-area-inset-bottom))] z-30 mx-auto flex w-fit max-w-[calc(100vw-2rem)] items-center gap-2 rounded-full bg-rail py-2 pl-4 pr-2 text-sm font-semibold text-white shadow-xl lg:bottom-6 print:hidden"
+        >
+          <span className="truncate">
+            Viendo solo: {STATUS_FILTERS[estado].label.toLowerCase()} ({filtered.length})
+          </span>
+          <span className="flex shrink-0 items-center gap-1 rounded-full bg-white/15 px-2.5 py-1 text-xs">
+            Ver todas
+            <Icon name="close" size={12} />
+          </span>
+        </Link>
+      )}
 
       {selected && photos && (
         <AppointmentPanel

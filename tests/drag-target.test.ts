@@ -70,7 +70,7 @@ describe("qué citas se pueden arrastrar", () => {
     expect(isDraggable("not_confirmed")).toBe(true);
     expect(isDraggable("confirmed")).toBe(true);
     expect(isDraggable("rescheduled")).toBe(true);
-    expect(isDraggable("completed")).toBe(false);
+    expect(isDraggable("completed")).toBe(true);
     expect(isDraggable("cancelled")).toBe(false);
   });
 

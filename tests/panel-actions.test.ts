@@ -222,7 +222,7 @@ describe("mover una cita arrastrándola", () => {
     expect(result).toEqual({ ok: false, error: "Elige una hora válida" });
   });
 
-  it("no mueve citas canceladas ni completadas", async () => {
+  it("no mueve citas canceladas", async () => {
     const cancelled = await appointment();
     await executeAction(ctx.db, AGENT_JOSUE, cancelled.id, { action: "cancel", reason: "weather", explanation: "" });
     const result = await executeAction(ctx.db, AGENT_JOSUE, cancelled.id, {
@@ -230,6 +230,6 @@ describe("mover una cita arrastrándola", () => {
       startMin: 600,
       technicianId: cancelled.technicianId,
     });
-    expect(result).toEqual({ ok: false, error: "Esta cita ya no se puede mover" });
+    expect(result).toEqual({ ok: false, error: "Una cita cancelada no se puede mover" });
   });
 });
