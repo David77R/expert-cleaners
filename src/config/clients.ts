@@ -23,7 +23,13 @@ export type ClientConfig = {
   themeColor: string;
   backgroundTint: string;
   features: { rugPickup: boolean; vehicles: boolean; publicBooking: boolean };
-  booking: { hours: BusinessHours; slotMinutes: number; minNoticeHours: number; maxDaysAhead: number };
+  booking: {
+    locale: "es" | "en";
+    hours: BusinessHours;
+    slotMinutes: number;
+    minNoticeHours: number;
+    maxDaysAhead: number;
+  };
   contact: { phone: string; email: string };
 };
 
@@ -71,7 +77,7 @@ export const CLIENTS: Record<ClientId, ClientConfig> = {
     themeColor: "#12181f",
     backgroundTint: "13 156 142",
     features: { rugPickup: true, vehicles: false, publicBooking: false },
-    booking: { hours: WEEKDAYS_8_TO_6, slotMinutes: 60, minNoticeHours: 12, maxDaysAhead: 30 },
+    booking: { locale: "es", hours: WEEKDAYS_8_TO_6, slotMinutes: 60, minNoticeHours: 12, maxDaysAhead: 30 },
     contact: { phone: "", email: "" },
   },
   rva: {
@@ -97,7 +103,7 @@ export const CLIENTS: Record<ClientId, ClientConfig> = {
     themeColor: "#131316",
     backgroundTint: "242 106 27",
     features: { rugPickup: false, vehicles: true, publicBooking: true },
-    booking: { hours: WEEKDAYS_8_TO_6, slotMinutes: 60, minNoticeHours: 12, maxDaysAhead: 30 },
+    booking: { locale: "en", hours: WEEKDAYS_8_TO_6, slotMinutes: 60, minNoticeHours: 12, maxDaysAhead: 30 },
     contact: { phone: "", email: "" },
   },
 };

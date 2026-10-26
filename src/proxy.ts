@@ -3,8 +3,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { cleanEnvValue, cleanSupabaseUrl } from "@/lib/clean-env";
 
 const PUBLIC_PATHS = ["/login"];
+const OPEN_PATHS = ["/reservar", "/api/public/"];
 
 export async function proxy(request: NextRequest) {
+  if (OPEN_PATHS.some((path) => request.nextUrl.pathname.startsWith(path))) return NextResponse.next();
   const url = cleanSupabaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL);
   const key = cleanEnvValue(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
   if (!url || !key) {
