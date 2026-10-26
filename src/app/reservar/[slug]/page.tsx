@@ -56,6 +56,12 @@ export default async function BookingPage({ params, searchParams }: PageProps<"/
   const wanted = (first(query.package) || first(query.paquete)).trim().toLowerCase();
   const preset =
     services.find((service) => service.slug === wanted || service.name.toLowerCase() === wanted)?.id ?? null;
+  const zip = first(query.zip).trim();
+  const city = first(query.city).trim().replace(/\s+/g, " ");
+  const place = {
+    zip: /^\d{5}$/.test(zip) ? zip : "",
+    city: /^[\p{L} .'-]{2,60}$/u.test(city) ? city : "",
+  };
 
   return (
     <BrandProvider brand={brand}>
@@ -76,6 +82,7 @@ export default async function BookingPage({ params, searchParams }: PageProps<"/
             services={services}
             days={days}
             preset={preset}
+            place={place}
           />
         </div>
       </main>

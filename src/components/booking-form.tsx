@@ -38,12 +38,14 @@ export function BookingForm({
   services,
   days,
   preset,
+  place,
 }: {
   company: string;
   locale: "es" | "en";
   services: BookingService[];
   days: BookingDay[];
   preset: string | null;
+  place: { zip: string; city: string };
 }) {
   const copy = BOOKING_COPY[locale];
   const [serviceId, setServiceId] = useState<string | null>(preset ?? (services.length === 1 ? services[0].id : null));
@@ -338,6 +340,7 @@ export function BookingForm({
             {copy.city}
             <input
               name="city"
+              defaultValue={place.city}
               autoComplete="address-level2"
               maxLength={60}
               aria-invalid={invalid("city")}
@@ -348,6 +351,7 @@ export function BookingForm({
             {copy.zip}
             <input
               name="zip"
+              defaultValue={place.zip}
               inputMode="numeric"
               autoComplete="postal-code"
               maxLength={10}
