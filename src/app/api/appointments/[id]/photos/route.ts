@@ -18,8 +18,8 @@ export function POST(request: Request, ctx: RouteContext<"/api/appointments/[id]
   return handle(async () => {
     const actor = await requireActor();
     const { id } = await ctx.params;
-    const { bytes, itemId } = await readPhotoUploadForm(request);
-    const photo = await uploadPhoto(getDb(), getPhotoStorage(), actor, id, bytes, itemId);
+    const { bytes, itemId, label } = await readPhotoUploadForm(request);
+    const photo = await uploadPhoto(getDb(), getPhotoStorage(), actor, id, bytes, itemId, label);
     return NextResponse.json({ photo }, { status: 201 });
   });
 }

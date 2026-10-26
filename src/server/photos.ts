@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { asc, count, eq, and } from "drizzle-orm";
+import { and, asc, count, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import * as schema from "@/db/schema";
 import { DomainError } from "@/domain/appointment-rules";
@@ -7,6 +7,7 @@ import { assertCanDeletePhoto, canDeletePhoto } from "@/domain/permissions";
 import { MAX_PHOTOS_PER_APPOINTMENT, photoStoragePath, validatePhoto } from "@/domain/photo-rules";
 import type { Db } from "@/server/appointments";
 import type { PhotoStorage } from "@/server/storage";
+import { isInspectionAngle } from "@/domain/vehicle-care";
 
 const { appointments, appointmentItems, appointmentPhotos, appointmentHistory, profiles } = schema;
 
@@ -15,6 +16,7 @@ const idSchema = z.uuid();
 export type PhotoView = {
   id: string;
   itemId: string | null;
+  label: string | null;
   url: string;
   contentType: string;
   sizeBytes: number;
@@ -37,6 +39,7 @@ async function toView(storage: PhotoStorage, row: schema.Photo, uploadedByName: 
   return {
     id: row.id,
     itemId: row.itemId,
+    label: row.label,
     url: await storage.signedUrl(row.storagePath),
     contentType: row.contentType,
     sizeBytes: row.sizeBytes,
@@ -53,6 +56,7 @@ export async function uploadPhoto(
   rawAppointmentId: string,
   bytes: Uint8Array,
   rawItemId: string | null = null,
+  rawLabel: string | null = null,
 ): Promise<PhotoView> {
   const appointmentId = idSchema.parse(rawAppointmentId);
   const appointment = await loadAppointment(db, actor.companyId, appointmentId);
@@ -68,6 +72,16 @@ export async function uploadPhoto(
       .limit(1);
     if (!item) throw new DomainError("item_mismatch", "El artículo no pertenece a esta cita");
   }
+  const label = rawLabel?.trim() || null;
+  if (label !== null && (!itemId || !isInspectionAngle(label))) {
+    throw new DomainError("invalid_label", "La foto de inspección no es válida");
+  }
+  const replaced = label
+    ? await db
+        .select()
+        .from(appointmentPhotos)
+        .where(and(eq(appointmentPhotos.itemId, itemId as string), eq(appointmentPhotos.label, label)))
+    : [];
 
   const { contentType, sizeBytes } = validatePhoto(bytes);
 
@@ -75,7 +89,7 @@ export async function uploadPhoto(
     .select({ total: count() })
     .from(appointmentPhotos)
     .where(eq(appointmentPhotos.appointmentId, appointmentId));
-  if (existing.total >= MAX_PHOTOS_PER_APPOINTMENT) {
+  if (existing.total - replaced.length >= MAX_PHOTOS_PER_APPOINTMENT) {
     throw new DomainError("photo_limit", `Cada cita admite hasta ${MAX_PHOTOS_PER_APPOINTMENT} fotos`);
   }
 
@@ -88,8 +102,25 @@ export async function uploadPhoto(
     row = await db.transaction(async (tx) => {
       const [created] = await tx
         .insert(appointmentPhotos)
-        .values({ id: photoId, appointmentId, itemId, storagePath, contentType, sizeBytes, uploadedBy: actor.id })
+        .values({
+          id: photoId,
+          appointmentId,
+          itemId,
+          label,
+          storagePath,
+          contentType,
+          sizeBytes,
+          uploadedBy: actor.id,
+        })
         .returning();
+      if (replaced.length > 0) {
+        await tx.delete(appointmentPhotos).where(
+          inArray(
+            appointmentPhotos.id,
+            replaced.map((photo) => photo.id),
+          ),
+        );
+      }
       await tx.insert(appointmentHistory).values({
         appointmentId,
         actorId: actor.id,
@@ -105,9 +136,11 @@ export async function uploadPhoto(
     await storage.remove(storagePath).catch((cleanup) => console.error(cleanup));
     throw error;
   }
+  for (const photo of replaced) await storage.remove(photo.storagePath).catch((cleanup) => console.error(cleanup));
   return toView(storage, row, actor.name).catch(() => ({
     id: row.id,
     itemId: row.itemId,
+    label: row.label,
     url: "",
     contentType: row.contentType,
     sizeBytes: row.sizeBytes,
@@ -137,6 +170,7 @@ export async function listPhotos(
 export type PanelPhoto = {
   id: string;
   itemId: string | null;
+  label: string | null;
   url: string;
   sizeBytes: number;
   uploadedByName: string | null;
@@ -159,6 +193,7 @@ export async function panelPhotos(
       photos: list.map((photo) => ({
         id: photo.id,
         itemId: photo.itemId,
+        label: photo.label,
         url: photo.url,
         sizeBytes: photo.sizeBytes,
         uploadedByName: photo.uploadedByName,

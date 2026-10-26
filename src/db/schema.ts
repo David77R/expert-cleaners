@@ -2,6 +2,7 @@ import { relations } from "drizzle-orm";
 import type { ItemDetails } from "@/domain/appointment-items";
 import type { SizePrices } from "@/domain/vehicles";
 import type { CompanySettings } from "@/domain/companies";
+import type { ChecklistGroup, ChecklistProgress, Inspection } from "@/domain/vehicle-care";
 import type { AppointmentStages } from "@/domain/delivery";
 import {
   boolean,
@@ -164,6 +165,7 @@ export const services = pgTable(
     detailedSpecs: text("detailed_specs"),
     fields: jsonb("fields").$type<ServiceField[]>().notNull().default([]),
     sizePrices: jsonb("size_prices").$type<SizePrices>().notNull().default({}),
+    checklist: jsonb("checklist").$type<ChecklistGroup[]>().notNull().default([]),
   },
   (t) => [uniqueIndex("services_company_slug_idx").on(t.companyId, t.slug)],
 );
@@ -251,6 +253,8 @@ export const appointmentItems = pgTable(
     specs: jsonb("specs").$type<Record<string, string | number>>().notNull().default({}),
     details: jsonb("details").$type<ItemDetails>().notNull().default({}),
     vehicleId: uuid("vehicle_id").references(() => vehicles.id, { onDelete: "set null" }),
+    checklist: jsonb("checklist").$type<ChecklistProgress>().notNull().default({}),
+    inspection: jsonb("inspection").$type<Inspection>(),
     priceCents: integer("price_cents").notNull(),
     position: smallint("position").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -284,6 +288,7 @@ export const appointmentPhotos = pgTable("appointment_photos", {
     .notNull()
     .references(() => appointments.id, { onDelete: "cascade" }),
   itemId: uuid("item_id").references(() => appointmentItems.id, { onDelete: "set null" }),
+  label: text("label"),
   storagePath: text("storage_path").notNull(),
   contentType: text("content_type").notNull(),
   sizeBytes: integer("size_bytes").notNull(),

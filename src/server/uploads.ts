@@ -7,7 +7,9 @@ export async function readPhotoUpload(request: Request): Promise<Uint8Array> {
   return (await readPhotoUploadForm(request)).bytes;
 }
 
-export async function readPhotoUploadForm(request: Request): Promise<{ bytes: Uint8Array; itemId: string | null }> {
+export async function readPhotoUploadForm(
+  request: Request,
+): Promise<{ bytes: Uint8Array; itemId: string | null; label: string | null }> {
   const declared = Number(request.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > MAX_PHOTO_BYTES + MULTIPART_OVERHEAD_BYTES) {
     throw new DomainError("photo_too_large", `La foto supera el máximo de ${MAX_PHOTO_BYTES / (1024 * 1024)} MB`);
@@ -28,7 +30,9 @@ export async function readPhotoUploadForm(request: Request): Promise<{ bytes: Ui
     throw new DomainError("photo_too_large", `La foto supera el máximo de ${MAX_PHOTO_BYTES / (1024 * 1024)} MB`);
   }
   const itemId = form.get("itemId");
+  const label = form.get("label");
   return {
+    label: typeof label === "string" && label.trim() !== "" ? label.trim() : null,
     bytes: new Uint8Array(await file.arrayBuffer()),
     itemId: typeof itemId === "string" && itemId.trim() !== "" ? itemId.trim() : null,
   };

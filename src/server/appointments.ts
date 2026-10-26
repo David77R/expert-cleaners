@@ -39,6 +39,7 @@ import { geocodeIfNeeded } from "@/server/geocoding";
 import { isPickupService } from "@/domain/pickup";
 import { assertVehiclesBelong } from "@/server/vehicles";
 import { companyBrand } from "@/server/companies";
+import { checklistTasks, checklistToggleSchema, inspectionInputSchema } from "@/domain/vehicle-care";
 
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -753,6 +754,63 @@ export async function updateNotes(db: Db, actor: Actor, id: string, notes: strin
       { field: "notes", from: current.notes || null, to: notes || null },
     ]);
     return { appointment: updated, conflicts: [] };
+  });
+}
+
+async function itemOf(tx: Tx, appointmentId: string, itemId: string) {
+  const [row] = await tx
+    .select({ item: appointmentItems, service: services })
+    .from(appointmentItems)
+    .innerJoin(services, eq(services.id, appointmentItems.serviceId))
+    .where(and(eq(appointmentItems.id, itemId), eq(appointmentItems.appointmentId, appointmentId)))
+    .limit(1);
+  if (!row) throw new DomainError("item_mismatch", "El servicio no pertenece a esta cita");
+  return row;
+}
+
+export async function setChecklistTask(db: Db, actor: Actor, id: string, raw: unknown) {
+  const input = checklistToggleSchema.parse(raw);
+  return db.transaction(async (tx) => {
+    const current = await load(tx, actor.companyId, id);
+    assertEditable(current);
+    const { item, service } = await itemOf(tx, current.id, input.itemId);
+    if (!checklistTasks(service.checklist).includes(input.task)) {
+      throw new DomainError("task_unknown", "Esa tarea ya no está en el checklist del servicio");
+    }
+    const checklist = { ...item.checklist };
+    if (input.done) checklist[input.task] = checklist[input.task] ?? { at: new Date().toISOString(), by: actor.name };
+    else delete checklist[input.task];
+    const [updated] = await tx
+      .update(appointmentItems)
+      .set({ checklist })
+      .where(eq(appointmentItems.id, item.id))
+      .returning();
+    return updated;
+  });
+}
+
+export async function saveInspection(db: Db, actor: Actor, id: string, raw: unknown) {
+  const input = inspectionInputSchema.parse(raw);
+  return db.transaction(async (tx) => {
+    const current = await load(tx, actor.companyId, id);
+    assertEditable(current);
+    const { item } = await itemOf(tx, current.id, input.itemId);
+    const inspection = { marks: input.marks, notes: input.notes, at: new Date().toISOString(), by: actor.name };
+    const [updated] = await tx
+      .update(appointmentItems)
+      .set({ inspection })
+      .where(eq(appointmentItems.id, item.id))
+      .returning();
+    await tx.insert(appointmentHistory).values({
+      appointmentId: current.id,
+      actorId: actor.id,
+      actorName: actor.name,
+      actorRole: actor.role,
+      field: "inspection",
+      fromValue: item.inspection ? String(item.inspection.marks.length) : null,
+      toValue: String(input.marks.length),
+    });
+    return updated;
   });
 }
 

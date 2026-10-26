@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { checklistSchema } from "./vehicle-care";
 import { STAGE_KEYS } from "./delivery";
 import { MAX_ITEMS } from "./appointment-items";
 import { SERVICE_ICON_KEYS, type ServiceIconKey } from "./service-icons";
@@ -147,6 +148,7 @@ export const createServiceSchema = z.object({
   detailedSpecs: z.string().trim().optional(),
   fields: serviceFieldsSchema.default([]),
   sizePrices: sizePricesSchema,
+  checklist: checklistSchema.default([]),
 });
 
 export const updateServiceSchema = z
@@ -163,6 +165,7 @@ export const updateServiceSchema = z
     detailedSpecs: z.string().trim().nullable().optional(),
     fields: serviceFieldsSchema.optional(),
     sizePrices: sizePricesValue.optional(),
+    checklist: checklistSchema.optional(),
   })
   .refine((value) => Object.values(value).some((field) => field !== undefined), "Envía al menos un campo");
 

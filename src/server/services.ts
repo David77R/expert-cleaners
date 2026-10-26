@@ -78,6 +78,7 @@ export async function createService(db: Db, actor: Actor, raw: CreateServiceInpu
       detailedSpecs: input.detailedSpecs ?? null,
       fields: input.fields,
       sizePrices: input.sizePrices,
+      checklist: input.checklist,
     })
     .returning();
   return created;

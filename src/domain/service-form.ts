@@ -3,6 +3,7 @@ import type { Service, ServiceField } from "@/db/schema";
 import { isServiceIcon } from "./service-icons";
 import { slugify } from "./service-rules";
 import { VEHICLE_SIZES, type SizePrices, type VehicleSize } from "./vehicles";
+import { MAX_CHECKLIST_TASKS, checklistTasks, checklistText, parseChecklist } from "./vehicle-care";
 
 export const SERVICE_TEXT_FIELDS = [
   "name",
@@ -12,6 +13,7 @@ export const SERVICE_TEXT_FIELDS = [
   "durationMin",
   "internalNotes",
   "detailedSpecs",
+  "checklist",
 ] as const;
 
 export const MAX_SERVICE_FIELDS = 20;
@@ -60,6 +62,7 @@ export function emptyServiceForm(): ServiceFormValues {
     durationMin: "0",
     internalNotes: "",
     detailedSpecs: "",
+    checklist: "",
     sizePrices: { sedan: "", suv: "", pickup: "", van: "", other: "" },
     twoAddresses: false,
     active: true,
@@ -100,6 +103,7 @@ export function serviceFormFromService(service: Service): ServiceFormValues {
     durationMin: String(service.durationMin),
     internalNotes: service.internalNotes ?? "",
     detailedSpecs: service.detailedSpecs ?? "",
+    checklist: checklistText(service.checklist),
     sizePrices: sizePriceTexts(service.sizePrices),
     twoAddresses: service.twoAddresses,
     active: service.active,
@@ -219,6 +223,9 @@ export function validateServiceForm(values: ServiceFormValues): ServiceFormError
   if (VEHICLE_SIZES.some((size) => values.sizePrices[size]?.trim() && parseDollars(values.sizePrices[size]) === null)) {
     errors.sizePrices = "Revisa los precios por tipo de vehículo: escribe montos como 180 o 180.50, o déjalos vacíos";
   }
+  if (checklistTasks(parseChecklist(values.checklist)).length > MAX_CHECKLIST_TASKS) {
+    errors.checklist = `El checklist admite hasta ${MAX_CHECKLIST_TASKS} tareas`;
+  }
   if (values.fields.length > MAX_SERVICE_FIELDS) {
     errors.fields = `Un servicio admite hasta ${MAX_SERVICE_FIELDS} campos`;
   }
@@ -267,6 +274,7 @@ export function createServiceInputFromForm(values: ServiceFormValues) {
     detailedSpecs: blankToUndefined(values.detailedSpecs),
     fields: fieldsFromForm(values),
     sizePrices: sizePricesFromForm(values),
+    checklist: parseChecklist(values.checklist),
   };
 }
 
@@ -284,6 +292,7 @@ export function updateServiceInputFromForm(values: ServiceFormValues, options: {
     detailedSpecs: blankToNull(values.detailedSpecs),
     fields: fieldsFromForm(values),
     sizePrices: sizePricesFromForm(values),
+    checklist: parseChecklist(values.checklist),
   };
 }
 
@@ -295,6 +304,7 @@ const PATH_TO_FIELD: Record<string, ServiceTextField> = {
   durationMin: "durationMin",
   internalNotes: "internalNotes",
   detailedSpecs: "detailedSpecs",
+  checklist: "checklist",
 };
 
 export function serviceFieldErrors(error: ZodError): ServiceFormErrors {

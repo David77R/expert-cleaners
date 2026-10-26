@@ -40,6 +40,7 @@ import { appointmentNeedsPickup } from "@/domain/pickup";
 import { hasDelivery } from "@/domain/delivery";
 import { Expandable, FIELD, Row, Section } from "@/components/panel-kit";
 import { PhotoGallery } from "@/components/photo-gallery";
+import { checklistProgress } from "@/domain/vehicle-care";
 import { StatusBadge } from "@/components/status-badge";
 import type { getAppointment } from "@/server/appointments";
 import type { PanelPhotos } from "@/server/photos";
@@ -65,6 +66,7 @@ export function AppointmentPanel({
   conflicts = [],
   vehicles = [],
   rugPickup,
+  vehicleCare = false,
 }: {
   appointment: Detail;
   technicians: CalendarTechnician[];
@@ -74,6 +76,7 @@ export function AppointmentPanel({
   conflicts?: ConflictPartner[];
   vehicles?: PickerVehicle[];
   rugPickup: boolean;
+  vehicleCare?: boolean;
 }) {
   const actions = panelActions(appointment.status, appointment.paymentStatus, appointment.invoiceStatus);
   const closeHref = calendarHref(nav);
@@ -97,6 +100,18 @@ export function AppointmentPanel({
   const customerName = `${customer.firstName} ${customer.lastName}`;
   const technician = appointment.technician;
   const id = appointment.id;
+  const care = appointment.items.reduce(
+    (sum, item) => {
+      const progress = checklistProgress(item.service.checklist, item.checklist);
+      return {
+        total: sum.total + progress.total,
+        completed: sum.completed + progress.completed,
+        inspected: sum.inspected + (item.inspection ? 1 : 0),
+      };
+    },
+    { total: 0, completed: 0, inspected: 0 },
+  );
+  const showWork = appointment.items.length > 0 && (vehicleCare || care.total > 0);
 
   return (
     <>
@@ -146,6 +161,32 @@ export function AppointmentPanel({
               <span className="block text-xs text-soft">{technician.zone}</span>
             </span>
           </div>
+          {showWork && (
+            <Link
+              href={`/appointments/${id}/trabajo`}
+              className="flex min-h-12 items-center gap-3 rounded-md bg-rail px-3.5 py-2.5 text-white transition-opacity hover:opacity-90"
+            >
+              <Icon name="check" size={18} />
+              <span className="min-w-0 flex-1 leading-tight">
+                <span className="block text-sm font-semibold">Hoja de trabajo</span>
+                <span className="block text-xs text-rail-text">
+                  {[
+                    ...(vehicleCare
+                      ? [
+                          care.inspected === appointment.items.length
+                            ? "Inspección hecha"
+                            : care.inspected > 0
+                              ? `Inspección ${care.inspected}/${appointment.items.length}`
+                              : "Inspección pendiente",
+                        ]
+                      : []),
+                    ...(care.total > 0 ? [`Checklist ${care.completed}/${care.total}`] : []),
+                  ].join(" · ")}
+                </span>
+              </span>
+              <Icon name="right" size={16} />
+            </Link>
+          )}
           {conflicts.length > 0 && (
             <div
               role="alert"

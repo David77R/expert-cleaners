@@ -414,6 +414,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
           conflicts={selectedConflicts}
           vehicles={selectedVehicles}
           rugPickup={brand.features.rugPickup}
+          vehicleCare={brand.features.vehicles}
         />
       )}
     </AppShell>

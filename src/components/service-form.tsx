@@ -374,6 +374,24 @@ export function ServiceForm({
         )}
       </fieldset>
 
+      <Card
+        title="Checklist del técnico"
+        hint="Las tareas que el técnico marca en la hoja de trabajo de cada cita. Una tarea por línea; escribe # al inicio para poner un título de grupo."
+      >
+        <ServiceFormField name="checklist" label="Tareas" error={errors.checklist} wide optional>
+          {(props) => (
+            <textarea
+              {...props}
+              name="checklist"
+              rows={8}
+              defaultValue={values.checklist}
+              placeholder={"# Exterior\nLavado a mano con shampoo\nLimpieza de rines\n\n# Interior\nAspirado completo"}
+              className={`${INPUT} resize-y font-mono text-[13px] leading-relaxed`}
+            />
+          )}
+        </ServiceFormField>
+      </Card>
+
       <Card title="Notas del equipo">
         <ServiceFormField name="internalNotes" label="Notas internas" error={errors.internalNotes} wide optional>
           {(props) => (

@@ -71,6 +71,13 @@
       "when": 1793025290390,
       "tag": "0009_companies",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793043388161,
+      "tag": "0010_vehicle_care",
+      "breakpoints": true
     }
   ]
 }

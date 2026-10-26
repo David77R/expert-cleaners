@@ -120,6 +120,11 @@ export function describeChange(
       return "Dirección de facturación actualizada";
     case "photo":
       return toValue === "removed" ? "Foto eliminada" : "Foto agregada";
+    case "inspection": {
+      const marks = Number(toValue ?? 0);
+      const detail = marks === 0 ? "sin daños marcados" : `${marks} ${marks === 1 ? "daño marcado" : "daños marcados"}`;
+      return `${fromValue === null ? "Inspección hecha" : "Inspección actualizada"}: ${detail}`;
+    }
     default:
       return field;
   }
