@@ -1,8 +1,9 @@
 import Link from "next/link";
+import { companyServices } from "@/server/services";
+import { listTechnicians } from "@/server/technicians";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { getDb } from "@/db/client";
-import { services as servicesTable, technicians as techniciansTable } from "@/db/schema";
 import { DomainError } from "@/domain/appointment-rules";
 import { parseView, summarize, viewRange } from "@/domain/calendar-view";
 import { minutesNowIn, todayIn } from "@/domain/date-rules";
@@ -57,7 +58,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
   const nowMin = date === today ? minutesNowIn() : null;
 
   const db = getDb();
-  const allTechnicians = (await db.select().from(techniciansTable)).filter((t) => t.active);
+  const allTechnicians = (await listTechnicians(db, actor.companyId)).filter((t) => t.active);
   const requested = z.uuid().safeParse(first(params.tech));
   const tech = requested.success && allTechnicians.some((t) => t.id === requested.data) ? requested.data : null;
   const estado = parseStatusFilter(first(params.estado));
@@ -65,8 +66,8 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
 
   const data =
     view === "day" || mapa
-      ? await getDay(db, date, tech ?? undefined)
-      : await getRange(db, { ...viewRange(view, date), technicianId: tech ?? undefined });
+      ? await getDay(db, actor.companyId, date, tech ?? undefined)
+      : await getRange(db, actor.companyId, { ...viewRange(view, date), technicianId: tech ?? undefined });
   const laneTechnicians = [...allTechnicians];
   for (const appointment of data.appointments) {
     if (appointment.status === "cancelled") continue;
@@ -76,6 +77,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
   const deliveryRange = view === "day" || mapa ? { from: date, to: date } : viewRange(view, date);
   const deliveryRows = await getDeliveries(
     db,
+    actor.companyId,
     deliveryRange.from,
     deliveryRange.to,
     mapa ? undefined : (tech ?? undefined),
@@ -107,10 +109,10 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
   let unplaced: { id: string; code: string; customerId: string; customerName: string; address: string }[] = [];
 
   if (mapa) {
-    const mapData = tech ? await getDay(db, date) : data;
+    const mapData = tech ? await getDay(db, actor.companyId, date) : data;
     const usedServiceIds = new Set(mapData.appointments.map((a) => a.serviceId));
-    mapServices = (await db.select().from(servicesTable)).filter((s) => s.active || usedServiceIds.has(s.id));
-    mapDrafts = (await listRouteDraftsForDay(db, date)).map((d) => ({
+    mapServices = (await companyServices(db, actor.companyId)).filter((s) => s.active || usedServiceIds.has(s.id));
+    mapDrafts = (await listRouteDraftsForDay(db, actor.companyId, date)).map((d) => ({
       mode: d.mode as "tech" | "service",
       groupKey: d.groupKey,
       stopIds: d.stopIds,
@@ -203,17 +205,18 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
   let selected: Awaited<ReturnType<typeof getAppointment>> | null = null;
   if (requestedAppointment.success) {
     try {
-      selected = await getAppointment(db, requestedAppointment.data);
+      selected = await getAppointment(db, actor.companyId, requestedAppointment.data);
     } catch (error) {
       if (!(error instanceof DomainError && error.code === "not_found")) throw error;
     }
   }
   const selectedId = selected?.id ?? null;
   const photos = selected ? await panelPhotos(db, getPhotoStorage, actor, selected.id) : null;
-  const selectedConflicts = selected ? await conflictingAppointments(db, selected.id) : [];
-  const selectedVehicles = selected && client.features.vehicles ? await listVehicles(db, selected.customer.id) : [];
+  const selectedConflicts = selected ? await conflictingAppointments(db, actor.companyId, selected.id) : [];
+  const selectedVehicles =
+    selected && client.features.vehicles ? await listVehicles(db, actor.companyId, selected.customer.id) : [];
   const panelServices = selected
-    ? (await db.select().from(servicesTable))
+    ? (await companyServices(db, actor.companyId))
         .filter((s) => s.active || selected.items.some((item) => item.serviceId === s.id))
         .map(toFormService)
     : [];

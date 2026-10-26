@@ -6,8 +6,8 @@ import { handle } from "@/server/http";
 
 export function GET(request: Request) {
   return handle(async () => {
-    await requireActor();
+    const { companyId } = await requireActor();
     const params = Object.fromEntries(new URL(request.url).searchParams);
-    return NextResponse.json(await getRange(getDb(), params));
+    return NextResponse.json(await getRange(getDb(), companyId, params));
   });
 }

@@ -6,17 +6,17 @@ import { handle } from "@/server/http";
 
 export function GET(_request: Request, ctx: RouteContext<"/api/customers/[id]">) {
   return handle(async () => {
-    await requireActor();
+    const { companyId } = await requireActor();
     const { id } = await ctx.params;
-    return NextResponse.json(await getCustomer(getDb(), id));
+    return NextResponse.json(await getCustomer(getDb(), companyId, id));
   });
 }
 
 export function PATCH(request: Request, ctx: RouteContext<"/api/customers/[id]">) {
   return handle(async () => {
-    await requireActor();
+    const { companyId } = await requireActor();
     const { id } = await ctx.params;
     const body = await request.json();
-    return NextResponse.json(await updateCustomer(getDb(), id, body));
+    return NextResponse.json(await updateCustomer(getDb(), companyId, id, body));
   });
 }

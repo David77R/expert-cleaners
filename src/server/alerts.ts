@@ -17,14 +17,15 @@ export type AlertAppointmentRef = {
   startMin: number;
 };
 
-export async function getAlerts(db: Db, raw: unknown = {}) {
+export async function getAlerts(db: Db, companyId: string, raw: unknown = {}) {
   const parsed = alertsQuerySchema.parse(raw);
   const date = parsed.date ?? todayIn();
 
   const [day, unpaidCompleted] = await Promise.all([
-    getDay(db, date),
+    getDay(db, companyId, date),
     db.query.appointments.findMany({
       where: and(
+        eq(appointments.companyId, companyId),
         eq(appointments.status, "completed"),
         eq(appointments.paymentStatus, "unpaid"),
         lte(appointments.date, date),

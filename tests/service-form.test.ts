@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { EXPERT_CLEANERS_COMPANY_ID } from "@/domain/companies";
 import { AGENT_JOSUE } from "@/db/seed-data";
 import { createServiceSchema, updateServiceSchema } from "@/domain/schemas";
 import {
@@ -26,7 +27,7 @@ import { appointmentInput, createTestDb } from "./helpers";
 
 type Ctx = Awaited<ReturnType<typeof createTestDb>>;
 let ctx: Ctx;
-const ADMIN = { id: AGENT_JOSUE.id, name: "Admin", role: "admin" as const };
+const ADMIN = { id: AGENT_JOSUE.id, name: "Admin", role: "admin" as const, companyId: EXPERT_CLEANERS_COMPANY_ID };
 
 beforeAll(async () => {
   ctx = await createTestDb();
@@ -334,14 +335,14 @@ describe("guardado en la base", () => {
       created.id,
       updateServiceInputFromForm({ ...form, active: false }, { lockTwoAddresses: false }),
     );
-    expect((await getService(ctx.db, created.id)).active).toBe(false);
+    expect((await getService(ctx.db, EXPERT_CLEANERS_COMPANY_ID, created.id)).active).toBe(false);
     await updateService(
       ctx.db,
       ADMIN,
       created.id,
       updateServiceInputFromForm({ ...form, active: true }, { lockTwoAddresses: false }),
     );
-    expect((await getService(ctx.db, created.id)).active).toBe(true);
+    expect((await getService(ctx.db, EXPERT_CLEANERS_COMPANY_ID, created.id)).active).toBe(true);
   });
 
   it("cuenta las citas de un servicio", async () => {
@@ -351,7 +352,7 @@ describe("guardado en la base", () => {
   });
 
   it("no deja cambiar las dos direcciones si ya hay citas", async () => {
-    const service = await getService(ctx.db, ctx.services.sofa.id);
+    const service = await getService(ctx.db, EXPERT_CLEANERS_COMPANY_ID, ctx.services.sofa.id);
     await expect(
       updateService(ctx.db, ADMIN, service.id, { twoAddresses: !service.twoAddresses }),
     ).rejects.toMatchObject({ code: "service_in_use" });

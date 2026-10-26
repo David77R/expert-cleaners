@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { isAdmin } from "@/domain/permissions";
 import { getDb } from "@/db/client";
 import { emptyServiceForm } from "@/domain/service-form";
 import { AppShell } from "@/components/app-header";
@@ -10,9 +11,9 @@ import { listServices } from "@/server/services";
 export default async function NewServicePage() {
   const actor = await getActor();
   if (!actor) redirect("/login");
-  if (actor.role !== "admin") redirect("/calendar");
+  if (!isAdmin(actor)) redirect("/calendar");
 
-  const services = await listServices(getDb(), { includeInactive: "true" }, actor);
+  const services = await listServices(getDb(), actor.companyId, { includeInactive: "true" }, actor);
   const categories = [...new Set(services.map((service) => service.category))].sort((a, b) => a.localeCompare(b, "es"));
 
   return (

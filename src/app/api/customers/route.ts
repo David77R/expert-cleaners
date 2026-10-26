@@ -6,16 +6,16 @@ import { handle } from "@/server/http";
 
 export function GET(request: Request) {
   return handle(async () => {
-    await requireActor();
+    const { companyId } = await requireActor();
     const params = Object.fromEntries(new URL(request.url).searchParams);
-    return NextResponse.json(await searchCustomers(getDb(), params));
+    return NextResponse.json(await searchCustomers(getDb(), companyId, params));
   });
 }
 
 export function POST(request: Request) {
   return handle(async () => {
-    await requireActor();
+    const { companyId } = await requireActor();
     const body = await request.json();
-    return NextResponse.json(await createCustomer(getDb(), body), { status: 201 });
+    return NextResponse.json(await createCustomer(getDb(), companyId, body), { status: 201 });
   });
 }

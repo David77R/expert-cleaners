@@ -1,10 +1,11 @@
 import Link from "next/link";
+import { companyServices } from "@/server/services";
+import { listTechnicians } from "@/server/technicians";
 import { DateInput } from "@/components/date-jump";
 import { notFound, redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { z } from "zod";
 import { getDb } from "@/db/client";
-import { services as servicesTable, technicians as techniciansTable } from "@/db/schema";
 import { addressAction, itemsAction, notesAction, rescheduleAction } from "@/app/calendar/actions";
 import { ActionForm } from "@/components/action-form";
 import { AppShell } from "@/components/app-header";
@@ -65,7 +66,7 @@ export default async function EditAppointmentPage({ params, searchParams }: Page
   const db = getDb();
   let appointment: Awaited<ReturnType<typeof getAppointment>>;
   try {
-    appointment = await getAppointment(db, id);
+    appointment = await getAppointment(db, actor.companyId, id);
   } catch (error) {
     if (error instanceof DomainError && error.code === "not_found") notFound();
     throw error;
@@ -77,8 +78,8 @@ export default async function EditAppointmentPage({ params, searchParams }: Page
   );
   const [photos, allServices, allTechnicians] = await Promise.all([
     panelPhotos(db, getPhotoStorage, actor, id),
-    db.select().from(servicesTable),
-    db.select().from(techniciansTable),
+    companyServices(db, actor.companyId),
+    listTechnicians(db, actor.companyId),
   ]);
   const services = allServices
     .filter((s) => s.active || appointment.items.some((item) => item.serviceId === s.id))
@@ -102,7 +103,7 @@ export default async function EditAppointmentPage({ params, searchParams }: Page
             vehicle: null,
           },
         ];
-  const vehicles = client.features.vehicles ? await listVehicles(db, appointment.customer.id) : [];
+  const vehicles = client.features.vehicles ? await listVehicles(db, actor.companyId, appointment.customer.id) : [];
   const customer = appointment.customer;
 
   return (

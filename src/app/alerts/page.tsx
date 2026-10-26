@@ -47,7 +47,7 @@ export default async function AlertsPage({ searchParams }: PageProps<"/alerts">)
   const date = parsedDate.data;
 
   const db = getDb();
-  const { items } = await getAlerts(db, { date });
+  const { items } = await getAlerts(db, actor.companyId, { date });
 
   function hrefFor(nextDate: string): string {
     return `/alerts?date=${nextDate}`;

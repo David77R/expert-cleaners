@@ -33,11 +33,13 @@ function Step({ number, title, children }: { number: number; title: string; chil
 }
 
 export function BookingForm({
+  company,
   locale,
   services,
   days,
   preset,
 }: {
+  company: string;
   locale: "es" | "en";
   services: BookingService[];
   days: BookingDay[];
@@ -79,7 +81,7 @@ export function BookingForm({
     setLoadingSlots(true);
     try {
       const response = await fetch(
-        `/api/public/booking/availability?${new URLSearchParams({ date: nextDate, service: nextService })}`,
+        `/api/public/booking/availability?${new URLSearchParams({ company, date: nextDate, service: nextService })}`,
       );
       const body = response.ok ? ((await response.json()) as { slots: number[] }) : { slots: [] };
       if (ticket === request.current) setSlots(body.slots);
@@ -111,7 +113,7 @@ export function BookingForm({
     setMessage(null);
     setSending(true);
     try {
-      const response = await fetch("/api/public/booking", {
+      const response = await fetch(`/api/public/booking?${new URLSearchParams({ company })}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

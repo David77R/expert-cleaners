@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { isAdmin } from "@/domain/permissions";
 import { getDb } from "@/db/client";
 import { emptyTechnicianForm, suggestColor } from "@/domain/technician-form";
 import { AppShell } from "@/components/app-header";
@@ -10,9 +11,9 @@ import { listTechnicians } from "@/server/technicians";
 export default async function NewTechnicianPage() {
   const actor = await getActor();
   if (!actor) redirect("/login");
-  if (actor.role !== "admin") redirect("/calendar");
+  if (!isAdmin(actor)) redirect("/calendar");
 
-  const technicians = await listTechnicians(getDb());
+  const technicians = await listTechnicians(getDb(), actor.companyId);
   const color = suggestColor(technicians.filter((t) => t.active).map((t) => t.color));
 
   return (

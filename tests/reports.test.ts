@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { EXPERT_CLEANERS_COMPANY_ID } from "@/domain/companies";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ZodError } from "zod";
 import { appointments } from "@/db/schema";
@@ -12,7 +13,7 @@ import { appointmentInput, createTestDb } from "./helpers";
 type Ctx = Awaited<ReturnType<typeof createTestDb>>;
 let ctx: Ctx;
 
-const ADMIN = { id: AGENT_JOSUE.id, name: "Admin", role: "admin" as const };
+const ADMIN = { id: AGENT_JOSUE.id, name: "Admin", role: "admin" as const, companyId: EXPERT_CLEANERS_COMPANY_ID };
 
 beforeAll(async () => {
   ctx = await createTestDb();

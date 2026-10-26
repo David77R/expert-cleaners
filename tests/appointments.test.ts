@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { EXPERT_CLEANERS_COMPANY_ID } from "@/domain/companies";
 import {
   advanceInvoice,
   cancelAppointment,
@@ -53,7 +54,7 @@ describe("crear cita", () => {
     expect(appointment.paymentStatus).toBe("unpaid");
     expect(appointment.code).toMatch(/^SVC-\d+$/);
     expect(appointment.priceCents).toBe(ctx.services.sofa.basePriceCents);
-    const detail = await getAppointment(ctx.db, appointment.id);
+    const detail = await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, appointment.id);
     expect(detail.history).toHaveLength(1);
     expect(detail.history[0].field).toBe("created");
   });
@@ -98,7 +99,7 @@ describe("crear cita", () => {
     await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date }));
     const second = await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date, startMin: 570 }));
     expect(second.conflicts).toHaveLength(1);
-    const day = await getDay(ctx.db, date);
+    const day = await getDay(ctx.db, EXPERT_CLEANERS_COMPANY_ID, date);
     expect(day.overlapIds).toHaveLength(2);
   });
 });
@@ -109,7 +110,7 @@ describe("flujo de estados", () => {
     await confirmAppointment(ctx.db, AGENT_JOSUE, appointment.id);
     const done = await completeAppointment(ctx.db, AGENT_JOSUE, appointment.id);
     expect(done.appointment.status).toBe("completed");
-    const detail = await getAppointment(ctx.db, appointment.id);
+    const detail = await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, appointment.id);
     const statusChanges = detail.history.filter((h) => h.field === "status");
     expect(statusChanges.map((h) => h.toValue).sort()).toEqual(["completed", "confirmed"]);
     expect(statusChanges[0].actorName).toBe("Josué Perfecto");
@@ -120,7 +121,7 @@ describe("flujo de estados", () => {
     await confirmAppointment(ctx.db, AGENT_JOSUE, appointment.id);
     const undone = await unconfirmAppointment(ctx.db, AGENT_JOSUE, appointment.id);
     expect(undone.appointment.status).toBe("not_confirmed");
-    const detail = await getAppointment(ctx.db, appointment.id);
+    const detail = await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, appointment.id);
     expect(detail.history.filter((h) => h.field === "status").map((h) => h.toValue)).toContain("not_confirmed");
     await expect(unconfirmAppointment(ctx.db, AGENT_JOSUE, appointment.id)).rejects.toBeInstanceOf(DomainError);
   });
@@ -141,7 +142,7 @@ describe("flujo de estados", () => {
     });
     expect(cancelled.status).toBe("cancelled");
     expect(cancelled.cancellationReason).toBe("other: Se mudó");
-    const day = await getDay(ctx.db, "2026-11-12");
+    const day = await getDay(ctx.db, EXPERT_CLEANERS_COMPANY_ID, "2026-11-12");
     expect(day.appointments.map((a) => a.id)).toContain(appointment.id);
   });
 
@@ -156,7 +157,7 @@ describe("flujo de estados", () => {
     const date = "2026-11-21";
     const first = await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date }));
     const second = await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date, startMin: 570 }));
-    const partners = await conflictingAppointments(ctx.db, first.appointment.id);
+    const partners = await conflictingAppointments(ctx.db, EXPERT_CLEANERS_COMPANY_ID, first.appointment.id);
     expect(partners).toEqual([
       {
         id: second.appointment.id,
@@ -166,7 +167,7 @@ describe("flujo de estados", () => {
       },
     ]);
     await cancelAppointment(ctx.db, AGENT_JOSUE, second.appointment.id, { reason: "weather" });
-    expect(await conflictingAppointments(ctx.db, first.appointment.id)).toEqual([]);
+    expect(await conflictingAppointments(ctx.db, EXPERT_CLEANERS_COMPANY_ID, first.appointment.id)).toEqual([]);
   });
 
   it("las canceladas no generan conflicto", async () => {
@@ -193,7 +194,7 @@ describe("reprogramar y mover", () => {
     expect(moved.status).toBe("rescheduled");
     expect(moved.date).toBe("2026-11-17");
     expect(moved.technicianId).toBe(ctx.techs[1].id);
-    const detail = await getAppointment(ctx.db, appointment.id);
+    const detail = await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, appointment.id);
     expect(detail.history.map((h) => h.field)).toEqual(
       expect.arrayContaining(["schedule", "technician", "status", "reschedule_reason"]),
     );
@@ -208,7 +209,7 @@ describe("reprogramar y mover", () => {
       reason: "Termina más tarde",
     });
     expect(moved.durationMin).toBe(150);
-    const detail = await getAppointment(ctx.db, appointment.id);
+    const detail = await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, appointment.id);
     expect(detail.history.map((h) => h.field)).toContain("duration");
   });
 
@@ -262,7 +263,7 @@ describe("pago, factura y direcciones", () => {
     const { appointment } = await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date: "2026-11-21" }));
     await markPaid(ctx.db, AGENT_JOSUE, appointment.id);
     await markPaid(ctx.db, AGENT_JOSUE, appointment.id);
-    const detail = await getAppointment(ctx.db, appointment.id);
+    const detail = await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, appointment.id);
     expect(detail.history.filter((h) => h.field === "payment")).toHaveLength(1);
   });
 
@@ -317,7 +318,7 @@ describe("pago, factura y direcciones", () => {
     const { appointment } = await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date: "2026-11-23" }));
     const changed = await setAppointmentAddress(ctx.db, AGENT_JOSUE, appointment.id, { addressId: second.id });
     expect(changed.appointment.addressId).toBe(second.id);
-    const detail = await getAppointment(ctx.db, appointment.id);
+    const detail = await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, appointment.id);
     expect(detail.address.line1).toBe("900 Biscayne Blvd");
     expect(detail.customer.addresses.map((a) => a.id)).toContain(second.id);
     const entry = detail.history.find((h) => h.field === "address");
@@ -353,7 +354,7 @@ describe("varios servicios por cita", () => {
     });
     expect(appointment.priceCents).toBe(15000 + ctx.services.carpet.basePriceCents);
     expect(appointment.serviceId).toBe(ctx.services.sofa.id);
-    const detail = await getAppointment(ctx.db, appointment.id);
+    const detail = await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, appointment.id);
     expect(detail.items.map((item) => item.service.name)).toEqual([ctx.services.sofa.name, ctx.services.carpet.name]);
     expect(detail.items[0].specs).toMatchObject({ sofaLength: 84 });
   });
@@ -381,7 +382,7 @@ describe("varios servicios por cita", () => {
     });
     expect(changed.appointment.priceCents).toBe(14900);
     expect(changed.appointment.durationMin).toBe(120);
-    const detail = await getAppointment(ctx.db, appointment.id);
+    const detail = await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, appointment.id);
     expect(detail.items).toHaveLength(2);
     const fields = detail.history.map((entry) => entry.field);
     expect(fields).toEqual(expect.arrayContaining(["items", "price", "duration"]));
@@ -443,7 +444,7 @@ describe("etapas, listo en y entregas", () => {
     const undone = await setStage(ctx.db, AGENT_JOSUE, appointment.id, { stage: "cleaned", done: false });
     expect(undone.appointment.stages.cleaned).toBeUndefined();
 
-    const detail = await getAppointment(ctx.db, appointment.id);
+    const detail = await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, appointment.id);
     const stageEntries = detail.history.filter((h) => h.field === "stage");
     expect(stageEntries).toHaveLength(3);
     expect(describeChange(stageEntries[0])).toBe("Limpiado: desmarcado");
@@ -479,17 +480,21 @@ describe("etapas, listo en y entregas", () => {
     });
     expect(scheduled.appointment.deliveryDate).toBe("2026-12-05");
 
-    const deliveries = await getDeliveries(ctx.db, "2026-12-05", "2026-12-05");
+    const deliveries = await getDeliveries(ctx.db, EXPERT_CLEANERS_COMPANY_ID, "2026-12-05", "2026-12-05");
     expect(deliveries.map((d) => d.id)).toContain(appointment.id);
     const entry = asDeliveryEntry(deliveries.find((d) => d.id === appointment.id)!);
     expect(entry).toMatchObject({ kind: "delivery", date: "2026-12-05", startMin: 600, durationMin: 45 });
     expect(entry?.technician.id).toBe(ctx.techs[1].id);
-    expect(await getDeliveries(ctx.db, "2026-12-05", "2026-12-05", ctx.techs[0].id)).toHaveLength(0);
-    expect((await getDay(ctx.db, "2026-12-05")).appointments.map((a) => a.id)).not.toContain(appointment.id);
+    expect(
+      await getDeliveries(ctx.db, EXPERT_CLEANERS_COMPANY_ID, "2026-12-05", "2026-12-05", ctx.techs[0].id),
+    ).toHaveLength(0);
+    expect(
+      (await getDay(ctx.db, EXPERT_CLEANERS_COMPANY_ID, "2026-12-05")).appointments.map((a) => a.id),
+    ).not.toContain(appointment.id);
 
     await clearDelivery(ctx.db, AGENT_JOSUE, appointment.id);
-    expect(await getDeliveries(ctx.db, "2026-12-05", "2026-12-05")).toHaveLength(0);
-    const detail = await getAppointment(ctx.db, appointment.id);
+    expect(await getDeliveries(ctx.db, EXPERT_CLEANERS_COMPANY_ID, "2026-12-05", "2026-12-05")).toHaveLength(0);
+    const detail = await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, appointment.id);
     expect(detail.history.filter((h) => h.field === "delivery").map((h) => describeChange(h))).toEqual([
       "Entrega quitada",
       "Entrega: 2026-12-05 10:00 AM",
@@ -511,7 +516,7 @@ describe("etapas, listo en y entregas", () => {
     });
     expect(scheduled.conflicts.length).toBeGreaterThan(0);
     await cancelAppointment(ctx.db, AGENT_JOSUE, appointment.id, { reason: "weather" });
-    expect(await getDeliveries(ctx.db, "2026-12-08", "2026-12-08")).toHaveLength(0);
+    expect(await getDeliveries(ctx.db, EXPERT_CLEANERS_COMPANY_ID, "2026-12-08", "2026-12-08")).toHaveLength(0);
     await expect(
       setStage(ctx.db, AGENT_JOSUE, appointment.id, { stage: "pickedUp", done: true }),
     ).rejects.toMatchObject({ code: "cancelled" });
@@ -538,7 +543,9 @@ describe("crear el pedido con la entrega programada", () => {
       deliveryDurationMin: 45,
       deliveryTechnicianId: ctx.techs[1].id,
     });
-    expect((await getDeliveries(ctx.db, "2026-12-12", "2026-12-12")).map((d) => d.id)).toContain(appointment.id);
+    expect(
+      (await getDeliveries(ctx.db, EXPERT_CLEANERS_COMPANY_ID, "2026-12-12", "2026-12-12")).map((d) => d.id),
+    ).toContain(appointment.id);
   });
 
   it("rechaza una entrega antes de la recogida", async () => {
@@ -564,7 +571,7 @@ describe("detalles por artículo", () => {
         },
       ],
     });
-    const before = await getAppointment(ctx.db, appointment.id);
+    const before = await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, appointment.id);
     expect(before.items[0].details).toEqual({
       color: "Beige",
       size: "Grande",
@@ -582,7 +589,7 @@ describe("detalles por artículo", () => {
         { serviceId: ctx.services.sofa.id, specs: { sofaType: "Cuero", seats: 1 } },
       ],
     });
-    const after = await getAppointment(ctx.db, appointment.id);
+    const after = await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, appointment.id);
     expect(after.items[0].id).toBe(before.items[0].id);
     expect(after.items[0].details).toEqual({ color: "Gris" });
     expect(after.items).toHaveLength(2);
@@ -591,7 +598,7 @@ describe("detalles por artículo", () => {
     await updateAppointmentItems(ctx.db, AGENT_JOSUE, appointment.id, {
       items: [{ serviceId: ctx.services.sofa.id, specs: { sofaType: "Tela", seats: 3 }, details: { color: "Gris" } }],
     });
-    const trimmed = await getAppointment(ctx.db, appointment.id);
+    const trimmed = await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, appointment.id);
     expect(trimmed.items.map((item) => item.id)).toEqual([before.items[0].id]);
   });
 

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { isAdmin } from "@/domain/permissions";
 import { emptyAgentForm } from "@/domain/agent-form";
 import { AgentForm } from "@/components/agent-form";
 import { AppShell } from "@/components/app-header";
@@ -8,7 +9,7 @@ import { getActor } from "@/server/auth";
 export default async function NewAgentPage() {
   const actor = await getActor();
   if (!actor) redirect("/login");
-  if (actor.role !== "admin") redirect("/calendar");
+  if (!isAdmin(actor)) redirect("/calendar");
 
   return (
     <AppShell active="agents" actor={actor}>

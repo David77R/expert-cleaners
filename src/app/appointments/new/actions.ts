@@ -1,11 +1,10 @@
 "use server";
 
-import { inArray } from "drizzle-orm";
+import { companyServices } from "@/server/services";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getDb } from "@/db/client";
-import { services } from "@/db/schema";
 import { DomainError } from "@/domain/appointment-rules";
 import {
   appointmentFieldErrors,
@@ -38,7 +37,7 @@ export async function createAppointmentAction(
   const ids = readItemValues(values)
     .map((item) => item.serviceId)
     .filter((id) => z.uuid().safeParse(id).success);
-  const rows = ids.length > 0 ? await db.select().from(services).where(inArray(services.id, ids)) : [];
+  const rows = ids.length > 0 ? (await companyServices(db, actor.companyId)).filter((row) => ids.includes(row.id)) : [];
   const byId = new Map(rows.filter((row) => row.active).map((row) => [row.id, row]));
 
   const { input, itemErrors } = appointmentInputFromForm(values, (id) => byId.get(id));

@@ -1,7 +1,8 @@
 import Link from "next/link";
+import { isAdmin } from "@/domain/permissions";
+import { listTechnicians } from "@/server/technicians";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
-import { technicians as techniciansTable } from "@/db/schema";
 import { toFormService, type FormTechnician } from "@/domain/appointment-form";
 import { todayIn } from "@/domain/date-rules";
 import { AppShell } from "@/components/app-header";
@@ -22,8 +23,8 @@ export default async function NewOrderPage({ searchParams }: PageProps<"/orders/
 
   const aviso = (await searchParams).aviso;
   const db = getDb();
-  const services = (await listServices(db)).map(toFormService);
-  const technicians: FormTechnician[] = (await db.select().from(techniciansTable))
+  const services = (await listServices(db, actor.companyId)).map(toFormService);
+  const technicians: FormTechnician[] = (await listTechnicians(db, actor.companyId))
     .filter((row) => row.active)
     .map((row) => ({
       id: row.id,
@@ -42,7 +43,7 @@ export default async function NewOrderPage({ searchParams }: PageProps<"/orders/
           <p className="text-sm text-soft">
             Toca los servicios para armar el ticket, elige el cliente y programa la recogida y la entrega.
           </p>
-          {actor.role === "admin" && (
+          {isAdmin(actor) && (
             <Link href="/services" className="w-fit text-xs font-semibold text-brand-ink hover:underline">
               Ver todos los servicios, incluidos los inactivos
             </Link>
@@ -53,12 +54,7 @@ export default async function NewOrderPage({ searchParams }: PageProps<"/orders/
             {NOTICES[aviso]}
           </p>
         )}
-        <OrderBuilder
-          services={services}
-          technicians={technicians}
-          today={todayIn()}
-          isAdmin={actor.role === "admin"}
-        />
+        <OrderBuilder services={services} technicians={technicians} today={todayIn()} isAdmin={isAdmin(actor)} />
       </main>
     </AppShell>
   );

@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { isAdmin } from "@/domain/permissions";
 import { z } from "zod";
 import { getDb } from "@/db/client";
 import { deleteAgentAction } from "@/app/agents/actions";
@@ -13,13 +14,13 @@ import { getUserAdmin } from "@/server/user-admin";
 export default async function EditAgentPage({ params, searchParams }: PageProps<"/agents/[id]">) {
   const actor = await getActor();
   if (!actor) redirect("/login");
-  if (actor.role !== "admin") redirect("/calendar");
+  if (!isAdmin(actor)) redirect("/calendar");
 
   const { id } = await params;
   if (!z.uuid().safeParse(id).success) notFound();
 
   const db = getDb();
-  const agent = await getAgent(db, getUserAdmin(), id).catch(() => null);
+  const agent = await getAgent(db, getUserAdmin(), actor.companyId, id).catch(() => null);
   if (!agent) notFound();
 
   const activity = await agentActivity(db, id);

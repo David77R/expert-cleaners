@@ -67,7 +67,7 @@ export default async function CustomersPage({ searchParams }: PageProps<"/custom
   );
   const browsing = Boolean(filters.q) || filtersActive || first(params.todos) === "1" || first(params.sort) !== "";
 
-  const { items, hasMore, total } = await searchCustomers(getDb(), {
+  const { items, hasMore, total } = await searchCustomers(getDb(), actor.companyId, {
     ...filters,
     limit: browsing ? PAGE_SIZE : RECENT_COUNT,
     offset: browsing ? offset : 0,

@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { EXPERT_CLEANERS_COMPANY_ID } from "@/domain/companies";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ZodError } from "zod";
 import { appointmentItems, appointmentPhotos } from "@/db/schema";
@@ -16,7 +17,7 @@ type Ctx = Awaited<ReturnType<typeof createTestDb>>;
 let ctx: Ctx;
 let dayCounter = 0;
 
-const ADMIN = { id: AGENT_JOSUE.id, name: "Admin", role: "admin" as const };
+const ADMIN = { id: AGENT_JOSUE.id, name: "Admin", role: "admin" as const, companyId: EXPERT_CLEANERS_COMPANY_ID };
 
 beforeAll(async () => {
   ctx = await createTestDb();
@@ -62,7 +63,7 @@ describe("subir fotos", () => {
     expect(storage.files.size).toBe(1);
     expect([...storage.files.values()][0].contentType).toBe("image/png");
 
-    const detail = await getAppointment(ctx.db, appointment.id);
+    const detail = await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, appointment.id);
     expect(detail.photos).toHaveLength(1);
     expect(detail.history.some((entry) => entry.field === "photo" && entry.toValue === "added")).toBe(true);
   });
@@ -78,7 +79,7 @@ describe("subir fotos", () => {
 
     expect(photo.url).toBe("");
     expect(storage.files.size).toBe(1);
-    expect((await getAppointment(ctx.db, appointment.id)).photos).toHaveLength(1);
+    expect((await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, appointment.id)).photos).toHaveLength(1);
   });
 
   it("liga la foto a un artículo de la misma cita y la conserva al editar los artículos", async () => {
@@ -101,7 +102,7 @@ describe("subir fotos", () => {
       action: "update_items",
       items: [{ serviceId: item.serviceId, specs: item.specs, details: { color: "Azul" }, priceCents: 999 }],
     });
-    const listed = await listPhotos(ctx.db, storage, appointment.id);
+    const listed = await listPhotos(ctx.db, storage, EXPERT_CLEANERS_COMPANY_ID, appointment.id);
     expect(listed[0].itemId).toBe(item.id);
   });
 
@@ -181,7 +182,12 @@ describe("subir fotos", () => {
   it("elimina el archivo si falla el registro en la base de datos", async () => {
     const storage = createMemoryStorage();
     const appointment = await newAppointment();
-    const stranger = { id: "00000000-0000-4000-8000-0000000000aa", name: "Desconocido", role: "agent" as const };
+    const stranger = {
+      id: "00000000-0000-4000-8000-0000000000aa",
+      name: "Desconocido",
+      role: "agent" as const,
+      companyId: EXPERT_CLEANERS_COMPANY_ID,
+    };
     await expect(uploadPhoto(ctx.db, storage, stranger, appointment.id, jpeg())).rejects.toThrow();
     expect(storage.files.size).toBe(0);
     const rows = await ctx.db
@@ -199,7 +205,7 @@ describe("listar fotos", () => {
     const first = await uploadPhoto(ctx.db, storage, AGENT_JOSUE, appointment.id, jpeg());
     const second = await uploadPhoto(ctx.db, storage, AGENT_JUANCHO, appointment.id, png());
 
-    const photos = await listPhotos(ctx.db, storage, appointment.id);
+    const photos = await listPhotos(ctx.db, storage, EXPERT_CLEANERS_COMPANY_ID, appointment.id);
     expect(photos.map((photo) => photo.id)).toEqual([first.id, second.id]);
     expect(photos[1].uploadedByName).toBe(AGENT_JUANCHO.name);
     expect(photos[0].url).toContain("expires=3600");
@@ -208,8 +214,10 @@ describe("listar fotos", () => {
   it("devuelve una lista vacía y falla con not_found si la cita no existe", async () => {
     const storage = createMemoryStorage();
     const appointment = await newAppointment();
-    expect(await listPhotos(ctx.db, storage, appointment.id)).toEqual([]);
-    await expect(listPhotos(ctx.db, storage, "00000000-0000-4000-8000-0000000000ff")).rejects.toMatchObject({
+    expect(await listPhotos(ctx.db, storage, EXPERT_CLEANERS_COMPANY_ID, appointment.id)).toEqual([]);
+    await expect(
+      listPhotos(ctx.db, storage, EXPERT_CLEANERS_COMPANY_ID, "00000000-0000-4000-8000-0000000000ff"),
+    ).rejects.toMatchObject({
       code: "not_found",
     });
   });
@@ -225,7 +233,7 @@ describe("eliminar fotos", () => {
       deleted: true,
     });
     expect(storage.files.size).toBe(0);
-    const detail = await getAppointment(ctx.db, appointment.id);
+    const detail = await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, appointment.id);
     expect(detail.photos).toHaveLength(0);
     expect(detail.history.some((entry) => entry.field === "photo" && entry.toValue === "removed")).toBe(true);
   });
@@ -268,12 +276,17 @@ describe("eliminar fotos", () => {
     await expect(deletePhoto(ctx.db, storage, AGENT_JOSUE, appointment.id, photo.id)).resolves.toEqual({
       deleted: true,
     });
-    expect(await listPhotos(ctx.db, storage, appointment.id)).toEqual([]);
+    expect(await listPhotos(ctx.db, storage, EXPERT_CLEANERS_COMPANY_ID, appointment.id)).toEqual([]);
   });
 });
 
 describe("fotos del panel", () => {
-  const JUANCHO_ACTOR = { id: AGENT_JUANCHO.id, name: AGENT_JUANCHO.name, role: "agent" as const };
+  const JUANCHO_ACTOR = {
+    id: AGENT_JUANCHO.id,
+    name: AGENT_JUANCHO.name,
+    role: "agent" as const,
+    companyId: EXPERT_CLEANERS_COMPANY_ID,
+  };
 
   it("marca quién puede eliminar cada foto", async () => {
     const storage = createMemoryStorage();

@@ -75,7 +75,7 @@ export async function quickCreateCustomerAction(
 
   const values = readCustomerForm(formData);
   try {
-    const created = await createCustomer(getDb(), customerInputFromForm(values));
+    const created = await createCustomer(getDb(), actor.companyId, customerInputFromForm(values));
     revalidatePath("/customers");
     return {
       errors: {},

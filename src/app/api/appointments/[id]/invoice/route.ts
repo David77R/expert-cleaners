@@ -6,9 +6,9 @@ import { getInvoicePdf } from "@/server/invoices";
 
 export function GET(_request: Request, ctx: RouteContext<"/api/appointments/[id]/invoice">) {
   return handle(async () => {
-    await requireActor();
+    const { companyId } = await requireActor();
     const { id } = await ctx.params;
-    const { invoice, pdf } = await getInvoicePdf(getDb(), id);
+    const { invoice, pdf } = await getInvoicePdf(getDb(), companyId, id);
     return new NextResponse(Buffer.from(pdf), {
       headers: {
         "Content-Type": "application/pdf",

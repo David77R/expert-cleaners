@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { isAdmin } from "@/domain/permissions";
 import { redirect } from "next/navigation";
 import { z, ZodError } from "zod";
 import { getDb } from "@/db/client";
@@ -45,7 +46,7 @@ export async function addNote(customerId: string, previous: NoteState, formData:
 export async function deleteCustomerAction(customerId: string, formData: FormData): Promise<void> {
   const actor = await getActor();
   if (!actor) redirect("/login");
-  if (actor.role !== "admin") redirect(`/customers/${customerId}`);
+  if (!isAdmin(actor)) redirect(`/customers/${customerId}`);
   if (!z.uuid().safeParse(customerId).success) redirect("/customers");
 
   let storage: ReturnType<typeof getPhotoStorage> | undefined;
@@ -79,14 +80,14 @@ export async function mergeCustomerAction(
 ): Promise<MergeState> {
   const actor = await getActor();
   if (!actor) redirect("/login");
-  if (actor.role !== "admin") return { error: "Solo el súper admin puede unir clientes." };
+  if (!isAdmin(actor)) return { error: "Solo el súper admin puede unir clientes." };
 
   const db = getDb();
   const chosen = String(formData.get("targetId") ?? "");
   const code = String(formData.get("targetCode") ?? "").trim();
   let targetId = z.uuid().safeParse(chosen).success ? chosen : "";
   if (code) {
-    const found = await findCustomerByCode(db, code);
+    const found = await findCustomerByCode(db, actor.companyId, code);
     if (!found) return { error: `No existe un cliente con el código ${code}.` };
     targetId = found.id;
   }
@@ -144,10 +145,10 @@ function afterAddressChange(customerId: string, previous: ActionState, notice?: 
 }
 
 export async function addAddressAction(customerId: string, previous: ActionState, formData: FormData) {
-  await addressActor();
+  const { companyId } = await addressActor();
   try {
     const { notes, ...address } = addressFromForm(formData);
-    const created = await addAddress(getDb(), customerId, { ...address, ...(notes ? { notes } : {}) });
+    const created = await addAddress(getDb(), companyId, customerId, { ...address, ...(notes ? { notes } : {}) });
     return afterAddressChange(
       customerId,
       previous,
@@ -164,10 +165,13 @@ export async function updateAddressAction(
   previous: ActionState,
   formData: FormData,
 ) {
-  await addressActor();
+  const { companyId } = await addressActor();
   try {
     const { notes, ...address } = addressFromForm(formData);
-    const updated = await updateAddress(getDb(), customerId, addressId, { ...address, notes: notes || null });
+    const updated = await updateAddress(getDb(), companyId, customerId, addressId, {
+      ...address,
+      notes: notes || null,
+    });
     return afterAddressChange(
       customerId,
       previous,
@@ -181,9 +185,9 @@ export async function updateAddressAction(
 }
 
 export async function relocateAddressAction(customerId: string, addressId: string, previous: ActionState) {
-  await addressActor();
+  const { companyId } = await addressActor();
   try {
-    const { found } = await relocateAddress(getDb(), customerId, addressId);
+    const { found } = await relocateAddress(getDb(), companyId, customerId, addressId);
     return afterAddressChange(
       customerId,
       previous,
@@ -197,9 +201,9 @@ export async function relocateAddressAction(customerId: string, addressId: strin
 }
 
 export async function deleteAddressAction(customerId: string, addressId: string, previous: ActionState) {
-  await addressActor();
+  const { companyId } = await addressActor();
   try {
-    await deleteAddress(getDb(), customerId, addressId);
+    await deleteAddress(getDb(), companyId, customerId, addressId);
     return afterAddressChange(customerId, previous);
   } catch (error) {
     return addressFailure(error, previous);
@@ -228,9 +232,9 @@ function vehicleFailure(error: unknown, previous: ActionState): ActionState {
 }
 
 export async function addVehicleAction(customerId: string, previous: ActionState, formData: FormData) {
-  await addressActor();
+  const { companyId } = await addressActor();
   try {
-    await createVehicle(getDb(), customerId, vehicleFromForm(formData));
+    await createVehicle(getDb(), companyId, customerId, vehicleFromForm(formData));
     return afterAddressChange(customerId, previous);
   } catch (error) {
     return vehicleFailure(error, previous);
@@ -243,9 +247,9 @@ export async function updateVehicleAction(
   previous: ActionState,
   formData: FormData,
 ) {
-  await addressActor();
+  const { companyId } = await addressActor();
   try {
-    await updateVehicle(getDb(), customerId, vehicleId, vehicleFromForm(formData));
+    await updateVehicle(getDb(), companyId, customerId, vehicleId, vehicleFromForm(formData));
     return afterAddressChange(customerId, previous);
   } catch (error) {
     return vehicleFailure(error, previous);
@@ -253,9 +257,9 @@ export async function updateVehicleAction(
 }
 
 export async function deleteVehicleAction(customerId: string, vehicleId: string, previous: ActionState) {
-  await addressActor();
+  const { companyId } = await addressActor();
   try {
-    await deleteVehicle(getDb(), customerId, vehicleId);
+    await deleteVehicle(getDb(), companyId, customerId, vehicleId);
     return afterAddressChange(customerId, previous);
   } catch (error) {
     return vehicleFailure(error, previous);

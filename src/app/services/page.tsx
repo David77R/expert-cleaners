@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { isAdmin } from "@/domain/permissions";
 import { ServiceIcon } from "@/components/service-icon";
 import { serviceIconOf } from "@/domain/service-icons";
 import { redirect } from "next/navigation";
@@ -75,10 +76,10 @@ function Groups({ services, muted = false }: { services: Service[]; muted?: bool
 export default async function ServicesPage({ searchParams }: PageProps<"/services">) {
   const actor = await getActor();
   if (!actor) redirect("/login");
-  if (actor.role !== "admin") redirect("/calendar");
+  if (!isAdmin(actor)) redirect("/calendar");
 
   const params = await searchParams;
-  const services = await listServices(getDb(), { includeInactive: "true" }, actor);
+  const services = await listServices(getDb(), actor.companyId, { includeInactive: "true" }, actor);
   const active = services.filter((service) => service.active);
   const inactive = services.filter((service) => !service.active);
 

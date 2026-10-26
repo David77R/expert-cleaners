@@ -27,28 +27,44 @@ export type DuplicateMatch = { id: string; code: string; firstName: string; last
 
 const phoneDigitsSql = sql`regexp_replace(${customers.phone}, '[^0-9]', '', 'g')`;
 
-async function nextCode(tx: Tx): Promise<string> {
+async function nextCode(tx: Tx, companyId: string): Promise<string> {
   const [row] = await tx
     .select({ max: sql<number>`coalesce(max(cast(substring(${customers.code} from 5) as integer)), 1000)` })
-    .from(customers);
+    .from(customers)
+    .where(eq(customers.companyId, companyId));
   return `CLI-${Number(row.max) + 1}`;
 }
 
-async function findDuplicates(tx: Tx | Db, phone: string, excludeId: string): Promise<DuplicateMatch[]> {
+async function findDuplicates(
+  tx: Tx | Db,
+  companyId: string,
+  phone: string,
+  excludeId: string,
+): Promise<DuplicateMatch[]> {
   const digits = phoneDigits(phone);
   return tx
     .select({ id: customers.id, code: customers.code, firstName: customers.firstName, lastName: customers.lastName })
     .from(customers)
-    .where(and(sql`${phoneDigitsSql} = ${digits}`, ne(customers.id, excludeId)));
+    .where(and(eq(customers.companyId, companyId), sql`${phoneDigitsSql} = ${digits}`, ne(customers.id, excludeId)));
 }
 
-async function requireCustomer(tx: Tx | Db, id: string): Promise<schema.Customer> {
-  const [row] = await tx.select().from(customers).where(eq(customers.id, id)).limit(1);
+function customerIn(companyId: string, id: string) {
+  return and(eq(customers.id, id), eq(customers.companyId, companyId));
+}
+
+async function requireCustomer(tx: Tx | Db, companyId: string, id: string): Promise<schema.Customer> {
+  const [row] = await tx.select().from(customers).where(customerIn(companyId, id)).limit(1);
   if (!row) throw new DomainError("not_found", "El cliente no existe");
   return row;
 }
 
-async function requireAddress(tx: Tx | Db, customerId: string, addressId: string): Promise<schema.Address> {
+async function requireAddress(
+  tx: Tx | Db,
+  companyId: string,
+  customerId: string,
+  addressId: string,
+): Promise<schema.Address> {
+  await requireCustomer(tx, companyId, customerId);
   const [row] = await tx
     .select()
     .from(addresses)
@@ -62,17 +78,18 @@ function definedOnly<T extends Record<string, unknown>>(value: T): Partial<T> {
   return Object.fromEntries(Object.entries(value).filter(([, field]) => field !== undefined)) as Partial<T>;
 }
 
-export async function createCustomer(db: Db, raw: CreateCustomerInput) {
+export async function createCustomer(db: Db, companyId: string, raw: CreateCustomerInput) {
   const input = createCustomerSchema.parse(raw);
   const located = await Promise.all(input.addresses.map((address) => geocodeIfNeeded(address)));
   const digits = phoneDigits(input.phone);
   return db.transaction(async (tx) => {
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`customer:${digits}`}))`);
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`customer:${companyId}:${digits}`}))`);
     const [existing] = await tx
       .select()
       .from(customers)
       .where(
         and(
+          eq(customers.companyId, companyId),
           sql`${phoneDigitsSql} = ${digits}`,
           sql`lower(trim(${customers.firstName})) = lower(${input.firstName.trim()})`,
           sql`lower(trim(${customers.lastName})) = lower(${input.lastName.trim()})`,
@@ -84,10 +101,11 @@ export async function createCustomer(db: Db, raw: CreateCustomerInput) {
       return { customer: existing, addresses: existingAddresses, duplicates: [], existing: true };
     }
 
-    const code = await nextCode(tx);
+    const code = await nextCode(tx, companyId);
     const [customer] = await tx
       .insert(customers)
       .values({
+        companyId,
         code,
         firstName: input.firstName,
         lastName: input.lastName,
@@ -118,28 +136,28 @@ export async function createCustomer(db: Db, raw: CreateCustomerInput) {
     return {
       customer,
       addresses: created,
-      duplicates: await findDuplicates(tx, input.phone, customer.id),
+      duplicates: await findDuplicates(tx, companyId, input.phone, customer.id),
       existing: false,
     };
   });
 }
 
-export async function customersByIds(db: Db, ids: string[]): Promise<DuplicateMatch[]> {
+export async function customersByIds(db: Db, companyId: string, ids: string[]): Promise<DuplicateMatch[]> {
   if (ids.length === 0) return [];
   return db
     .select({ id: customers.id, code: customers.code, firstName: customers.firstName, lastName: customers.lastName })
     .from(customers)
-    .where(inArray(customers.id, ids))
+    .where(and(inArray(customers.id, ids), eq(customers.companyId, companyId)))
     .orderBy(asc(customers.code));
 }
 
-export async function updateCustomer(db: Db, id: string, raw: unknown) {
+export async function updateCustomer(db: Db, companyId: string, id: string, raw: unknown) {
   const input = updateCustomerSchema.parse(raw);
   return db.transaction(async (tx) => {
-    const current = await requireCustomer(tx, id);
+    const current = await requireCustomer(tx, companyId, id);
     const [customer] = await tx.update(customers).set(definedOnly(input)).where(eq(customers.id, id)).returning();
     const phoneChanged = input.phone !== undefined && phoneDigits(input.phone) !== phoneDigits(current.phone);
-    return { customer, duplicates: phoneChanged ? await findDuplicates(tx, customer.phone, id) : [] };
+    return { customer, duplicates: phoneChanged ? await findDuplicates(tx, companyId, customer.phone, id) : [] };
   });
 }
 
@@ -170,7 +188,7 @@ const SORT_ORDER: Record<CustomerSort, SQL[]> = {
   last_desc: [desc(folded(customers.lastName)), desc(folded(customers.firstName))],
 };
 
-export async function searchCustomers(db: Db, raw: unknown) {
+export async function searchCustomers(db: Db, companyId: string, raw: unknown) {
   const {
     q,
     limit,
@@ -183,7 +201,7 @@ export async function searchCustomers(db: Db, raw: unknown) {
     createdTo,
   } = customerSearchSchema.parse(raw);
 
-  const conditions: SQL[] = [];
+  const conditions: SQL[] = [eq(customers.companyId, companyId)];
   if (q) {
     const like = `%${escapeLike(foldText(q))}%`;
     const digits = phoneDigits(q);
@@ -212,7 +230,7 @@ export async function searchCustomers(db: Db, raw: unknown) {
   if (createdFrom)
     conditions.push(sql`(${customers.createdAt} at time zone 'America/New_York')::date >= ${createdFrom}`);
   if (createdTo) conditions.push(sql`(${customers.createdAt} at time zone 'America/New_York')::date <= ${createdTo}`);
-  const where = conditions.length > 0 ? and(...conditions) : undefined;
+  const where = and(...conditions);
 
   const rows = await db
     .select({
@@ -242,9 +260,9 @@ export async function searchCustomers(db: Db, raw: unknown) {
   };
 }
 
-export async function getCustomerSummary(db: Db, id: string) {
+export async function getCustomerSummary(db: Db, companyId: string, id: string) {
   const row = await db.query.customers.findFirst({
-    where: eq(customers.id, id),
+    where: customerIn(companyId, id),
     columns: { id: true, code: true, firstName: true, lastName: true, phone: true },
     with: {
       addresses: { columns: { id: true, line1: true, unit: true, city: true, state: true, zip: true } },
@@ -253,9 +271,9 @@ export async function getCustomerSummary(db: Db, id: string) {
   return row ?? null;
 }
 
-export async function getCustomer(db: Db, id: string) {
+export async function getCustomer(db: Db, companyId: string, id: string) {
   const row = await db.query.customers.findFirst({
-    where: eq(customers.id, id),
+    where: customerIn(companyId, id),
     with: {
       addresses: true,
       vehicles: { orderBy: [asc(schema.vehicles.createdAt)] },
@@ -291,8 +309,7 @@ export async function deleteCustomer(
 ) {
   assertAdmin(actor);
   const removed = await db.transaction(async (tx) => {
-    const [customer] = await tx.select().from(customers).where(eq(customers.id, id)).limit(1);
-    if (!customer) throw new DomainError("not_found", "El cliente no existe");
+    const customer = await requireCustomer(tx, actor.companyId, id);
     const owned = await tx.select({ id: appointments.id }).from(appointments).where(eq(appointments.customerId, id));
     if (owned.length > 0 && options.confirmCode?.trim().toUpperCase() !== customer.code.toUpperCase()) {
       throw new DomainError(
@@ -322,9 +339,9 @@ export async function deleteCustomer(
   return { id: removed.id, appointments: removed.appointments };
 }
 
-export async function addAddress(db: Db, customerId: string, raw: unknown) {
+export async function addAddress(db: Db, companyId: string, customerId: string, raw: unknown) {
   const input = await geocodeIfNeeded(addressSnapshotSchema.parse(raw));
-  await requireCustomer(db, customerId);
+  await requireCustomer(db, companyId, customerId);
   const [address] = await db
     .insert(addresses)
     .values({
@@ -344,9 +361,9 @@ export async function addAddress(db: Db, customerId: string, raw: unknown) {
 
 const LOCATION_FIELDS = ["line1", "unit", "city", "state", "zip"] as const;
 
-export async function updateAddress(db: Db, customerId: string, addressId: string, raw: unknown) {
+export async function updateAddress(db: Db, companyId: string, customerId: string, addressId: string, raw: unknown) {
   const input = updateAddressSchema.parse(raw);
-  const current = await requireAddress(db, customerId, addressId);
+  const current = await requireAddress(db, companyId, customerId, addressId);
   const patch: Record<string, unknown> = definedOnly(input);
 
   const moved = LOCATION_FIELDS.some((field) => input[field] !== undefined && input[field] !== current[field]);
@@ -386,8 +403,8 @@ export async function updateAddress(db: Db, customerId: string, addressId: strin
   return address;
 }
 
-export async function relocateAddress(db: Db, customerId: string, addressId: string) {
-  const current = await requireAddress(db, customerId, addressId);
+export async function relocateAddress(db: Db, companyId: string, customerId: string, addressId: string) {
+  const current = await requireAddress(db, companyId, customerId, addressId);
   const located = await geocodeIfNeeded({
     line1: current.line1,
     unit: current.unit,
@@ -422,9 +439,9 @@ export async function locateMissingAddresses(
   return found;
 }
 
-export async function deleteAddress(db: Db, customerId: string, addressId: string) {
+export async function deleteAddress(db: Db, companyId: string, customerId: string, addressId: string) {
   return db.transaction(async (tx) => {
-    await requireAddress(tx, customerId, addressId);
+    await requireAddress(tx, companyId, customerId, addressId);
 
     const [{ total }] = await tx.select({ total: count() }).from(addresses).where(eq(addresses.customerId, customerId));
     if (total <= 1) {
@@ -446,7 +463,7 @@ export async function deleteAddress(db: Db, customerId: string, addressId: strin
 
 export async function addCustomerNote(db: Db, actor: Actor, customerId: string, raw: unknown) {
   const input = customerNoteSchema.parse(raw);
-  await requireCustomer(db, customerId);
+  await requireCustomer(db, actor.companyId, customerId);
   const [note] = await db
     .insert(customerNotes)
     .values({ customerId, authorId: actor.id, authorName: actor.name, text: input.text })
@@ -460,6 +477,7 @@ export async function possibleDuplicates(db: Db, customer: schema.Customer): Pro
     .from(customers)
     .where(
       and(
+        eq(customers.companyId, customer.companyId),
         ne(customers.id, customer.id),
         or(
           sql`${phoneDigitsSql} = ${phoneDigits(customer.phone)}`,
@@ -474,10 +492,14 @@ export async function possibleDuplicates(db: Db, customer: schema.Customer): Pro
     .limit(10);
 }
 
-export async function findCustomerByCode(db: Db, code: string): Promise<schema.Customer | null> {
+export async function findCustomerByCode(db: Db, companyId: string, code: string): Promise<schema.Customer | null> {
   const clean = code.trim().toUpperCase();
   const normalized = /^\d+$/.test(clean) ? `CLI-${clean}` : clean;
-  const [row] = await db.select().from(customers).where(eq(customers.code, normalized)).limit(1);
+  const [row] = await db
+    .select()
+    .from(customers)
+    .where(and(eq(customers.code, normalized), eq(customers.companyId, companyId)))
+    .limit(1);
   return row ?? null;
 }
 
@@ -490,8 +512,8 @@ export async function mergeCustomers(db: Db, actor: Actor, sourceId: string, tar
   assertAdmin(actor);
   if (sourceId === targetId) throw new DomainError("same_customer", "Elige un cliente distinto para unir");
   return db.transaction(async (tx) => {
-    const source = await requireCustomer(tx, sourceId);
-    const target = await requireCustomer(tx, targetId);
+    const source = await requireCustomer(tx, actor.companyId, sourceId);
+    const target = await requireCustomer(tx, actor.companyId, targetId);
 
     const targetAddresses = await tx.select().from(addresses).where(eq(addresses.customerId, target.id));
     const byKey = new Map(targetAddresses.map((address) => [addressKey(address), address.id]));

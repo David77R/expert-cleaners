@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { EXPERT_CLEANERS_COMPANY_ID } from "@/domain/companies";
 import { AGENT_JOSUE } from "@/db/seed-data";
 import {
   advanceInvoice,
@@ -57,7 +58,7 @@ afterAll(async () => {
 
 describe("dashboard principal", () => {
   it("cuenta las citas de hoy por estado sin las canceladas y las entregas del día", async () => {
-    const data = await getDashboard(ctx.db, TODAY);
+    const data = await getDashboard(ctx.db, EXPERT_CLEANERS_COMPANY_ID, TODAY);
     expect(data.todayCount).toBe(2);
     expect(data.status).toMatchObject({ confirmed: 1, completed: 1, notConfirmed: 0 });
     expect(data.deliveryCount).toBe(1);
@@ -65,7 +66,7 @@ describe("dashboard principal", () => {
   });
 
   it("arma la serie diaria de dos semanas atrás a una semana adelante", async () => {
-    const data = await getDashboard(ctx.db, TODAY);
+    const data = await getDashboard(ctx.db, EXPERT_CLEANERS_COMPANY_ID, TODAY);
     expect(data.daily).toHaveLength(CHART_PAST_DAYS + CHART_FUTURE_DAYS + 1);
     const byDate = Object.fromEntries(data.daily.map((day) => [day.date, day.total]));
     expect(byDate[TODAY]).toBe(2);
@@ -75,7 +76,7 @@ describe("dashboard principal", () => {
   });
 
   it("suma lo vendido y cobrado del mes, lo pendiente de cobro y los servicios más pedidos", async () => {
-    const data = await getDashboard(ctx.db, TODAY);
+    const data = await getDashboard(ctx.db, EXPERT_CLEANERS_COMPANY_ID, TODAY);
     const base = ctx.services.sofa.basePriceCents;
     expect(data.monthCount).toBe(5);
     expect(data.monthRevenueCents).toBe(25000 + base * 4);
@@ -87,7 +88,7 @@ describe("dashboard principal", () => {
   });
 
   it("calcula la carga de cada técnico hoy contando las entregas", async () => {
-    const data = await getDashboard(ctx.db, TODAY);
+    const data = await getDashboard(ctx.db, EXPERT_CLEANERS_COMPANY_ID, TODAY);
     const first = data.technicianLoad.find((tech) => tech.id === ctx.techs[0].id);
     const second = data.technicianLoad.find((tech) => tech.id === ctx.techs[1].id);
     expect(first).toMatchObject({ visits: 2, minutes: 180 });

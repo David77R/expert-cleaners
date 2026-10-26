@@ -18,19 +18,23 @@ export type AgentView = {
   createdAt: Date;
 };
 
-async function requireAgentProfile(db: Db, id: string): Promise<schema.Profile> {
+async function requireAgentProfile(db: Db, companyId: string, id: string): Promise<schema.Profile> {
   const [row] = await db
     .select()
     .from(profiles)
-    .where(and(eq(profiles.id, id), eq(profiles.role, "agent")))
+    .where(and(eq(profiles.id, id), eq(profiles.role, "agent"), eq(profiles.companyId, companyId)))
     .limit(1);
   if (!row) throw new DomainError("not_found", "El agente no existe");
   return row;
 }
 
-export async function listAgents(db: Db, auth: UserAdmin): Promise<AgentView[]> {
+export async function listAgents(db: Db, auth: UserAdmin, companyId: string): Promise<AgentView[]> {
   const [rows, accounts] = await Promise.all([
-    db.select().from(profiles).where(eq(profiles.role, "agent")).orderBy(asc(profiles.name)),
+    db
+      .select()
+      .from(profiles)
+      .where(and(eq(profiles.role, "agent"), eq(profiles.companyId, companyId)))
+      .orderBy(asc(profiles.name)),
     auth.listUsers(),
   ]);
   const byId = new Map(accounts.map((account) => [account.id, account]));
@@ -43,8 +47,8 @@ export async function listAgents(db: Db, auth: UserAdmin): Promise<AgentView[]> 
   }));
 }
 
-export async function getAgent(db: Db, auth: UserAdmin, id: string): Promise<AgentView> {
-  const profile = await requireAgentProfile(db, id);
+export async function getAgent(db: Db, auth: UserAdmin, companyId: string, id: string): Promise<AgentView> {
+  const profile = await requireAgentProfile(db, companyId, id);
   const account = (await auth.listUsers()).find((item) => item.id === id);
   return {
     id: profile.id,
@@ -73,8 +77,11 @@ export async function createAgent(db: Db, auth: UserAdmin, actor: Actor, raw: Cr
   try {
     const [profile] = await db
       .insert(profiles)
-      .values({ id: account.id, name: input.name, role: "agent", active: true })
-      .onConflictDoUpdate({ target: profiles.id, set: { name: input.name, role: "agent", active: true } })
+      .values({ id: account.id, companyId: actor.companyId, name: input.name, role: "agent", active: true })
+      .onConflictDoUpdate({
+        target: profiles.id,
+        set: { companyId: actor.companyId, name: input.name, role: "agent", active: true },
+      })
       .returning();
     return profile;
   } catch (error) {
@@ -86,7 +93,7 @@ export async function createAgent(db: Db, auth: UserAdmin, actor: Actor, raw: Cr
 export async function updateAgent(db: Db, auth: UserAdmin, actor: Actor, id: string, raw: UpdateAgentInput) {
   assertAdmin(actor);
   const input = updateAgentSchema.parse(raw);
-  const current = await requireAgentProfile(db, id);
+  const current = await requireAgentProfile(db, actor.companyId, id);
   const account = (await auth.listUsers()).find((item) => item.id === id);
 
   const changes = {
@@ -107,7 +114,7 @@ export async function updateAgent(db: Db, auth: UserAdmin, actor: Actor, id: str
 
 export async function deleteAgent(db: Db, auth: UserAdmin, actor: Actor, id: string) {
   assertAdmin(actor);
-  await requireAgentProfile(db, id);
+  await requireAgentProfile(db, actor.companyId, id);
   if ((await agentActivity(db, id)) > 0) {
     throw new DomainError(
       "agent_has_activity",

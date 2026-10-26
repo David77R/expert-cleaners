@@ -1,9 +1,8 @@
-import { asc } from "drizzle-orm";
+import { reportPeople } from "@/server/reports";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { getDb } from "@/db/client";
-import { profiles as profilesTable } from "@/db/schema";
 import { CALENDAR_VIEWS, shiftAnchor, viewHeading, type CalendarView } from "@/domain/calendar-view";
 import { todayIn } from "@/domain/date-rules";
 import { formatMoney } from "@/domain/invoice";
@@ -36,10 +35,7 @@ export default async function ReportsPage({ searchParams }: PageProps<"/reports"
   const requestedAgent = z.uuid().safeParse(first(params.agentId));
 
   const db = getDb();
-  const people = await db
-    .select({ id: profilesTable.id, name: profilesTable.name })
-    .from(profilesTable)
-    .orderBy(asc(profilesTable.name));
+  const people = await reportPeople(db, actor.companyId);
   const selectedAgentId =
     requestedAgent.success && people.some((p) => p.id === requestedAgent.data) ? requestedAgent.data : null;
 

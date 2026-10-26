@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { isAdmin } from "@/domain/permissions";
 import { redirect } from "next/navigation";
 import { z, ZodError } from "zod";
 import { getDb } from "@/db/client";
@@ -27,7 +28,7 @@ export type AgentFormState = {
 async function adminActor() {
   const actor = await getActor();
   if (!actor) redirect("/login");
-  if (actor.role !== "admin") redirect("/calendar");
+  if (!isAdmin(actor)) redirect("/calendar");
   return actor;
 }
 

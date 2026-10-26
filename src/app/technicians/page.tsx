@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { isAdmin } from "@/domain/permissions";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
 import type { Technician } from "@/db/schema";
@@ -47,10 +48,10 @@ function TechnicianRow({ technician, muted = false }: { technician: Technician; 
 export default async function TechniciansPage({ searchParams }: PageProps<"/technicians">) {
   const actor = await getActor();
   if (!actor) redirect("/login");
-  if (actor.role !== "admin") redirect("/calendar");
+  if (!isAdmin(actor)) redirect("/calendar");
 
   const params = await searchParams;
-  const technicians = await listTechnicians(getDb());
+  const technicians = await listTechnicians(getDb(), actor.companyId);
   const active = technicians.filter((technician) => technician.active);
   const inactive = technicians.filter((technician) => !technician.active);
 

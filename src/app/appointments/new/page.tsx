@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
+import { listTechnicians } from "@/server/technicians";
 import { z } from "zod";
 import { getDb } from "@/db/client";
-import { technicians as techniciansTable } from "@/db/schema";
 import { emptyAppointmentForm, toFormService, type FormService, type FormTechnician } from "@/domain/appointment-form";
 import { minutesToTimeInput, parseTimeInput } from "@/domain/appointment-panel";
 import { todayIn } from "@/domain/date-rules";
@@ -30,10 +30,10 @@ export default async function NewAppointmentPage({ searchParams }: PageProps<"/a
   const startMin = parseTimeInput(first(params.time));
   const time = startMin === null ? "" : minutesToTimeInput(startMin);
 
-  const serviceRows = await listServices(db);
+  const serviceRows = await listServices(db, actor.companyId);
   const services: FormService[] = serviceRows.map(toFormService);
 
-  const technicians: FormTechnician[] = (await db.select().from(techniciansTable))
+  const technicians: FormTechnician[] = (await listTechnicians(db, actor.companyId))
     .filter((row) => row.active)
     .map((row) => ({
       id: row.id,
@@ -48,7 +48,9 @@ export default async function NewAppointmentPage({ searchParams }: PageProps<"/a
     requestedTech.success && technicians.some((t) => t.id === requestedTech.data) ? requestedTech.data : "";
 
   const requestedCustomer = z.uuid().safeParse(first(params.customer));
-  const customer = requestedCustomer.success ? await getCustomerSummary(db, requestedCustomer.data) : null;
+  const customer = requestedCustomer.success
+    ? await getCustomerSummary(db, actor.companyId, requestedCustomer.data)
+    : null;
 
   const initialValues = {
     ...emptyAppointmentForm(),

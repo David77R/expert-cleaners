@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { EXPERT_CLEANERS_COMPANY_ID } from "@/domain/companies";
 import { ZodError } from "zod";
 import { AGENT_JOSUE } from "@/db/seed-data";
 import { assertAdmin } from "@/domain/permissions";
@@ -10,7 +11,7 @@ import { appointmentInput, createTestDb } from "./helpers";
 type Ctx = Awaited<ReturnType<typeof createTestDb>>;
 let ctx: Ctx;
 
-const ADMIN = { id: AGENT_JOSUE.id, name: "Admin", role: "admin" as const };
+const ADMIN = { id: AGENT_JOSUE.id, name: "Admin", role: "admin" as const, companyId: EXPERT_CLEANERS_COMPANY_ID };
 
 beforeAll(async () => {
   ctx = await createTestDb();
@@ -124,24 +125,26 @@ describe("listar y consultar", () => {
     const created = await createService(ctx.db, ADMIN, newService({ name: "Servicio Oculto" }));
     await updateService(ctx.db, ADMIN, created.id, { active: false });
 
-    const forAgent = await listServices(ctx.db, { includeInactive: "true" }, AGENT_JOSUE);
+    const forAgent = await listServices(ctx.db, EXPERT_CLEANERS_COMPANY_ID, { includeInactive: "true" }, AGENT_JOSUE);
     expect(forAgent.map((s) => s.id)).not.toContain(created.id);
 
-    const forAdmin = await listServices(ctx.db, { includeInactive: "true" }, ADMIN);
+    const forAdmin = await listServices(ctx.db, EXPERT_CLEANERS_COMPANY_ID, { includeInactive: "true" }, ADMIN);
     expect(forAdmin.map((s) => s.id)).toContain(created.id);
 
-    const defaultAdmin = await listServices(ctx.db, {}, ADMIN);
+    const defaultAdmin = await listServices(ctx.db, EXPERT_CLEANERS_COMPANY_ID, {}, ADMIN);
     expect(defaultAdmin.map((s) => s.id)).not.toContain(created.id);
   });
 
   it("ordena por categoría y nombre", async () => {
-    const list = await listServices(ctx.db, {}, ADMIN);
+    const list = await listServices(ctx.db, EXPERT_CLEANERS_COMPANY_ID, {}, ADMIN);
     const keys = list.map((s) => `${s.category}|${s.name}`);
     expect(keys).toEqual([...keys].sort());
   });
 
   it("falla con not_found si el servicio no existe", async () => {
-    await expect(getService(ctx.db, "00000000-0000-4000-8000-0000000000ff")).rejects.toMatchObject({
+    await expect(
+      getService(ctx.db, EXPERT_CLEANERS_COMPANY_ID, "00000000-0000-4000-8000-0000000000ff"),
+    ).rejects.toMatchObject({
       code: "not_found",
     });
   });
@@ -237,7 +240,9 @@ describe("eliminar servicio", () => {
   it("borra del todo un servicio sin citas y libera el nombre", async () => {
     const created = await createService(ctx.db, ADMIN, newService({ name: "Servicio sin uso" }));
     expect(await deleteService(ctx.db, ADMIN, created.id)).toEqual({ name: "Servicio sin uso", mode: "deleted" });
-    await expect(getService(ctx.db, created.id)).rejects.toMatchObject({ code: "not_found" });
+    await expect(getService(ctx.db, EXPERT_CLEANERS_COMPANY_ID, created.id)).rejects.toMatchObject({
+      code: "not_found",
+    });
     const again = await createService(ctx.db, ADMIN, newService({ name: "Servicio sin uso" }));
     expect(again.slug).toBe("servicio-sin-uso");
   });
@@ -258,9 +263,11 @@ describe("eliminar servicio", () => {
     expect(appointment.id).toBeDefined();
 
     expect(await deleteService(ctx.db, ADMIN, created.id)).toEqual({ name: "Servicio con historia", mode: "retired" });
-    const visible = await listServices(ctx.db, { includeInactive: "true" }, ADMIN);
+    const visible = await listServices(ctx.db, EXPERT_CLEANERS_COMPANY_ID, { includeInactive: "true" }, ADMIN);
     expect(visible.some((service) => service.id === created.id)).toBe(false);
-    await expect(getService(ctx.db, created.id)).rejects.toMatchObject({ code: "not_found" });
+    await expect(getService(ctx.db, EXPERT_CLEANERS_COMPANY_ID, created.id)).rejects.toMatchObject({
+      code: "not_found",
+    });
     await expect(updateService(ctx.db, ADMIN, created.id, { durationMin: 30 })).rejects.toMatchObject({
       code: "not_found",
     });

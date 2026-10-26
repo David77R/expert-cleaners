@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { EXPERT_CLEANERS_COMPANY_ID } from "@/domain/companies";
 import { ZodError } from "zod";
 import { AGENT_JOSUE } from "@/db/seed-data";
 import { buildAlerts } from "@/domain/alert-rules";
@@ -79,7 +80,7 @@ describe("alertas con datos reales", () => {
   const date = "2027-09-14";
 
   it("sin datos devuelve una lista vacía", async () => {
-    const result = await getAlerts(ctx.db, { date: "2027-01-05" });
+    const result = await getAlerts(ctx.db, EXPERT_CLEANERS_COMPANY_ID, { date: "2027-01-05" });
     expect(result).toEqual({ date: "2027-01-05", count: 0, items: [] });
   });
 
@@ -97,7 +98,7 @@ describe("alertas con datos reales", () => {
       reason: "Cliente solicitó otra fecha",
     });
 
-    const result = await getAlerts(ctx.db, { date });
+    const result = await getAlerts(ctx.db, EXPERT_CLEANERS_COMPANY_ID, { date });
     const byType = Object.fromEntries(result.items.map((i) => [i.type, i]));
 
     expect(byType.not_confirmed.appointmentIds).toEqual([pending.id]);
@@ -114,7 +115,7 @@ describe("alertas con datos reales", () => {
     await cancelAppointment(ctx.db, AGENT_JOSUE, b.id, { reason: "duplicate" });
     await confirmAppointment(ctx.db, AGENT_JOSUE, a.id);
 
-    const result = await getAlerts(ctx.db, { date: quietDay });
+    const result = await getAlerts(ctx.db, EXPERT_CLEANERS_COMPANY_ID, { date: quietDay });
     expect(result.items).toEqual([]);
   });
 
@@ -132,21 +133,23 @@ describe("alertas con datos reales", () => {
     await markPaid(ctx.db, AGENT_JOSUE, paid.id);
     await confirmAppointment(ctx.db, AGENT_JOSUE, notDone.id);
 
-    const result = await getAlerts(ctx.db, { date: reference });
+    const result = await getAlerts(ctx.db, EXPERT_CLEANERS_COMPANY_ID, { date: reference });
     const unpaid = result.items.find((i) => i.type === "completed_unpaid");
     expect(unpaid?.appointmentIds).toEqual([oldUnpaid.id, recentUnpaid.id]);
     expect(unpaid?.count).toBe(2);
 
-    const afterFuture = await getAlerts(ctx.db, { date: "2027-10-20" });
+    const afterFuture = await getAlerts(ctx.db, EXPERT_CLEANERS_COMPANY_ID, { date: "2027-10-20" });
     expect(afterFuture.items.find((i) => i.type === "completed_unpaid")?.count).toBe(3);
   });
 
   it("usa el día de hoy en Miami cuando no se envía fecha", async () => {
-    const result = await getAlerts(ctx.db);
+    const result = await getAlerts(ctx.db, EXPERT_CLEANERS_COMPANY_ID);
     expect(result.date).toBe(todayIn());
   });
 
   it("rechaza fechas imposibles", async () => {
-    await expect(getAlerts(ctx.db, { date: "2027-02-31" })).rejects.toBeInstanceOf(ZodError);
+    await expect(getAlerts(ctx.db, EXPERT_CLEANERS_COMPANY_ID, { date: "2027-02-31" })).rejects.toBeInstanceOf(
+      ZodError,
+    );
   });
 });

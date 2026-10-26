@@ -16,10 +16,10 @@ export function POST(request: Request) {
 
 export function DELETE(request: Request) {
   return handle(async () => {
-    await requireActor();
+    const { companyId } = await requireActor();
     const body = await request.json();
     const db = getDb();
-    await deleteRouteDraft(db, body);
+    await deleteRouteDraft(db, companyId, body);
     return NextResponse.json({ ok: true });
   });
 }

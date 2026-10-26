@@ -1,7 +1,7 @@
-import { asc, count, eq } from "drizzle-orm";
+import { and, asc, count, eq } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { DomainError } from "@/domain/appointment-rules";
-import { assertAdmin } from "@/domain/permissions";
+import { assertAdmin, isAdmin } from "@/domain/permissions";
 import { SLUG_PATTERN, isRetiredSlug, retiredSlug, slugify } from "@/domain/service-rules";
 import { createServiceSchema, serviceListSchema, updateServiceSchema, type CreateServiceInput } from "@/domain/schemas";
 import type { Db } from "@/server/appointments";
@@ -10,23 +10,35 @@ type Actor = schema.Actor;
 
 const { services, appointments, appointmentItems } = schema;
 
-async function requireService(db: Db, id: string): Promise<schema.Service> {
-  const [row] = await db.select().from(services).where(eq(services.id, id)).limit(1);
+function inCompany(companyId: string, id: string) {
+  return and(eq(services.id, id), eq(services.companyId, companyId));
+}
+
+async function requireService(db: Db, companyId: string, id: string): Promise<schema.Service> {
+  const [row] = await db.select().from(services).where(inCompany(companyId, id)).limit(1);
   if (!row || isRetiredSlug(row.slug)) throw new DomainError("not_found", "El servicio no existe");
   return row;
 }
 
-export async function listServices(db: Db, raw: unknown = {}, actor?: Actor) {
+export async function listServices(db: Db, companyId: string, raw: unknown = {}, actor?: Actor) {
   const { includeInactive } = serviceListSchema.parse(raw);
-  const rows = (await db.select().from(services).orderBy(asc(services.category), asc(services.name))).filter(
-    (row) => !isRetiredSlug(row.slug),
-  );
-  const showAll = includeInactive && actor?.role === "admin";
+  const rows = (
+    await db
+      .select()
+      .from(services)
+      .where(eq(services.companyId, companyId))
+      .orderBy(asc(services.category), asc(services.name))
+  ).filter((row) => !isRetiredSlug(row.slug));
+  const showAll = includeInactive && actor !== undefined && isAdmin(actor);
   return showAll ? rows : rows.filter((row) => row.active);
 }
 
-export async function getService(db: Db, id: string) {
-  return requireService(db, id);
+export async function companyServices(db: Db, companyId: string): Promise<schema.Service[]> {
+  return db.select().from(services).where(eq(services.companyId, companyId));
+}
+
+export async function getService(db: Db, companyId: string, id: string) {
+  return requireService(db, companyId, id);
 }
 
 export async function countServiceAppointments(db: Db, id: string): Promise<number> {
@@ -43,12 +55,17 @@ export async function createService(db: Db, actor: Actor, raw: CreateServiceInpu
     throw new DomainError("invalid_slug", "No se pudo generar un identificador válido; indica uno manualmente");
   }
 
-  const [taken] = await db.select({ id: services.id }).from(services).where(eq(services.slug, slug)).limit(1);
+  const [taken] = await db
+    .select({ id: services.id })
+    .from(services)
+    .where(and(eq(services.slug, slug), eq(services.companyId, actor.companyId)))
+    .limit(1);
   if (taken) throw new DomainError("slug_taken", `Ya existe un servicio con el identificador "${slug}"`);
 
   const [created] = await db
     .insert(services)
     .values({
+      companyId: actor.companyId,
       slug,
       name: input.name,
       category: input.category,
@@ -71,7 +88,7 @@ export async function updateService(db: Db, actor: Actor, id: string, raw: unkno
   const input = updateServiceSchema.parse(raw);
 
   return db.transaction(async (tx) => {
-    const [current] = await tx.select().from(services).where(eq(services.id, id)).limit(1);
+    const [current] = await tx.select().from(services).where(inCompany(actor.companyId, id)).limit(1);
     if (!current || isRetiredSlug(current.slug)) throw new DomainError("not_found", "El servicio no existe");
 
     if (input.twoAddresses !== undefined && input.twoAddresses !== current.twoAddresses) {
@@ -95,7 +112,7 @@ export type DeleteServiceResult = { name: string; mode: "deleted" | "retired" };
 export async function deleteService(db: Db, actor: Actor, id: string): Promise<DeleteServiceResult> {
   assertAdmin(actor);
   return db.transaction(async (tx) => {
-    const [current] = await tx.select().from(services).where(eq(services.id, id)).limit(1);
+    const [current] = await tx.select().from(services).where(inCompany(actor.companyId, id)).limit(1);
     if (!current || isRetiredSlug(current.slug)) throw new DomainError("not_found", "El servicio no existe");
 
     const [{ main }] = await tx.select({ main: count() }).from(appointments).where(eq(appointments.serviceId, id));

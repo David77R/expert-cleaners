@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { EXPERT_CLEANERS_COMPANY_ID } from "@/domain/companies";
 import { ZodError } from "zod";
 import { AGENT_JOSUE } from "@/db/seed-data";
 import { cancelAppointment, createAppointment } from "@/server/appointments";
@@ -15,8 +16,13 @@ import { appointmentInput, createTestDb } from "./helpers";
 type Ctx = Awaited<ReturnType<typeof createTestDb>>;
 let ctx: Ctx;
 
-const ADMIN = { id: AGENT_JOSUE.id, name: "Admin", role: "admin" as const };
-const AGENT = { id: AGENT_JOSUE.id, name: AGENT_JOSUE.name, role: "agent" as const };
+const ADMIN = { id: AGENT_JOSUE.id, name: "Admin", role: "admin" as const, companyId: EXPERT_CLEANERS_COMPANY_ID };
+const AGENT = {
+  id: AGENT_JOSUE.id,
+  name: AGENT_JOSUE.name,
+  role: "agent" as const,
+  companyId: EXPERT_CLEANERS_COMPANY_ID,
+};
 const TODAY = "2026-10-12";
 
 function newTechnician(overrides: Record<string, unknown> = {}) {
@@ -85,7 +91,7 @@ describe("crear técnicos", () => {
   });
 
   it("lista los técnicos ordenados por nombre", async () => {
-    const names = (await listTechnicians(ctx.db)).map((t) => t.name);
+    const names = (await listTechnicians(ctx.db, EXPERT_CLEANERS_COMPANY_ID)).map((t) => t.name);
     expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
     expect(names).toContain("Mariela Pérez");
   });
@@ -102,7 +108,7 @@ describe("editar y desactivar", () => {
   it("no deja desactivar a un técnico con citas pendientes", async () => {
     const tech = ctx.techs[0];
     await createAppointment(ctx.db, AGENT, appointmentInput(ctx, { technicianId: tech.id, date: "2026-10-20" }));
-    const current = await getTechnician(ctx.db, tech.id);
+    const current = await getTechnician(ctx.db, EXPERT_CLEANERS_COMPANY_ID, tech.id);
     await expect(
       updateTechnician(ctx.db, ADMIN, tech.id, editOf(current, { active: false }), TODAY),
     ).rejects.toMatchObject({ code: "technician_has_upcoming" });
@@ -116,7 +122,7 @@ describe("editar y desactivar", () => {
       appointmentInput(ctx, { technicianId: tech.id, date: "2026-10-21" }),
     );
     await cancelAppointment(ctx.db, AGENT, appointment.id, { reason: "weather" });
-    const current = await getTechnician(ctx.db, tech.id);
+    const current = await getTechnician(ctx.db, EXPERT_CLEANERS_COMPANY_ID, tech.id);
     const updated = await updateTechnician(ctx.db, ADMIN, tech.id, editOf(current, { active: false }), TODAY);
     expect(updated.active).toBe(false);
   });
@@ -135,7 +141,9 @@ describe("eliminar", () => {
   it("elimina un técnico que nunca tuvo citas", async () => {
     const tech = await createTechnician(ctx.db, ADMIN, newTechnician({ name: "De prueba" }));
     await deleteTechnician(ctx.db, ADMIN, tech.id);
-    await expect(getTechnician(ctx.db, tech.id)).rejects.toMatchObject({ code: "not_found" });
+    await expect(getTechnician(ctx.db, EXPERT_CLEANERS_COMPANY_ID, tech.id)).rejects.toMatchObject({
+      code: "not_found",
+    });
   });
 
   it("no elimina a un técnico con citas registradas", async () => {

@@ -64,6 +64,13 @@
       "when": 1793022069656,
       "tag": "0008_vehicles",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793025290390,
+      "tag": "0009_companies",
+      "breakpoints": true
     }
   ]
 }

@@ -8,25 +8,39 @@ import type { Db } from "@/server/appointments";
 const { customers, vehicles } = schema;
 const idSchema = z.uuid();
 
-export async function listVehicles(db: Db, rawCustomerId: string): Promise<schema.Vehicle[]> {
+export async function listVehicles(db: Db, companyId: string, rawCustomerId: string): Promise<schema.Vehicle[]> {
   const customerId = idSchema.parse(rawCustomerId);
-  return db.select().from(vehicles).where(eq(vehicles.customerId, customerId)).orderBy(asc(vehicles.createdAt));
+  return db
+    .select()
+    .from(vehicles)
+    .where(and(eq(vehicles.customerId, customerId), eq(vehicles.companyId, companyId)))
+    .orderBy(asc(vehicles.createdAt));
 }
 
-export async function createVehicle(db: Db, rawCustomerId: string, raw: VehicleInput): Promise<schema.Vehicle> {
+export async function createVehicle(
+  db: Db,
+  companyId: string,
+  rawCustomerId: string,
+  raw: VehicleInput,
+): Promise<schema.Vehicle> {
   const customerId = idSchema.parse(rawCustomerId);
   const input = vehicleSchema.parse(raw);
-  const [customer] = await db.select({ id: customers.id }).from(customers).where(eq(customers.id, customerId)).limit(1);
+  const [customer] = await db
+    .select({ id: customers.id })
+    .from(customers)
+    .where(and(eq(customers.id, customerId), eq(customers.companyId, companyId)))
+    .limit(1);
   if (!customer) throw new DomainError("not_found", "El cliente no existe");
   const [created] = await db
     .insert(vehicles)
-    .values({ customerId, ...input })
+    .values({ companyId, customerId, ...input })
     .returning();
   return created;
 }
 
 export async function updateVehicle(
   db: Db,
+  companyId: string,
   rawCustomerId: string,
   rawVehicleId: string,
   raw: VehicleInput,
@@ -37,18 +51,23 @@ export async function updateVehicle(
   const [updated] = await db
     .update(vehicles)
     .set(input)
-    .where(and(eq(vehicles.id, vehicleId), eq(vehicles.customerId, customerId)))
+    .where(and(eq(vehicles.id, vehicleId), eq(vehicles.customerId, customerId), eq(vehicles.companyId, companyId)))
     .returning();
   if (!updated) throw new DomainError("not_found", "El vehículo no existe");
   return updated;
 }
 
-export async function deleteVehicle(db: Db, rawCustomerId: string, rawVehicleId: string): Promise<void> {
+export async function deleteVehicle(
+  db: Db,
+  companyId: string,
+  rawCustomerId: string,
+  rawVehicleId: string,
+): Promise<void> {
   const customerId = idSchema.parse(rawCustomerId);
   const vehicleId = idSchema.parse(rawVehicleId);
   const removed = await db
     .delete(vehicles)
-    .where(and(eq(vehicles.id, vehicleId), eq(vehicles.customerId, customerId)))
+    .where(and(eq(vehicles.id, vehicleId), eq(vehicles.customerId, customerId), eq(vehicles.companyId, companyId)))
     .returning({ id: vehicles.id });
   if (removed.length === 0) throw new DomainError("not_found", "El vehículo no existe");
 }

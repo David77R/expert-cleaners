@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { isAdmin } from "@/domain/permissions";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
 import { DomainError } from "@/domain/appointment-rules";
@@ -51,13 +52,13 @@ function AgentRow({ agent }: { agent: AgentView }) {
 export default async function AgentsPage({ searchParams }: PageProps<"/agents">) {
   const actor = await getActor();
   if (!actor) redirect("/login");
-  if (actor.role !== "admin") redirect("/calendar");
+  if (!isAdmin(actor)) redirect("/calendar");
 
   const params = await searchParams;
   let agents: AgentView[] = [];
   let setupError: string | null = null;
   try {
-    agents = await listAgents(getDb(), getUserAdmin());
+    agents = await listAgents(getDb(), getUserAdmin(), actor.companyId);
   } catch (error) {
     if (!(error instanceof DomainError)) throw error;
     setupError = error.message;

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { EXPERT_CLEANERS_COMPANY_ID } from "@/domain/companies";
 import { AGENT_JOSUE } from "@/db/seed-data";
 import { priceForSize, vehicleName, vehicleSchema, vehicleSummary } from "@/domain/vehicles";
 import { createAppointment, getAppointment, updateAppointmentItems } from "@/server/appointments";
@@ -22,7 +23,7 @@ afterAll(async () => {
   await ctx.client.close();
 });
 
-const ADMIN = { id: AGENT_JOSUE.id, name: "Admin", role: "admin" as const };
+const ADMIN = { id: AGENT_JOSUE.id, name: "Admin", role: "admin" as const, companyId: EXPERT_CLEANERS_COMPANY_ID };
 
 describe("reglas de vehículos", () => {
   it("arma un nombre legible y no repite el tipo", () => {
@@ -48,21 +49,33 @@ describe("reglas de vehículos", () => {
 
 describe("vehículos del cliente", () => {
   it("crea, lista, edita y borra", async () => {
-    const created = await createVehicle(ctx.db, ctx.customer.id, { make: "Honda", model: "Civic", size: "sedan" });
-    const updated = await updateVehicle(ctx.db, ctx.customer.id, created.id, {
+    const created = await createVehicle(ctx.db, EXPERT_CLEANERS_COMPANY_ID, ctx.customer.id, {
+      make: "Honda",
+      model: "Civic",
+      size: "sedan",
+    });
+    const updated = await updateVehicle(ctx.db, EXPERT_CLEANERS_COMPANY_ID, ctx.customer.id, created.id, {
       make: "Honda",
       model: "Civic",
       color: "Gris",
       size: "sedan",
     });
     expect(updated.color).toBe("Gris");
-    expect((await listVehicles(ctx.db, ctx.customer.id)).map((v) => v.id)).toContain(created.id);
-    await deleteVehicle(ctx.db, ctx.customer.id, created.id);
-    expect((await listVehicles(ctx.db, ctx.customer.id)).map((v) => v.id)).not.toContain(created.id);
+    expect((await listVehicles(ctx.db, EXPERT_CLEANERS_COMPANY_ID, ctx.customer.id)).map((v) => v.id)).toContain(
+      created.id,
+    );
+    await deleteVehicle(ctx.db, EXPERT_CLEANERS_COMPANY_ID, ctx.customer.id, created.id);
+    expect((await listVehicles(ctx.db, EXPERT_CLEANERS_COMPANY_ID, ctx.customer.id)).map((v) => v.id)).not.toContain(
+      created.id,
+    );
   });
 
   it("guarda el vehículo en cada servicio de la cita y lo conserva al editar", async () => {
-    const suv = await createVehicle(ctx.db, ctx.customer.id, { make: "Ford", model: "Explorer", size: "suv" });
+    const suv = await createVehicle(ctx.db, EXPERT_CLEANERS_COMPANY_ID, ctx.customer.id, {
+      make: "Ford",
+      model: "Explorer",
+      size: "suv",
+    });
     const { appointment } = await createAppointment(
       ctx.db,
       AGENT_JOSUE,
@@ -71,7 +84,7 @@ describe("vehículos del cliente", () => {
         items: [{ serviceId: ctx.services.sofa.id, specs: { sofaType: "Tela", seats: 3 }, vehicleId: suv.id }],
       }),
     );
-    let detail = await getAppointment(ctx.db, appointment.id);
+    let detail = await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, appointment.id);
     expect(detail.items[0].vehicleId).toBe(suv.id);
 
     await updateAppointmentItems(ctx.db, AGENT_JOSUE, appointment.id, {
@@ -84,18 +97,18 @@ describe("vehículos del cliente", () => {
         },
       ],
     });
-    detail = await getAppointment(ctx.db, appointment.id);
+    detail = await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, appointment.id);
     expect(detail.items[0]).toMatchObject({ vehicleId: suv.id, priceCents: 9900 });
   });
 
   it("no acepta el vehículo de otro cliente", async () => {
-    const other = await createCustomer(ctx.db, {
+    const other = await createCustomer(ctx.db, EXPERT_CLEANERS_COMPANY_ID, {
       firstName: "Otro",
       lastName: "Cliente",
       phone: "407 555 0199",
       addresses: [{ line1: "1 Main St", unit: "", city: "Orlando", state: "FL", zip: "32801" }],
     });
-    const foreign = await createVehicle(ctx.db, other.customer.id, { size: "pickup" });
+    const foreign = await createVehicle(ctx.db, EXPERT_CLEANERS_COMPANY_ID, other.customer.id, { size: "pickup" });
     await expect(
       createAppointment(
         ctx.db,
@@ -109,20 +122,25 @@ describe("vehículos del cliente", () => {
   });
 
   it("al unir clientes los vehículos pasan al que se queda", async () => {
-    const keep = await createCustomer(ctx.db, {
+    const keep = await createCustomer(ctx.db, EXPERT_CLEANERS_COMPANY_ID, {
       firstName: "Ana",
       lastName: "Ruiz",
       phone: "407 555 0110",
       addresses: [{ line1: "2 Main St", unit: "", city: "Orlando", state: "FL", zip: "32801" }],
     });
-    const dup = await createCustomer(ctx.db, {
+    const dup = await createCustomer(ctx.db, EXPERT_CLEANERS_COMPANY_ID, {
       firstName: "Ana",
       lastName: "Ruiz B",
       phone: "407 555 0111",
       addresses: [{ line1: "3 Main St", unit: "", city: "Orlando", state: "FL", zip: "32801" }],
     });
-    const car = await createVehicle(ctx.db, dup.customer.id, { make: "Kia", size: "sedan" });
+    const car = await createVehicle(ctx.db, EXPERT_CLEANERS_COMPANY_ID, dup.customer.id, {
+      make: "Kia",
+      size: "sedan",
+    });
     await mergeCustomers(ctx.db, ADMIN, dup.customer.id, keep.customer.id);
-    expect((await listVehicles(ctx.db, keep.customer.id)).map((v) => v.id)).toContain(car.id);
+    expect((await listVehicles(ctx.db, EXPERT_CLEANERS_COMPANY_ID, keep.customer.id)).map((v) => v.id)).toContain(
+      car.id,
+    );
   });
 });

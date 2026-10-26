@@ -9,17 +9,18 @@ const { appointments, appointmentItems, customers, services } = schema;
 export const CHART_PAST_DAYS = 13;
 export const CHART_FUTURE_DAYS = 7;
 
-export async function getDashboard(db: Db, today: string) {
+export async function getDashboard(db: Db, companyId: string, today: string) {
   const month = periodBounds("month", today);
   const chartFrom = addDays(today, -CHART_PAST_DAYS);
   const chartTo = addDays(today, CHART_FUTURE_DAYS);
   const weekAhead = addDays(today, 7);
-  const active = ne(appointments.status, "cancelled");
+  const mine = eq(appointments.companyId, companyId);
+  const active = and(mine, ne(appointments.status, "cancelled"));
 
   const [day, deliveryRows, perDay, [pending], [monthTotals], [unpaid], [newCustomers], topServices] =
     await Promise.all([
-      getDay(db, today),
-      getDeliveries(db, today, today),
+      getDay(db, companyId, today),
+      getDeliveries(db, companyId, today, today),
       db
         .select({ date: appointments.date, total: count() })
         .from(appointments)
@@ -30,6 +31,7 @@ export async function getDashboard(db: Db, today: string) {
         .from(appointments)
         .where(
           and(
+            mine,
             inArray(appointments.status, ["not_confirmed", "rescheduled"]),
             gte(appointments.date, today),
             lte(appointments.date, weekAhead),
@@ -46,12 +48,15 @@ export async function getDashboard(db: Db, today: string) {
       db
         .select({ total: count(), amount: sql<number>`coalesce(sum(${appointments.priceCents}), 0)` })
         .from(appointments)
-        .where(and(eq(appointments.status, "completed"), eq(appointments.paymentStatus, "unpaid"))),
+        .where(and(mine, eq(appointments.status, "completed"), eq(appointments.paymentStatus, "unpaid"))),
       db
         .select({ total: count() })
         .from(customers)
         .where(
-          sql`(${customers.createdAt} at time zone 'America/New_York')::date between ${month.from} and ${month.to}`,
+          and(
+            eq(customers.companyId, companyId),
+            sql`(${customers.createdAt} at time zone 'America/New_York')::date between ${month.from} and ${month.to}`,
+          ),
         ),
       db
         .select({

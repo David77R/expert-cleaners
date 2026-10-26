@@ -1,4 +1,5 @@
 import { PDFName } from "pdf-lib";
+import { EXPERT_CLEANERS_COMPANY_ID } from "@/domain/companies";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { AGENT_JOSUE } from "@/db/seed-data";
 
@@ -201,23 +202,27 @@ describe("PDF de factura", () => {
 describe("factura desde la base de datos", () => {
   it("no se puede obtener hasta que la factura se genera", async () => {
     const { appointment } = await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date: "2027-02-01" }));
-    await expect(getInvoice(ctx.db, appointment.id)).rejects.toMatchObject({ code: "invoice_not_generated" });
-    await expect(getInvoicePdf(ctx.db, appointment.id)).rejects.toMatchObject({ code: "invoice_not_generated" });
+    await expect(getInvoice(ctx.db, EXPERT_CLEANERS_COMPANY_ID, appointment.id)).rejects.toMatchObject({
+      code: "invoice_not_generated",
+    });
+    await expect(getInvoicePdf(ctx.db, EXPERT_CLEANERS_COMPANY_ID, appointment.id)).rejects.toMatchObject({
+      code: "invoice_not_generated",
+    });
   });
 
   it("usa la fecha en que se generó y se mantiene al enviarla", async () => {
     const { appointment } = await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date: "2027-02-02" }));
     await advanceInvoice(ctx.db, AGENT_JOSUE, appointment.id);
 
-    const detail = await getAppointment(ctx.db, appointment.id);
+    const detail = await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, appointment.id);
     const generated = detail.history.find((entry) => entry.field === "invoice" && entry.toValue === "generated")!;
 
-    const first = await getInvoice(ctx.db, appointment.id);
+    const first = await getInvoice(ctx.db, EXPERT_CLEANERS_COMPANY_ID, appointment.id);
     expect(first.issuedAt.getTime()).toBe(generated.createdAt.getTime());
     expect(first.number).toBe(appointment.code.replace("SVC-", "INV-"));
 
     await advanceInvoice(ctx.db, AGENT_JOSUE, appointment.id);
-    const sent = await getInvoice(ctx.db, appointment.id);
+    const sent = await getInvoice(ctx.db, EXPERT_CLEANERS_COMPANY_ID, appointment.id);
     expect(sent.issuedAt.getTime()).toBe(generated.createdAt.getTime());
   });
 
@@ -227,7 +232,7 @@ describe("factura desde la base de datos", () => {
     await markPaid(ctx.db, AGENT_JOSUE, appointment.id);
     await advanceInvoice(ctx.db, AGENT_JOSUE, appointment.id);
 
-    const invoice = await getInvoice(ctx.db, appointment.id);
+    const invoice = await getInvoice(ctx.db, EXPERT_CLEANERS_COMPANY_ID, appointment.id);
     expect(invoice.customerName).toBe("Andrés Molina");
     expect(invoice.customerCode).toBe("CLI-1001");
     expect(invoice.serviceName).toBe("Limpieza de Sofás");
@@ -252,7 +257,7 @@ describe("factura desde la base de datos", () => {
     });
     await advanceInvoice(ctx.db, AGENT_JOSUE, appointment.id);
 
-    const { invoice, pdf } = await getInvoicePdf(ctx.db, appointment.id);
+    const { invoice, pdf } = await getInvoicePdf(ctx.db, EXPERT_CLEANERS_COMPANY_ID, appointment.id);
     expect(invoice.billTo).toBe("55 Collins Ave, PH, Miami Beach, FL 33139");
     const text = await pageText(pdf);
     expect(text).toContain(hexOf("55 Collins Ave, PH, Miami Beach, FL 33139"));
@@ -260,7 +265,9 @@ describe("factura desde la base de datos", () => {
   });
 
   it("falla con not_found si la cita no existe", async () => {
-    await expect(getInvoice(ctx.db, "00000000-0000-4000-8000-0000000000ff")).rejects.toMatchObject({
+    await expect(
+      getInvoice(ctx.db, EXPERT_CLEANERS_COMPANY_ID, "00000000-0000-4000-8000-0000000000ff"),
+    ).rejects.toMatchObject({
       code: "not_found",
     });
   });

@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { EXPERT_CLEANERS_COMPANY_ID } from "@/domain/companies";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ZodError } from "zod";
@@ -14,7 +15,7 @@ import { hexOf, loadPdf, pageText } from "./pdf-helpers";
 type Ctx = Awaited<ReturnType<typeof createTestDb>>;
 let ctx: Ctx;
 
-const ADMIN = { id: AGENT_JOSUE.id, name: "Admin", role: "admin" as const };
+const ADMIN = { id: AGENT_JOSUE.id, name: "Admin", role: "admin" as const, companyId: EXPERT_CLEANERS_COMPANY_ID };
 const GENERATED_AT = new Date("2026-10-07T18:30:00Z");
 
 beforeAll(async () => {

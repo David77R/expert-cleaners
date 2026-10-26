@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { EXPERT_CLEANERS_COMPANY_ID } from "@/domain/companies";
 import { ZodError } from "zod";
 import { profiles } from "@/db/schema";
 import { AGENT_JOSUE } from "@/db/seed-data";
@@ -11,8 +12,13 @@ type Ctx = Awaited<ReturnType<typeof createTestDb>>;
 let ctx: Ctx;
 let auth: FakeUserAdmin;
 
-const ADMIN = { id: AGENT_JOSUE.id, name: "Admin", role: "admin" as const };
-const AGENT = { id: AGENT_JOSUE.id, name: AGENT_JOSUE.name, role: "agent" as const };
+const ADMIN = { id: AGENT_JOSUE.id, name: "Admin", role: "admin" as const, companyId: EXPERT_CLEANERS_COMPANY_ID };
+const AGENT = {
+  id: AGENT_JOSUE.id,
+  name: AGENT_JOSUE.name,
+  role: "agent" as const,
+  companyId: EXPERT_CLEANERS_COMPANY_ID,
+};
 
 function newAgent(overrides: Record<string, unknown> = {}) {
   return { name: "Laura Gómez", email: "laura@expert.test", password: "temporal123", ...overrides };
@@ -51,7 +57,7 @@ describe("crear agentes", () => {
   });
 
   it("lista solo agentes, con su correo", async () => {
-    const agents = await listAgents(ctx.db, auth);
+    const agents = await listAgents(ctx.db, auth, EXPERT_CLEANERS_COMPANY_ID);
     const laura = agents.find((agent) => agent.name === "Laura Gómez");
     expect(laura?.email).toBe("laura@expert.test");
     expect(agents.every((agent) => agent.name !== "Admin")).toBe(true);
@@ -67,7 +73,7 @@ describe("editar agentes", () => {
       password: "nueva-clave-1",
       active: true,
     });
-    const agent = await getAgent(ctx.db, auth, created.id);
+    const agent = await getAgent(ctx.db, auth, EXPERT_CLEANERS_COMPANY_ID, created.id);
     expect(agent).toMatchObject({ name: "Pedro Ruiz", email: "pedro.ruiz@expert.test", active: true });
     expect(auth.accounts.get(created.id)?.password).toBe("nueva-clave-1");
   });
@@ -76,7 +82,7 @@ describe("editar agentes", () => {
     const created = await createAgent(ctx.db, auth, ADMIN, newAgent({ name: "Ana", email: "ana@expert.test" }));
     const base = { name: "Ana", email: "ana@expert.test" };
     await updateAgent(ctx.db, auth, ADMIN, created.id, { ...base, active: false });
-    expect((await getAgent(ctx.db, auth, created.id)).active).toBe(false);
+    expect((await getAgent(ctx.db, auth, EXPERT_CLEANERS_COMPANY_ID, created.id)).active).toBe(false);
     expect(auth.accounts.get(created.id)?.banned).toBe(true);
     await updateAgent(ctx.db, auth, ADMIN, created.id, { ...base, active: true });
     expect(auth.accounts.get(created.id)?.banned).toBe(false);
@@ -97,12 +103,19 @@ describe("eliminar agentes", () => {
     const created = await createAgent(ctx.db, auth, ADMIN, newAgent({ name: "Nuevo", email: "nuevo@expert.test" }));
     await deleteAgent(ctx.db, auth, ADMIN, created.id);
     expect(auth.accounts.has(created.id)).toBe(false);
-    await expect(getAgent(ctx.db, auth, created.id)).rejects.toMatchObject({ code: "not_found" });
+    await expect(getAgent(ctx.db, auth, EXPERT_CLEANERS_COMPANY_ID, created.id)).rejects.toMatchObject({
+      code: "not_found",
+    });
   });
 
   it("no elimina a un agente con citas registradas", async () => {
     const created = await createAgent(ctx.db, auth, ADMIN, newAgent({ name: "Con citas", email: "citas@expert.test" }));
-    const worker = { id: created.id, name: created.name, role: "agent" as const };
+    const worker = {
+      id: created.id,
+      name: created.name,
+      role: "agent" as const,
+      companyId: EXPERT_CLEANERS_COMPANY_ID,
+    };
     await createAppointment(ctx.db, worker, appointmentInput(ctx));
     expect(await agentActivity(ctx.db, created.id)).toBeGreaterThan(0);
     await expect(deleteAgent(ctx.db, auth, ADMIN, created.id)).rejects.toMatchObject({ code: "agent_has_activity" });

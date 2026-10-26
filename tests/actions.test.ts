@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { EXPERT_CLEANERS_COMPANY_ID } from "@/domain/companies";
 import { ZodError } from "zod";
 import { runAction } from "@/server/actions";
 import { createAppointment, getAppointment } from "@/server/appointments";
@@ -32,7 +33,7 @@ describe("despachador de acciones", () => {
   it("actualizar notas queda en el historial", async () => {
     const { appointment } = await createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, { date: "2026-12-02" }));
     await runAction(ctx.db, AGENT_JOSUE, appointment.id, { action: "update_notes", notes: "Portón azul" });
-    const detail = await getAppointment(ctx.db, appointment.id);
+    const detail = await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, appointment.id);
     expect(detail.notes).toBe("Portón azul");
     expect(detail.history.some((h) => h.field === "notes")).toBe(true);
   });

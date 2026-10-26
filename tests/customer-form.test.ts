@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { EXPERT_CLEANERS_COMPANY_ID } from "@/domain/companies";
 import { ZodError } from "zod";
 import {
   coordinatesFrom,
@@ -169,36 +170,43 @@ describe("búsqueda por ids", () => {
   const address = { line1: "1 Main St", unit: "", city: "Miami", state: "FL", zip: "33101" };
 
   it("devuelve los clientes pedidos ordenados por código", async () => {
-    const first = await createCustomer(ctx.db, {
+    const first = await createCustomer(ctx.db, EXPERT_CLEANERS_COMPANY_ID, {
       firstName: "Ana",
       lastName: "Uno",
       phone: "786 555 0301",
       addresses: [address],
     });
-    const second = await createCustomer(ctx.db, {
+    const second = await createCustomer(ctx.db, EXPERT_CLEANERS_COMPANY_ID, {
       firstName: "Beto",
       lastName: "Dos",
       phone: "786 555 0302",
       addresses: [address],
     });
-    await createCustomer(ctx.db, { firstName: "Cora", lastName: "Tres", phone: "786 555 0303", addresses: [address] });
+    await createCustomer(ctx.db, EXPERT_CLEANERS_COMPANY_ID, {
+      firstName: "Cora",
+      lastName: "Tres",
+      phone: "786 555 0303",
+      addresses: [address],
+    });
 
-    const found = await customersByIds(ctx.db, [second.customer.id, first.customer.id]);
+    const found = await customersByIds(ctx.db, EXPERT_CLEANERS_COMPANY_ID, [second.customer.id, first.customer.id]);
     expect(found.map((match) => match.firstName)).toEqual(["Ana", "Beto"]);
   });
 
   it("devuelve una lista vacía sin ids o con ids desconocidos", async () => {
-    expect(await customersByIds(ctx.db, [])).toEqual([]);
-    expect(await customersByIds(ctx.db, ["00000000-0000-4000-8000-000000000099"])).toEqual([]);
+    expect(await customersByIds(ctx.db, EXPERT_CLEANERS_COMPANY_ID, [])).toEqual([]);
+    expect(await customersByIds(ctx.db, EXPERT_CLEANERS_COMPANY_ID, ["00000000-0000-4000-8000-000000000099"])).toEqual(
+      [],
+    );
   });
 
   it("el alta desde el formulario detecta un teléfono repetido", async () => {
     const entries = { ...complete, phone: "(954) 555 0777" };
     const input = customerInputFromForm(readCustomerForm(formData(entries)));
-    const first = await createCustomer(ctx.db, input);
+    const first = await createCustomer(ctx.db, EXPERT_CLEANERS_COMPANY_ID, input);
     expect(first.duplicates).toHaveLength(0);
 
-    const second = await createCustomer(ctx.db, { ...input, firstName: "Lucía" });
+    const second = await createCustomer(ctx.db, EXPERT_CLEANERS_COMPANY_ID, { ...input, firstName: "Lucía" });
     expect(second.existing).toBe(false);
     expect(second.duplicates.map((match) => match.id)).toEqual([first.customer.id]);
     expect(second.customer.email).toBe("laura@correo.com");

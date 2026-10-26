@@ -1,6 +1,7 @@
 import { relations } from "drizzle-orm";
 import type { ItemDetails } from "@/domain/appointment-items";
 import type { SizePrices } from "@/domain/vehicles";
+import type { CompanySettings } from "@/domain/companies";
 import type { AppointmentStages } from "@/domain/delivery";
 import {
   boolean,
@@ -18,7 +19,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-export const userRole = pgEnum("user_role", ["agent", "admin"]);
+export const userRole = pgEnum("user_role", ["agent", "admin", "owner"]);
 export const appointmentStatus = pgEnum("appointment_status", [
   "not_confirmed",
   "confirmed",
@@ -54,8 +55,18 @@ export type AppointmentAlert = {
   level: "attention" | "warning" | "info";
 };
 
+export const companies = pgTable("companies", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  slug: text("slug").notNull().unique(),
+  name: text("name").notNull(),
+  active: boolean("active").notNull().default(true),
+  settings: jsonb("settings").$type<CompanySettings>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const profiles = pgTable("profiles", {
   id: uuid("id").primaryKey(),
+  companyId: uuid("company_id").references(() => companies.id),
   name: text("name").notNull(),
   role: userRole("role").notNull().default("agent"),
   active: boolean("active").notNull().default(true),
@@ -66,7 +77,10 @@ export const customers = pgTable(
   "customers",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    code: text("code").notNull().unique(),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id),
+    code: text("code").notNull(),
     firstName: text("first_name").notNull(),
     lastName: text("last_name").notNull(),
     phone: text("phone").notNull(),
@@ -75,7 +89,7 @@ export const customers = pgTable(
     allowMarketing: boolean("allow_marketing").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("customers_phone_idx").on(t.phone)],
+  (t) => [index("customers_phone_idx").on(t.phone), uniqueIndex("customers_company_code_idx").on(t.companyId, t.code)],
 );
 
 export const addresses = pgTable(
@@ -101,6 +115,9 @@ export const vehicles = pgTable(
   "vehicles",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id),
     customerId: uuid("customer_id")
       .notNull()
       .references(() => customers.id, { onDelete: "cascade" }),
@@ -127,25 +144,35 @@ export const customerNotes = pgTable("customer_notes", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const services = pgTable("services", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  slug: text("slug").notNull().unique(),
-  name: text("name").notNull(),
-  category: text("category").notNull(),
-  icon: text("icon"),
-  description: text("description"),
-  basePriceCents: integer("base_price_cents").notNull(),
-  durationMin: integer("duration_min").notNull(),
-  active: boolean("active").notNull().default(true),
-  twoAddresses: boolean("two_addresses").notNull().default(false),
-  internalNotes: text("internal_notes"),
-  detailedSpecs: text("detailed_specs"),
-  fields: jsonb("fields").$type<ServiceField[]>().notNull().default([]),
-  sizePrices: jsonb("size_prices").$type<SizePrices>().notNull().default({}),
-});
+export const services = pgTable(
+  "services",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id),
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    category: text("category").notNull(),
+    icon: text("icon"),
+    description: text("description"),
+    basePriceCents: integer("base_price_cents").notNull(),
+    durationMin: integer("duration_min").notNull(),
+    active: boolean("active").notNull().default(true),
+    twoAddresses: boolean("two_addresses").notNull().default(false),
+    internalNotes: text("internal_notes"),
+    detailedSpecs: text("detailed_specs"),
+    fields: jsonb("fields").$type<ServiceField[]>().notNull().default([]),
+    sizePrices: jsonb("size_prices").$type<SizePrices>().notNull().default({}),
+  },
+  (t) => [uniqueIndex("services_company_slug_idx").on(t.companyId, t.slug)],
+);
 
 export const technicians = pgTable("technicians", {
   id: uuid("id").primaryKey().defaultRandom(),
+  companyId: uuid("company_id")
+    .notNull()
+    .references(() => companies.id),
   name: text("name").notNull(),
   color: text("color").notNull(),
   zone: text("zone").notNull(),
@@ -159,7 +186,10 @@ export const appointments = pgTable(
   "appointments",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    code: text("code").notNull().unique(),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id),
+    code: text("code").notNull(),
     agentId: uuid("agent_id")
       .notNull()
       .references(() => profiles.id),
@@ -199,6 +229,8 @@ export const appointments = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
+    uniqueIndex("appointments_company_code_idx").on(t.companyId, t.code),
+    index("appointments_company_date_idx").on(t.companyId, t.date),
     index("appointments_date_tech_idx").on(t.date, t.technicianId),
     index("appointments_customer_idx").on(t.customerId),
     index("appointments_status_idx").on(t.status),
@@ -263,6 +295,9 @@ export const routeDrafts = pgTable(
   "route_drafts",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    companyId: uuid("company_id")
+      .notNull()
+      .references(() => companies.id),
     date: date("date", { mode: "string" }).notNull(),
     mode: text("mode").notNull(),
     groupKey: text("group_key").notNull(),
@@ -273,7 +308,7 @@ export const routeDrafts = pgTable(
     createdByName: text("created_by_name").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("route_drafts_date_mode_group_idx").on(t.date, t.mode, t.groupKey)],
+  (t) => [uniqueIndex("route_drafts_company_date_mode_group_idx").on(t.companyId, t.date, t.mode, t.groupKey)],
 );
 
 export const customersRelations = relations(customers, ({ many }) => ({
@@ -330,6 +365,7 @@ export const appointmentPhotosRelations = relations(appointmentPhotos, ({ one })
   appointment: one(appointments, { fields: [appointmentPhotos.appointmentId], references: [appointments.id] }),
 }));
 
+export type Company = typeof companies.$inferSelect;
 export type Profile = typeof profiles.$inferSelect;
 export type Technician = typeof technicians.$inferSelect;
 export type Service = typeof services.$inferSelect;
@@ -343,4 +379,5 @@ export type NewAppointment = typeof appointments.$inferInsert;
 export type AppointmentItem = typeof appointmentItems.$inferSelect;
 export type AppointmentStatus = (typeof appointmentStatus.enumValues)[number];
 export type RouteDraft = typeof routeDrafts.$inferSelect;
-export type Actor = { id: string; name: string; role: (typeof userRole.enumValues)[number] };
+export type UserRole = (typeof userRole.enumValues)[number];
+export type Actor = { id: string; name: string; role: UserRole; companyId: string };

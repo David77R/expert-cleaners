@@ -46,7 +46,7 @@ type AppointmentRow = schema.Appointment;
 
 export type Mutation = { appointment: AppointmentRow; conflicts: TimeBlock[] };
 
-const { appointments, appointmentHistory, appointmentItems, addresses, services, technicians } = schema;
+const { appointments, appointmentHistory, appointmentItems, addresses, customers, services, technicians } = schema;
 
 type ResolvedItem = {
   serviceId: string;
@@ -70,18 +70,47 @@ function toBlock(
   };
 }
 
-async function load(tx: Tx | Db, id: string): Promise<AppointmentRow> {
-  const [row] = await tx.select().from(appointments).where(eq(appointments.id, id)).limit(1);
+async function load(tx: Tx | Db, companyId: string, id: string): Promise<AppointmentRow> {
+  const [row] = await tx
+    .select()
+    .from(appointments)
+    .where(and(eq(appointments.id, id), eq(appointments.companyId, companyId)))
+    .limit(1);
   if (!row) throw new DomainError("not_found", "La cita no existe");
   return row;
 }
 
-async function conflictsFor(tx: Tx | Db, candidate: TimeBlock): Promise<TimeBlock[]> {
+async function activeTechnician(
+  tx: Tx | Db,
+  companyId: string,
+  id: string,
+  message = "El técnico no está activo",
+): Promise<schema.Technician> {
+  const [tech] = await tx
+    .select()
+    .from(technicians)
+    .where(and(eq(technicians.id, id), eq(technicians.companyId, companyId)))
+    .limit(1);
+  if (!tech || !tech.active) throw new DomainError("technician_unavailable", message);
+  return tech;
+}
+
+async function assertTechnicianInCompany(tx: Tx | Db, companyId: string, id: string): Promise<void> {
+  const [tech] = await tx
+    .select({ id: technicians.id })
+    .from(technicians)
+    .where(and(eq(technicians.id, id), eq(technicians.companyId, companyId)))
+    .limit(1);
+  if (!tech) throw new DomainError("technician_unavailable", "El técnico no existe");
+}
+
+async function conflictsFor(tx: Tx | Db, companyId: string, candidate: TimeBlock): Promise<TimeBlock[]> {
   const sameDay = await tx
     .select()
     .from(appointments)
     .where(
       and(
+        eq(appointments.companyId, companyId),
         eq(appointments.date, candidate.date),
         eq(appointments.technicianId, candidate.technicianId),
         ne(appointments.status, "cancelled"),
@@ -92,8 +121,8 @@ async function conflictsFor(tx: Tx | Db, candidate: TimeBlock): Promise<TimeBloc
 
 export type ConflictPartner = { id: string; code: string; startMin: number; durationMin: number };
 
-export async function conflictingAppointments(db: Db, id: string): Promise<ConflictPartner[]> {
-  const current = await load(db, id);
+export async function conflictingAppointments(db: Db, companyId: string, id: string): Promise<ConflictPartner[]> {
+  const current = await load(db, companyId, id);
   if (current.status === "cancelled") return [];
   const sameDay = await db
     .select({
@@ -108,6 +137,7 @@ export async function conflictingAppointments(db: Db, id: string): Promise<Confl
     .from(appointments)
     .where(
       and(
+        eq(appointments.companyId, companyId),
         eq(appointments.date, current.date),
         eq(appointments.technicianId, current.technicianId),
         ne(appointments.status, "cancelled"),
@@ -150,11 +180,18 @@ async function persist(
 
 async function resolveItems(
   tx: Tx,
+  companyId: string,
   requested: readonly ItemInput[],
   allowInactive: ReadonlySet<string> = new Set(),
 ): Promise<ResolvedItem[]> {
   const ids = [...new Set(requested.map((item) => item.serviceId))];
-  const found = ids.length > 0 ? await tx.select().from(services).where(inArray(services.id, ids)) : [];
+  const found =
+    ids.length > 0
+      ? await tx
+          .select()
+          .from(services)
+          .where(and(inArray(services.id, ids), eq(services.companyId, companyId)))
+      : [];
   const byId = new Map(found.map((service) => [service.id, service]));
   return requested.map((item) => {
     const service = byId.get(item.serviceId);
@@ -255,10 +292,11 @@ function itemSummary(items: readonly ResolvedItem[]): string {
   return summarizeItems(items.map((item) => ({ serviceName: item.service.name, priceCents: item.priceCents })));
 }
 
-async function nextCode(tx: Tx): Promise<string> {
+async function nextCode(tx: Tx, companyId: string): Promise<string> {
   const [row] = await tx
     .select({ max: sql<number>`coalesce(max(cast(substring(${appointments.code} from 5) as integer)), 2000)` })
-    .from(appointments);
+    .from(appointments)
+    .where(eq(appointments.companyId, companyId));
   return `SVC-${Number(row.max) + 1}`;
 }
 
@@ -268,8 +306,15 @@ export async function createAppointment(db: Db, actor: Actor, raw: CreateAppoint
   const billingAddress = input.billingAddress ? await geocodeIfNeeded(input.billingAddress) : null;
   const requested = input.items ?? (input.serviceId ? [{ serviceId: input.serviceId, specs: input.specs }] : []);
   if (requested.length === 0) throw new DomainError("service_required", "Elige un servicio");
+  const companyId = actor.companyId;
   return db.transaction(async (tx) => {
-    const items = await resolveItems(tx, requested);
+    const [customer] = await tx
+      .select({ id: customers.id })
+      .from(customers)
+      .where(and(eq(customers.id, input.customerId), eq(customers.companyId, companyId)))
+      .limit(1);
+    if (!customer) throw new DomainError("not_found", "El cliente no existe");
+    const items = await resolveItems(tx, companyId, requested);
     await assertVehiclesBelong(
       tx,
       input.customerId,
@@ -289,29 +334,22 @@ export async function createAppointment(db: Db, actor: Actor, raw: CreateAppoint
       throw new DomainError("destination_not_allowed", "Este servicio no usa dirección de entrega");
     }
 
-    const [tech] = await tx.select().from(technicians).where(eq(technicians.id, input.technicianId)).limit(1);
-    if (!tech || !tech.active) throw new DomainError("technician_unavailable", "El técnico no está activo");
+    const tech = await activeTechnician(tx, companyId, input.technicianId);
 
     if (input.delivery) {
       if (input.delivery.date < input.date) {
         throw new DomainError("delivery_before_service", "La entrega no puede ser antes de la recogida");
       }
       if (input.delivery.technicianId !== tech.id) {
-        const [deliveryTech] = await tx
-          .select()
-          .from(technicians)
-          .where(eq(technicians.id, input.delivery.technicianId))
-          .limit(1);
-        if (!deliveryTech || !deliveryTech.active) {
-          throw new DomainError("technician_unavailable", "El técnico de la entrega no está activo");
-        }
+        await activeTechnician(tx, companyId, input.delivery.technicianId, "El técnico de la entrega no está activo");
       }
     }
 
-    const code = await nextCode(tx);
+    const code = await nextCode(tx, companyId);
     const [created] = await tx
       .insert(appointments)
       .values({
+        companyId,
         code,
         agentId: actor.id,
         customerId: input.customerId,
@@ -351,7 +389,7 @@ export async function createAppointment(db: Db, actor: Actor, raw: CreateAppoint
       toValue: "not_confirmed",
     });
 
-    return { appointment: created, conflicts: await conflictsFor(tx, toBlock(created)) };
+    return { appointment: created, conflicts: await conflictsFor(tx, companyId, toBlock(created)) };
   });
 }
 
@@ -369,7 +407,7 @@ export async function completeAppointment(db: Db, actor: Actor, id: string): Pro
 
 async function transition(db: Db, actor: Actor, id: string, to: schema.AppointmentStatus): Promise<Mutation> {
   return db.transaction(async (tx) => {
-    const current = await load(tx, id);
+    const current = await load(tx, actor.companyId, id);
     assertTransition(current.status, to);
     const updated = await persist(tx, actor, current, { status: to }, [{ field: "status", from: current.status, to }]);
     return { appointment: updated, conflicts: [] };
@@ -380,7 +418,7 @@ export async function cancelAppointment(db: Db, actor: Actor, id: string, raw: u
   const input = cancelSchema.parse(raw);
   const reason = resolveCancelReason(input.reason, input.explanation);
   return db.transaction(async (tx) => {
-    const current = await load(tx, id);
+    const current = await load(tx, actor.companyId, id);
     assertTransition(current.status, "cancelled");
     const updated = await persist(tx, actor, current, { status: "cancelled", cancellationReason: reason }, [
       { field: "status", from: current.status, to: "cancelled" },
@@ -394,9 +432,10 @@ export async function rescheduleAppointment(db: Db, actor: Actor, id: string, ra
   const input = rescheduleSchema.parse(raw);
   const reason = requireReason(input.reason, "reason_required", "El motivo de reprogramación es obligatorio");
   return db.transaction(async (tx) => {
-    const current = await load(tx, id);
+    const current = await load(tx, actor.companyId, id);
     assertTransition(current.status, "rescheduled");
     const technicianId = input.technicianId ?? current.technicianId;
+    if (technicianId !== current.technicianId) await assertTechnicianInCompany(tx, actor.companyId, technicianId);
     const changes: FieldChange[] = [
       {
         field: "schedule",
@@ -427,16 +466,19 @@ export async function rescheduleAppointment(db: Db, actor: Actor, id: string, ra
       },
       changes,
     );
-    return { appointment: updated, conflicts: await conflictsFor(tx, toBlock(updated)) };
+    return { appointment: updated, conflicts: await conflictsFor(tx, actor.companyId, toBlock(updated)) };
   });
 }
 
 export async function moveAppointment(db: Db, actor: Actor, id: string, raw: unknown): Promise<Mutation> {
   const input = moveSchema.parse(raw);
   return db.transaction(async (tx) => {
-    const current = await load(tx, id);
+    const current = await load(tx, actor.companyId, id);
     if (current.status === "cancelled") {
       throw new DomainError("not_movable", "Una cita cancelada no se puede mover");
+    }
+    if (input.technicianId !== current.technicianId) {
+      await assertTechnicianInCompany(tx, actor.companyId, input.technicianId);
     }
     const changes: FieldChange[] = [];
     if (input.startMin !== current.startMin) {
@@ -452,13 +494,13 @@ export async function moveAppointment(db: Db, actor: Actor, id: string, raw: unk
       { startMin: input.startMin, technicianId: input.technicianId },
       changes,
     );
-    return { appointment: updated, conflicts: await conflictsFor(tx, toBlock(updated)) };
+    return { appointment: updated, conflicts: await conflictsFor(tx, actor.companyId, toBlock(updated)) };
   });
 }
 
 export async function markPaid(db: Db, actor: Actor, id: string): Promise<Mutation> {
   return db.transaction(async (tx) => {
-    const current = await load(tx, id);
+    const current = await load(tx, actor.companyId, id);
     if (current.status === "cancelled") throw new DomainError("cancelled", "Una cita cancelada no se puede cobrar");
     if (current.paymentStatus === "paid") return { appointment: current, conflicts: [] };
     const updated = await persist(tx, actor, current, { paymentStatus: "paid" }, [
@@ -470,7 +512,7 @@ export async function markPaid(db: Db, actor: Actor, id: string): Promise<Mutati
 
 export async function advanceInvoice(db: Db, actor: Actor, id: string): Promise<Mutation> {
   return db.transaction(async (tx) => {
-    const current = await load(tx, id);
+    const current = await load(tx, actor.companyId, id);
     if (current.invoiceStatus === "sent") throw new DomainError("invoice_sent", "La factura ya fue enviada");
     const next = current.invoiceStatus === "not_generated" ? "generated" : "sent";
     const updated = await persist(tx, actor, current, { invoiceStatus: next }, [
@@ -484,7 +526,7 @@ export async function setDestinationAddress(db: Db, actor: Actor, id: string, ra
   const parsed = raw === null ? null : addressSnapshotSchema.parse(raw);
   const address = parsed ? await geocodeIfNeeded(parsed) : null;
   return db.transaction(async (tx) => {
-    const current = await load(tx, id);
+    const current = await load(tx, actor.companyId, id);
     const items = await currentItems(tx, current);
     const twoAddresses = items.some((item) => item.service.twoAddresses);
     if (!twoAddresses && !items.some((item) => isPickupService(item.service))) {
@@ -504,7 +546,7 @@ export async function setBillingAddress(db: Db, actor: Actor, id: string, raw: u
   const parsed = addressSnapshotSchema.parse(raw);
   const address = await geocodeIfNeeded(parsed);
   return db.transaction(async (tx) => {
-    const current = await load(tx, id);
+    const current = await load(tx, actor.companyId, id);
     const updated = await persist(tx, actor, current, { billingAddress: address }, [
       { field: "billing_address", from: JSON.stringify(current.billingAddress), to: JSON.stringify(address) },
     ]);
@@ -515,7 +557,7 @@ export async function setBillingAddress(db: Db, actor: Actor, id: string, raw: u
 export async function setAppointmentAddress(db: Db, actor: Actor, id: string, raw: unknown): Promise<Mutation> {
   const { addressId } = setAddressSchema.parse(raw);
   return db.transaction(async (tx) => {
-    const current = await load(tx, id);
+    const current = await load(tx, actor.companyId, id);
     if (current.status === "cancelled") {
       throw new DomainError("cancelled", "Una cita cancelada no se puede modificar");
     }
@@ -540,7 +582,7 @@ export async function updateAppointmentItems(db: Db, actor: Actor, id: string, r
   const input = updateItemsSchema.parse(raw);
   const destination = input.destinationAddress ? await geocodeIfNeeded(input.destinationAddress) : null;
   return db.transaction(async (tx) => {
-    const current = await load(tx, id);
+    const current = await load(tx, actor.companyId, id);
     if (current.status === "cancelled") {
       throw new DomainError("cancelled", "Una cita cancelada no se puede modificar");
     }
@@ -551,7 +593,7 @@ export async function updateAppointmentItems(db: Db, actor: Actor, id: string, r
       );
     }
     const previous = await currentItems(tx, current);
-    const items = await resolveItems(tx, input.items, new Set(previous.map((item) => item.serviceId)));
+    const items = await resolveItems(tx, actor.companyId, input.items, new Set(previous.map((item) => item.serviceId)));
     await assertVehiclesBelong(
       tx,
       current.customerId,
@@ -598,7 +640,8 @@ export async function updateAppointmentItems(db: Db, actor: Actor, id: string, r
       { serviceId: items[0].serviceId, specs: items[0].specs, priceCents: total, durationMin, destinationAddress },
       changes,
     );
-    const conflicts = durationMin !== current.durationMin ? await conflictsFor(tx, toBlock(updated)) : [];
+    const conflicts =
+      durationMin !== current.durationMin ? await conflictsFor(tx, actor.companyId, toBlock(updated)) : [];
     return { appointment: updated, conflicts };
   });
 }
@@ -612,7 +655,7 @@ function assertEditable(current: AppointmentRow) {
 export async function setStage(db: Db, actor: Actor, id: string, raw: unknown): Promise<Mutation> {
   const { stage, done } = stageSchema.parse(raw);
   return db.transaction(async (tx) => {
-    const current = await load(tx, id);
+    const current = await load(tx, actor.companyId, id);
     assertEditable(current);
     if (Boolean(current.stages[stage]) === done) return { appointment: current, conflicts: [] };
     const stages = { ...current.stages };
@@ -628,7 +671,7 @@ export async function setStage(db: Db, actor: Actor, id: string, raw: unknown): 
 export async function setReadyDate(db: Db, actor: Actor, id: string, raw: unknown): Promise<Mutation> {
   const { readyDate } = readyDateSchema.parse(raw);
   return db.transaction(async (tx) => {
-    const current = await load(tx, id);
+    const current = await load(tx, actor.companyId, id);
     assertEditable(current);
     if (current.readyDate === readyDate) return { appointment: current, conflicts: [] };
     const updated = await persist(tx, actor, current, { readyDate }, [
@@ -645,13 +688,12 @@ function deliveryLabel(date: string, startMin: number): string {
 export async function scheduleDelivery(db: Db, actor: Actor, id: string, raw: unknown): Promise<Mutation> {
   const input = deliverySchema.parse(raw);
   return db.transaction(async (tx) => {
-    const current = await load(tx, id);
+    const current = await load(tx, actor.companyId, id);
     assertEditable(current);
     if (input.date < current.date) {
       throw new DomainError("delivery_before_service", "La entrega no puede ser antes de la fecha de la cita");
     }
-    const [tech] = await tx.select().from(technicians).where(eq(technicians.id, input.technicianId)).limit(1);
-    if (!tech || !tech.active) throw new DomainError("technician_unavailable", "El técnico no está activo");
+    await activeTechnician(tx, actor.companyId, input.technicianId);
 
     const previous = hasDelivery(current) ? deliveryLabel(current.deliveryDate, current.deliveryStartMin) : null;
     const updated = await persist(
@@ -666,7 +708,7 @@ export async function scheduleDelivery(db: Db, actor: Actor, id: string, raw: un
       },
       [{ field: "delivery", from: previous, to: deliveryLabel(input.date, input.startMin) }],
     );
-    const conflicts = await conflictsFor(tx, {
+    const conflicts = await conflictsFor(tx, actor.companyId, {
       id: current.id,
       technicianId: input.technicianId,
       date: input.date,
@@ -680,7 +722,7 @@ export async function scheduleDelivery(db: Db, actor: Actor, id: string, raw: un
 
 export async function clearDelivery(db: Db, actor: Actor, id: string): Promise<Mutation> {
   return db.transaction(async (tx) => {
-    const current = await load(tx, id);
+    const current = await load(tx, actor.companyId, id);
     if (!hasDelivery(current)) return { appointment: current, conflicts: [] };
     const updated = await persist(
       tx,
@@ -695,7 +737,7 @@ export async function clearDelivery(db: Db, actor: Actor, id: string): Promise<M
 
 export async function updateNotes(db: Db, actor: Actor, id: string, notes: string): Promise<Mutation> {
   return db.transaction(async (tx) => {
-    const current = await load(tx, id);
+    const current = await load(tx, actor.companyId, id);
     if (current.notes === notes) return { appointment: current, conflicts: [] };
     const updated = await persist(tx, actor, current, { notes }, [
       { field: "notes", from: current.notes || null, to: notes || null },
@@ -721,10 +763,12 @@ function overlapIdsOf(rows: AppointmentRow[]): string[] {
   return [...ids];
 }
 
-export async function getDay(db: Db, date: string, technicianId?: string) {
-  const where = technicianId
-    ? and(eq(appointments.date, date), eq(appointments.technicianId, technicianId))
-    : eq(appointments.date, date);
+export async function getDay(db: Db, companyId: string, date: string, technicianId?: string) {
+  const where = and(
+    eq(appointments.companyId, companyId),
+    eq(appointments.date, date),
+    technicianId ? eq(appointments.technicianId, technicianId) : undefined,
+  );
   const rows = await db.query.appointments.findMany({
     where,
     with: {
@@ -740,9 +784,9 @@ export async function getDay(db: Db, date: string, technicianId?: string) {
   return { appointments: rows, overlapIds: overlapIdsOf(rows) };
 }
 
-export async function getRange(db: Db, raw: unknown) {
+export async function getRange(db: Db, companyId: string, raw: unknown) {
   const { from, to, technicianId } = rangeQuerySchema.parse(raw);
-  const conditions = [gte(appointments.date, from), lte(appointments.date, to)];
+  const conditions = [eq(appointments.companyId, companyId), gte(appointments.date, from), lte(appointments.date, to)];
   if (technicianId) conditions.push(eq(appointments.technicianId, technicianId));
 
   const rows = await db.query.appointments.findMany({
@@ -765,8 +809,9 @@ export async function getRange(db: Db, raw: unknown) {
   return { appointments: rows, overlapIds: overlapIdsOf(rows), countsByDate };
 }
 
-export async function getDeliveries(db: Db, from: string, to: string, technicianId?: string) {
+export async function getDeliveries(db: Db, companyId: string, from: string, to: string, technicianId?: string) {
   const conditions = [
+    eq(appointments.companyId, companyId),
     gte(appointments.deliveryDate, from),
     lte(appointments.deliveryDate, to),
     ne(appointments.status, "cancelled"),
@@ -786,9 +831,9 @@ export async function getDeliveries(db: Db, from: string, to: string, technician
   });
 }
 
-export async function getAppointment(db: Db, id: string) {
+export async function getAppointment(db: Db, companyId: string, id: string) {
   const row = await db.query.appointments.findFirst({
-    where: eq(appointments.id, id),
+    where: and(eq(appointments.id, id), eq(appointments.companyId, companyId)),
     with: {
       customer: { with: { addresses: true } },
       address: true,
@@ -805,7 +850,10 @@ export async function getAppointment(db: Db, id: string) {
   return row;
 }
 
-export async function listByIds(db: Db, ids: string[]) {
+export async function listByIds(db: Db, companyId: string, ids: string[]) {
   if (ids.length === 0) return [];
-  return db.select().from(appointments).where(inArray(appointments.id, ids));
+  return db
+    .select()
+    .from(appointments)
+    .where(and(inArray(appointments.id, ids), eq(appointments.companyId, companyId)));
 }

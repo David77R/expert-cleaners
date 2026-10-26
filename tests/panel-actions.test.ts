@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { EXPERT_CLEANERS_COMPANY_ID } from "@/domain/companies";
 import { AGENT_JOSUE } from "@/db/seed-data";
 import { createAppointment, getAppointment } from "@/server/appointments";
 import { executeAction, payloadFromForm } from "@/server/panel-actions";
@@ -69,9 +70,9 @@ describe("ejecución de acciones del panel", () => {
   it("confirma y completa una cita", async () => {
     const created = await appointment();
     expect(await executeAction(ctx.db, AGENT_JOSUE, created.id, { action: "confirm" })).toEqual({ ok: true });
-    expect((await getAppointment(ctx.db, created.id)).status).toBe("confirmed");
+    expect((await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, created.id)).status).toBe("confirmed");
     expect(await executeAction(ctx.db, AGENT_JOSUE, created.id, { action: "complete" })).toEqual({ ok: true });
-    expect((await getAppointment(ctx.db, created.id)).status).toBe("completed");
+    expect((await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, created.id)).status).toBe("completed");
   });
 
   it("traduce una transición inválida a un mensaje claro", async () => {
@@ -109,7 +110,7 @@ describe("ejecución de acciones del panel", () => {
       payloadFromForm("cancel", form({ reason: "weather", explanation: "" })),
     );
     expect(ok).toEqual({ ok: true });
-    expect((await getAppointment(ctx.db, created.id)).status).toBe("cancelled");
+    expect((await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, created.id)).status).toBe("cancelled");
   });
 
   it("reprograma con mensajes claros y avisa si queda solapada", async () => {
@@ -150,7 +151,7 @@ describe("ejecución de acciones del panel", () => {
       ok: true,
       notice: "Reprogramada. Tiene conflicto con 1 cita: revisa el horario.",
     });
-    const detail = await getAppointment(ctx.db, second.id);
+    const detail = await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, second.id);
     expect(detail.status).toBe("rescheduled");
     expect(detail.date).toBe(first.date);
     expect(detail.startMin).toBe(570);
@@ -164,7 +165,7 @@ describe("ejecución de acciones del panel", () => {
       await executeAction(ctx.db, AGENT_JOSUE, created.id, payloadFromForm("update_notes", form({ notes: " Perro " }))),
     ).toEqual({ ok: true });
 
-    const detail = await getAppointment(ctx.db, created.id);
+    const detail = await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, created.id);
     expect(detail.paymentStatus).toBe("paid");
     expect(detail.invoiceStatus).toBe("generated");
     expect(detail.notes).toBe("Perro");
@@ -192,7 +193,7 @@ describe("mover una cita arrastrándola", () => {
       technicianId: ctx.techs[1].id,
     });
     expect(result).toEqual({ ok: true });
-    const detail = await getAppointment(ctx.db, created.id);
+    const detail = await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, created.id);
     expect(detail.startMin).toBe(630);
     expect(detail.technicianId).toBe(ctx.techs[1].id);
     expect(detail.history.some((entry) => entry.field === "start_time")).toBe(true);
@@ -209,7 +210,7 @@ describe("mover una cita arrastrándola", () => {
     });
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.notice).toMatch(/^Movida\. Tiene conflicto con 1 cita/);
-    expect((await getAppointment(ctx.db, second.id)).startMin).toBe(555);
+    expect((await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, second.id)).startMin).toBe(555);
   });
 
   it("rechaza una hora fuera de rango con un mensaje claro", async () => {

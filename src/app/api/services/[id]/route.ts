@@ -6,9 +6,9 @@ import { handle } from "@/server/http";
 
 export function GET(_request: Request, ctx: RouteContext<"/api/services/[id]">) {
   return handle(async () => {
-    await requireActor();
+    const { companyId } = await requireActor();
     const { id } = await ctx.params;
-    return NextResponse.json(await getService(getDb(), id));
+    return NextResponse.json(await getService(getDb(), companyId, id));
   });
 }
 

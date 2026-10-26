@@ -15,28 +15,32 @@ type Actor = schema.Actor;
 
 const { technicians, appointments } = schema;
 
-async function requireTechnician(db: Db, id: string): Promise<schema.Technician> {
-  const [row] = await db.select().from(technicians).where(eq(technicians.id, id)).limit(1);
+async function requireTechnician(db: Db, companyId: string, id: string): Promise<schema.Technician> {
+  const [row] = await db
+    .select()
+    .from(technicians)
+    .where(and(eq(technicians.id, id), eq(technicians.companyId, companyId)))
+    .limit(1);
   if (!row) throw new DomainError("not_found", "El técnico no existe");
   return row;
 }
 
-async function assertNameAvailable(db: Db, name: string, excludeId?: string) {
+async function assertNameAvailable(db: Db, companyId: string, name: string, excludeId?: string) {
   const rows = await db
     .select({ id: technicians.id })
     .from(technicians)
-    .where(sql`lower(${technicians.name}) = lower(${name})`);
+    .where(and(eq(technicians.companyId, companyId), sql`lower(${technicians.name}) = lower(${name})`));
   if (rows.some((row) => row.id !== excludeId)) {
     throw new DomainError("name_taken", "Ya existe un técnico con ese nombre");
   }
 }
 
-export async function listTechnicians(db: Db): Promise<schema.Technician[]> {
-  return db.select().from(technicians).orderBy(asc(technicians.name));
+export async function listTechnicians(db: Db, companyId: string): Promise<schema.Technician[]> {
+  return db.select().from(technicians).where(eq(technicians.companyId, companyId)).orderBy(asc(technicians.name));
 }
 
-export async function getTechnician(db: Db, id: string) {
-  return requireTechnician(db, id);
+export async function getTechnician(db: Db, companyId: string, id: string) {
+  return requireTechnician(db, companyId, id);
 }
 
 export async function technicianUsage(db: Db, id: string, today: string = todayIn()) {
@@ -59,8 +63,11 @@ export async function technicianUsage(db: Db, id: string, today: string = todayI
 export async function createTechnician(db: Db, actor: Actor, raw: CreateTechnicianInput) {
   assertAdmin(actor);
   const input = createTechnicianSchema.parse(raw);
-  await assertNameAvailable(db, input.name);
-  const [created] = await db.insert(technicians).values(input).returning();
+  await assertNameAvailable(db, actor.companyId, input.name);
+  const [created] = await db
+    .insert(technicians)
+    .values({ ...input, companyId: actor.companyId })
+    .returning();
   return created;
 }
 
@@ -73,8 +80,8 @@ export async function updateTechnician(
 ) {
   assertAdmin(actor);
   const input = updateTechnicianSchema.parse(raw);
-  const current = await requireTechnician(db, id);
-  await assertNameAvailable(db, input.name, id);
+  const current = await requireTechnician(db, actor.companyId, id);
+  await assertNameAvailable(db, actor.companyId, input.name, id);
 
   if (current.active && !input.active) {
     const { upcoming } = await technicianUsage(db, id, today);
@@ -94,7 +101,7 @@ export async function updateTechnician(
 
 export async function deleteTechnician(db: Db, actor: Actor, id: string) {
   assertAdmin(actor);
-  await requireTechnician(db, id);
+  await requireTechnician(db, actor.companyId, id);
   const { total } = await technicianUsage(db, id);
   if (total > 0) {
     throw new DomainError(

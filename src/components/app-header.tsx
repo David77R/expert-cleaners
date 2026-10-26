@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { isAdmin } from "@/domain/permissions";
 import { Suspense, type ReactNode } from "react";
 import type { Actor } from "@/db/schema";
 import { WEEKDAY_LONG, initialsOf, viewHeading, weekdayIndex } from "@/domain/calendar-view";
@@ -49,14 +50,16 @@ function Brand() {
   );
 }
 
+export const ROLE_LABEL: Record<Actor["role"], string> = { owner: "Dueño", admin: "Administrador", agent: "Agente" };
+
 function RoleLabel({ role }: { role: Actor["role"] }) {
-  return role === "admin" ? "Administrador" : "Agente";
+  return ROLE_LABEL[role];
 }
 
 export function AppShell({ active, actor, children }: { active: Section; actor: Actor; children: ReactNode }) {
   const today = todayIn();
   const month = viewHeading("month", today);
-  const links = LINKS.filter((link) => !link.adminOnly || actor.role === "admin");
+  const links = LINKS.filter((link) => !link.adminOnly || isAdmin(actor));
 
   return (
     <div className="flex min-h-full flex-1 flex-col lg:flex-row">
@@ -134,12 +137,12 @@ export function AppShell({ active, actor, children }: { active: Section; actor: 
         title={TITLES[active]}
         userName={actor.name}
         userInitials={initialsOf(actor.name)}
-        roleLabel={actor.role === "admin" ? "Administrador" : "Agente"}
+        roleLabel={ROLE_LABEL[actor.role]}
         logout={logout}
         brand={<BrandMark size="sm" />}
         bell={
           <Suspense fallback={<BellLink count={null} active={active === "alerts"} tone="dark" />}>
-            <AlertsBell active={active === "alerts"} tone="dark" />
+            <AlertsBell companyId={actor.companyId} active={active === "alerts"} tone="dark" />
           </Suspense>
         }
       />
@@ -166,7 +169,7 @@ export function AppShell({ active, actor, children }: { active: Section; actor: 
               <Icon name="calendar" size={19} />
             </Link>
             <Suspense fallback={<BellLink count={null} active={active === "alerts"} tone="light" />}>
-              <AlertsBell active={active === "alerts"} tone="light" />
+              <AlertsBell companyId={actor.companyId} active={active === "alerts"} tone="light" />
             </Suspense>
             <span aria-hidden="true" className="h-8 w-px bg-hair" />
             <details className="group relative">

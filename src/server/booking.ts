@@ -1,7 +1,6 @@
 import { and, eq, gte, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 import * as schema from "@/db/schema";
-import { client } from "@/config/clients";
 import { DomainError } from "@/domain/appointment-rules";
 import { fieldsForService } from "@/domain/appointment-items";
 import { availableSlots, bookingWindow, freeTechnicians, type BusyBlock } from "@/domain/booking";
@@ -14,7 +13,7 @@ import { createAppointment, type Db } from "@/server/appointments";
 import { addAddress, createCustomer } from "@/server/customers";
 import { createVehicle } from "@/server/vehicles";
 
-const { appointments, profiles, services, technicians, vehicles } = schema;
+const { appointments, companies, profiles, services, technicians, vehicles } = schema;
 
 export const BOOKING_AGENT = {
   id: "00000000-0000-4000-8000-0000000b0001",
@@ -38,25 +37,38 @@ export type BookingService = {
   sizePrices: schema.Service["sizePrices"];
 };
 
-function assertEnabled() {
-  if (!client.features.publicBooking) throw new DomainError("not_found", "Las reservas en línea no están activas");
+export type BookingCompany = Pick<schema.Company, "id" | "active" | "settings">;
+
+export async function bookingCompany(db: Db, slug: string): Promise<schema.Company> {
+  const [company] = await db.select().from(companies).where(eq(companies.slug, slug.trim().toLowerCase())).limit(1);
+  if (!company) throw new DomainError("not_found", "Las reservas en línea no están activas");
+  assertEnabled(company);
+  return company;
 }
 
-function currentWindow(now: Date = new Date()) {
+function assertEnabled(company: BookingCompany) {
+  if (!company.active || !company.settings.features.publicBooking) {
+    throw new DomainError("not_found", "Las reservas en línea no están activas");
+  }
+}
+
+function currentWindow(company: BookingCompany, now: Date = new Date()) {
   return bookingWindow(
     todayIn(undefined, now),
     minutesNowIn(undefined, now),
-    client.booking.minNoticeHours,
-    client.booking.maxDaysAhead,
+    company.settings.booking.minNoticeHours,
+    company.settings.booking.maxDaysAhead,
   );
 }
 
-export async function bookingServices(db: Db): Promise<BookingService[]> {
-  assertEnabled();
+export async function bookingServices(db: Db, company: BookingCompany): Promise<BookingService[]> {
+  assertEnabled(company);
   const rows = await db
     .select()
     .from(services)
-    .where(and(eq(services.active, true), sql`${services.slug} not like 'eliminado-%'`));
+    .where(
+      and(eq(services.companyId, company.id), eq(services.active, true), sql`${services.slug} not like 'eliminado-%'`),
+    );
   return rows
     .filter((row) => !fieldsForService(row).some((field) => field.required))
     .map((row) => ({
@@ -73,9 +85,12 @@ export async function bookingServices(db: Db): Promise<BookingService[]> {
     .sort((a, b) => a.basePriceCents - b.basePriceCents);
 }
 
-async function dayLoad(db: Db, date: string) {
+async function dayLoad(db: Db, companyId: string, date: string) {
   const [team, booked] = await Promise.all([
-    db.select().from(technicians).where(eq(technicians.active, true)),
+    db
+      .select()
+      .from(technicians)
+      .where(and(eq(technicians.companyId, companyId), eq(technicians.active, true))),
     db
       .select({
         technicianId: appointments.technicianId,
@@ -90,6 +105,7 @@ async function dayLoad(db: Db, date: string) {
       .from(appointments)
       .where(
         and(
+          eq(appointments.companyId, companyId),
           ne(appointments.status, "cancelled"),
           sql`(${appointments.date} = ${date} or ${appointments.deliveryDate} = ${date})`,
         ),
@@ -111,25 +127,40 @@ async function dayLoad(db: Db, date: string) {
   return { team, busy };
 }
 
-function serviceDuration(service: { durationMin: number }): number {
-  return service.durationMin > 0 ? service.durationMin : client.booking.slotMinutes;
+function serviceDuration(company: BookingCompany, service: { durationMin: number }): number {
+  return service.durationMin > 0 ? service.durationMin : company.settings.booking.slotMinutes;
 }
 
-export async function bookingAvailability(db: Db, rawDate: string, rawServiceId: string, now: Date = new Date()) {
-  assertEnabled();
+async function companyService(db: Db, companyId: string, serviceId: string) {
+  const [service] = await db
+    .select()
+    .from(services)
+    .where(and(eq(services.id, serviceId), eq(services.companyId, companyId)))
+    .limit(1);
+  return service ?? null;
+}
+
+export async function bookingAvailability(
+  db: Db,
+  company: BookingCompany,
+  rawDate: string,
+  rawServiceId: string,
+  now: Date = new Date(),
+) {
+  assertEnabled(company);
   const date = isoDate.parse(rawDate);
   const serviceId = z.uuid().parse(rawServiceId);
-  const [service] = await db.select().from(services).where(eq(services.id, serviceId)).limit(1);
+  const service = await companyService(db, company.id, serviceId);
   if (!service || !service.active) throw new DomainError("service_unavailable", "Ese paquete no está disponible");
-  const { team, busy } = await dayLoad(db, date);
+  const { team, busy } = await dayLoad(db, company.id, date);
   const slots = availableSlots({
     date,
-    hours: client.booking.hours[weekdayIndex(date)] ?? null,
-    stepMin: client.booking.slotMinutes,
-    durationMin: serviceDuration(service),
+    hours: company.settings.booking.hours[weekdayIndex(date)] ?? null,
+    stepMin: company.settings.booking.slotMinutes,
+    durationMin: serviceDuration(company, service),
     technicians: team,
     busy,
-    window: currentWindow(now),
+    window: currentWindow(company, now),
   });
   return slots.map((slot) => slot.startMin);
 }
@@ -179,21 +210,21 @@ async function ensureBookingAgent(db: Db) {
     .onConflictDoNothing();
 }
 
-export async function createBooking(db: Db, raw: BookingInput, now: Date = new Date()) {
-  assertEnabled();
+export async function createBooking(db: Db, company: BookingCompany, raw: BookingInput, now: Date = new Date()) {
+  assertEnabled(company);
   const input = bookingSchema.parse(raw);
-  const [service] = await db.select().from(services).where(eq(services.id, input.serviceId)).limit(1);
+  const service = await companyService(db, company.id, input.serviceId);
   if (!service || !service.active || fieldsForService(service).some((field) => field.required)) {
     throw new DomainError("service_unavailable", "Ese paquete no está disponible");
   }
 
-  const durationMin = serviceDuration(service);
-  const window = currentWindow(now);
-  const { team, busy } = await dayLoad(db, input.date);
+  const durationMin = serviceDuration(company, service);
+  const window = currentWindow(company, now);
+  const { team, busy } = await dayLoad(db, company.id, input.date);
   const open = availableSlots({
     date: input.date,
-    hours: client.booking.hours[weekdayIndex(input.date)] ?? null,
-    stepMin: client.booking.slotMinutes,
+    hours: company.settings.booking.hours[weekdayIndex(input.date)] ?? null,
+    stepMin: company.settings.booking.slotMinutes,
     durationMin,
     technicians: team,
     busy,
@@ -208,10 +239,10 @@ export async function createBooking(db: Db, raw: BookingInput, now: Date = new D
     line1: input.line1,
     unit: input.unit,
     city: input.city,
-    state: client.location.state,
+    state: company.settings.location.state,
     zip: input.zip,
   };
-  const created = await createCustomer(db, {
+  const created = await createCustomer(db, company.id, {
     firstName: input.firstName,
     lastName: input.lastName,
     phone: input.phone,
@@ -225,6 +256,7 @@ export async function createBooking(db: Db, raw: BookingInput, now: Date = new D
     .from(appointments)
     .where(
       and(
+        eq(appointments.companyId, company.id),
         eq(appointments.customerId, customerId),
         eq(appointments.agentId, BOOKING_AGENT.id),
         ne(appointments.status, "cancelled"),
@@ -239,9 +271,13 @@ export async function createBooking(db: Db, raw: BookingInput, now: Date = new D
   }
 
   const savedAddress =
-    created.addresses.find((saved) => sameAddress(saved, address)) ?? (await addAddress(db, customerId, address));
+    created.addresses.find((saved) => sameAddress(saved, address)) ??
+    (await addAddress(db, company.id, customerId, address));
 
-  const owned = await db.select().from(vehicles).where(eq(vehicles.customerId, customerId));
+  const owned = await db
+    .select()
+    .from(vehicles)
+    .where(and(eq(vehicles.customerId, customerId), eq(vehicles.companyId, company.id)));
   const match = owned.find(
     (vehicle) =>
       vehicle.size === input.size &&
@@ -250,7 +286,7 @@ export async function createBooking(db: Db, raw: BookingInput, now: Date = new D
   );
   const vehicle =
     match ??
-    (await createVehicle(db, customerId, {
+    (await createVehicle(db, company.id, customerId, {
       size: input.size,
       make: input.make,
       model: input.model,
@@ -258,24 +294,28 @@ export async function createBooking(db: Db, raw: BookingInput, now: Date = new D
     }));
 
   await ensureBookingAgent(db);
-  const result = await createAppointment(db, BOOKING_AGENT, {
-    customerId,
-    addressId: savedAddress.id,
-    technicianId,
-    date: input.date,
-    startMin: input.startMin,
-    durationMin,
-    items: [
-      {
-        serviceId: service.id,
-        specs: {},
-        priceCents: priceForSize(service, input.size as VehicleSize),
-        vehicleId: vehicle.id,
-      },
-    ],
-    notes: input.notes,
-    alerts: [ONLINE_BOOKING_ALERT],
-  });
+  const result = await createAppointment(
+    db,
+    { ...BOOKING_AGENT, companyId: company.id },
+    {
+      customerId,
+      addressId: savedAddress.id,
+      technicianId,
+      date: input.date,
+      startMin: input.startMin,
+      durationMin,
+      items: [
+        {
+          serviceId: service.id,
+          specs: {},
+          priceCents: priceForSize(service, input.size as VehicleSize),
+          vehicleId: vehicle.id,
+        },
+      ],
+      notes: input.notes,
+      alerts: [ONLINE_BOOKING_ALERT],
+    },
+  );
 
   return {
     code: result.appointment.code,

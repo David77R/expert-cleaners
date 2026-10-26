@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { EXPERT_CLEANERS_COMPANY_ID } from "@/domain/companies";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema";
@@ -35,7 +36,7 @@ async function main() {
     .where(eq(schema.technicians.name, "Osvaldo Reyes"))
     .limit(1);
 
-  const actor = { id: agent.id, name: agent.name, role: agent.role };
+  const actor = { id: agent.id, name: agent.name, role: agent.role, companyId: EXPERT_CLEANERS_COMPANY_ID };
   const date = new Date().toISOString().slice(0, 10);
 
   await createAppointment(db, actor, {

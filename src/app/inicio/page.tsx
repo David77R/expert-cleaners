@@ -10,7 +10,7 @@ export default async function DashboardPage() {
   const actor = await getActor();
   if (!actor) redirect("/login");
 
-  const data = await getDashboard(getDb(), todayIn());
+  const data = await getDashboard(getDb(), actor.companyId, todayIn());
 
   return (
     <AppShell active="home" actor={actor}>

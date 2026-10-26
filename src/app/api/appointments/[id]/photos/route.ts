@@ -8,9 +8,9 @@ import { readPhotoUploadForm } from "@/server/uploads";
 
 export function GET(_request: Request, ctx: RouteContext<"/api/appointments/[id]/photos">) {
   return handle(async () => {
-    await requireActor();
+    const { companyId } = await requireActor();
     const { id } = await ctx.params;
-    return NextResponse.json({ photos: await listPhotos(getDb(), getPhotoStorage(), id) });
+    return NextResponse.json({ photos: await listPhotos(getDb(), getPhotoStorage(), companyId, id) });
   });
 }
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDb } from "@/db/client";
 import { handle } from "@/server/http";
-import { createBooking } from "@/server/booking";
+import { bookingCompany, createBooking } from "@/server/booking";
 import { allowRequest } from "@/server/rate-limit";
 
 export function POST(request: Request) {
@@ -10,7 +10,9 @@ export function POST(request: Request) {
     if (!allowRequest(`booking:${ip}`, 5, 60 * 60 * 1000)) {
       return NextResponse.json({ error: "rate_limited" }, { status: 429 });
     }
-    const booking = await createBooking(getDb(), await request.json());
+    const db = getDb();
+    const company = await bookingCompany(db, new URL(request.url).searchParams.get("company") ?? "");
+    const booking = await createBooking(db, company, await request.json());
     return NextResponse.json({ booking }, { status: 201 });
   });
 }

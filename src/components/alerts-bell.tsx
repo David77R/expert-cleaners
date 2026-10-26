@@ -5,9 +5,9 @@ import { getDb } from "@/db/client";
 import { Icon } from "@/components/icons";
 import { getAlerts } from "@/server/alerts";
 
-async function alertCount(): Promise<number | null> {
+async function alertCount(companyId: string): Promise<number | null> {
   try {
-    const { items } = await getAlerts(getDb());
+    const { items } = await getAlerts(getDb(), companyId);
     return unseenCount(items, (await cookies()).get(SEEN_COOKIE)?.value);
   } catch (error) {
     console.error(error);
@@ -44,6 +44,14 @@ export function BellLink({ count, active, tone }: { count: number | null; active
   );
 }
 
-export async function AlertsBell({ active, tone }: { active: boolean; tone: "light" | "dark" }) {
-  return <BellLink count={await alertCount()} active={active} tone={tone} />;
+export async function AlertsBell({
+  companyId,
+  active,
+  tone,
+}: {
+  companyId: string;
+  active: boolean;
+  tone: "light" | "dark";
+}) {
+  return <BellLink count={await alertCount(companyId)} active={active} tone={tone} />;
 }

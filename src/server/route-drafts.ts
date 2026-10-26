@@ -9,6 +9,7 @@ export async function saveRouteDraft(db: Db, actor: Actor, raw: unknown) {
   const [saved] = await db
     .insert(schema.routeDrafts)
     .values({
+      companyId: actor.companyId,
       date: input.date,
       mode: input.mode,
       groupKey: input.groupKey,
@@ -17,7 +18,12 @@ export async function saveRouteDraft(db: Db, actor: Actor, raw: unknown) {
       createdByName: actor.name,
     })
     .onConflictDoUpdate({
-      target: [schema.routeDrafts.date, schema.routeDrafts.mode, schema.routeDrafts.groupKey],
+      target: [
+        schema.routeDrafts.companyId,
+        schema.routeDrafts.date,
+        schema.routeDrafts.mode,
+        schema.routeDrafts.groupKey,
+      ],
       set: {
         stopIds: input.stopIds,
         createdById: actor.id,
@@ -29,12 +35,13 @@ export async function saveRouteDraft(db: Db, actor: Actor, raw: unknown) {
   return saved;
 }
 
-export async function deleteRouteDraft(db: Db, raw: unknown) {
+export async function deleteRouteDraft(db: Db, companyId: string, raw: unknown) {
   const input = routeDraftDeleteSchema.parse(raw);
   await db
     .delete(schema.routeDrafts)
     .where(
       and(
+        eq(schema.routeDrafts.companyId, companyId),
         eq(schema.routeDrafts.date, input.date),
         eq(schema.routeDrafts.mode, input.mode),
         eq(schema.routeDrafts.groupKey, input.groupKey),
@@ -42,6 +49,9 @@ export async function deleteRouteDraft(db: Db, raw: unknown) {
     );
 }
 
-export async function listRouteDraftsForDay(db: Db, date: string) {
-  return db.select().from(schema.routeDrafts).where(eq(schema.routeDrafts.date, date));
+export async function listRouteDraftsForDay(db: Db, companyId: string, date: string) {
+  return db
+    .select()
+    .from(schema.routeDrafts)
+    .where(and(eq(schema.routeDrafts.companyId, companyId), eq(schema.routeDrafts.date, date)));
 }

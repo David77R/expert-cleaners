@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, or, sql } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { DomainError } from "@/domain/appointment-rules";
 import { BUSINESS_TIMEZONE, enumerateDates } from "@/domain/date-rules";
@@ -36,13 +36,28 @@ function emptyMetrics(length: number): ReportMetrics {
   };
 }
 
+function inReport(companyId: string) {
+  return or(
+    eq(profiles.companyId, companyId),
+    sql`exists (select 1 from ${appointments} where ${appointments.agentId} = ${profiles.id} and ${appointments.companyId} = ${companyId})`,
+  );
+}
+
+export async function reportPeople(db: Db, companyId: string) {
+  return db
+    .select({ id: profiles.id, name: profiles.name })
+    .from(profiles)
+    .where(inReport(companyId))
+    .orderBy(asc(profiles.name));
+}
+
 export async function getAgentReport(db: Db, actor: Actor, raw: unknown) {
   const { from, to, agentId } = reportQuerySchema.parse(raw);
 
   const people = await db
     .select({ id: profiles.id, name: profiles.name, role: profiles.role })
     .from(profiles)
-    .where(agentId ? eq(profiles.id, agentId) : undefined)
+    .where(and(inReport(actor.companyId), agentId ? eq(profiles.id, agentId) : undefined))
     .orderBy(asc(profiles.name));
   if (agentId && people.length === 0) throw new DomainError("not_found", "El agente no existe");
 
@@ -66,6 +81,7 @@ export async function getAgentReport(db: Db, actor: Actor, raw: unknown) {
     .from(appointments)
     .where(
       and(
+        eq(appointments.companyId, actor.companyId),
         sql`${localDate} >= ${from}`,
         sql`${localDate} <= ${to}`,
         agentId ? eq(appointments.agentId, agentId) : undefined,

@@ -23,11 +23,11 @@ export type PhotoView = {
   createdAt: Date;
 };
 
-async function loadAppointment(db: Db, appointmentId: string) {
+async function loadAppointment(db: Db, companyId: string, appointmentId: string) {
   const [row] = await db
     .select({ id: appointments.id, status: appointments.status })
     .from(appointments)
-    .where(eq(appointments.id, appointmentId))
+    .where(and(eq(appointments.id, appointmentId), eq(appointments.companyId, companyId)))
     .limit(1);
   if (!row) throw new DomainError("not_found", "La cita no existe");
   return row;
@@ -55,7 +55,7 @@ export async function uploadPhoto(
   rawItemId: string | null = null,
 ): Promise<PhotoView> {
   const appointmentId = idSchema.parse(rawAppointmentId);
-  const appointment = await loadAppointment(db, appointmentId);
+  const appointment = await loadAppointment(db, actor.companyId, appointmentId);
   if (appointment.status === "cancelled") {
     throw new DomainError("cancelled", "No se pueden agregar fotos a una cita cancelada");
   }
@@ -117,9 +117,14 @@ export async function uploadPhoto(
   }));
 }
 
-export async function listPhotos(db: Db, storage: PhotoStorage, rawAppointmentId: string): Promise<PhotoView[]> {
+export async function listPhotos(
+  db: Db,
+  storage: PhotoStorage,
+  companyId: string,
+  rawAppointmentId: string,
+): Promise<PhotoView[]> {
   const appointmentId = idSchema.parse(rawAppointmentId);
-  await loadAppointment(db, appointmentId);
+  await loadAppointment(db, companyId, appointmentId);
   const rows = await db
     .select({ photo: appointmentPhotos, uploaderName: profiles.name })
     .from(appointmentPhotos)
@@ -148,7 +153,7 @@ export async function panelPhotos(
   appointmentId: string,
 ): Promise<PanelPhotos> {
   try {
-    const list = await listPhotos(db, getStorage(), appointmentId);
+    const list = await listPhotos(db, getStorage(), actor.companyId, appointmentId);
     return {
       available: true,
       photos: list.map((photo) => ({
@@ -176,6 +181,7 @@ export async function deletePhoto(
 ): Promise<{ deleted: true }> {
   const appointmentId = idSchema.parse(rawAppointmentId);
   const photoId = idSchema.parse(rawPhotoId);
+  await loadAppointment(db, actor.companyId, appointmentId);
 
   const removed = await db.transaction(async (tx) => {
     const [photo] = await tx

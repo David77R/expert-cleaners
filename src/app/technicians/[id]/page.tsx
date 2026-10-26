@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { isAdmin } from "@/domain/permissions";
 import { z } from "zod";
 import { getDb } from "@/db/client";
 import { technicianFormFromTechnician } from "@/domain/technician-form";
@@ -20,13 +21,13 @@ function describeUsage(total: number, upcoming: number): string {
 export default async function EditTechnicianPage({ params, searchParams }: PageProps<"/technicians/[id]">) {
   const actor = await getActor();
   if (!actor) redirect("/login");
-  if (actor.role !== "admin") redirect("/calendar");
+  if (!isAdmin(actor)) redirect("/calendar");
 
   const { id } = await params;
   if (!z.uuid().safeParse(id).success) notFound();
 
   const db = getDb();
-  const technician = await getTechnician(db, id).catch(() => null);
+  const technician = await getTechnician(db, actor.companyId, id).catch(() => null);
   if (!technician) notFound();
 
   const { total, upcoming } = await technicianUsage(db, id);

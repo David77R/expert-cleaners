@@ -1,5 +1,6 @@
 import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import * as schema from "./schema";
+import { EXPERT_CLEANERS_COMPANY_ID } from "@/domain/companies";
 
 type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
@@ -7,21 +8,28 @@ export const AGENT_JOSUE = {
   id: "00000000-0000-4000-8000-000000000001",
   name: "Josué Perfecto",
   role: "agent" as const,
+  companyId: EXPERT_CLEANERS_COMPANY_ID,
 };
-export const AGENT_JUANCHO = { id: "00000000-0000-4000-8000-000000000002", name: "Juancho", role: "agent" as const };
+export const AGENT_JUANCHO = {
+  id: "00000000-0000-4000-8000-000000000002",
+  name: "Juancho",
+  role: "agent" as const,
+  companyId: EXPERT_CLEANERS_COMPANY_ID,
+};
 
 export async function seedBase(db: Db) {
+  const companyId = EXPERT_CLEANERS_COMPANY_ID;
   await db.insert(schema.profiles).values([
-    { id: AGENT_JOSUE.id, name: AGENT_JOSUE.name, role: "agent" },
-    { id: AGENT_JUANCHO.id, name: AGENT_JUANCHO.name, role: "agent" },
+    { id: AGENT_JOSUE.id, companyId, name: AGENT_JOSUE.name, role: "agent" },
+    { id: AGENT_JUANCHO.id, companyId, name: AGENT_JUANCHO.name, role: "agent" },
   ]);
 
   const techs = await db
     .insert(schema.technicians)
     .values([
-      { name: "Carlos Betancourt", color: "#DB962A", zone: "Miami Central" },
-      { name: "Yolanda Hernández", color: "#4C5FE0", zone: "Doral / Hialeah" },
-      { name: "Osvaldo Reyes", color: "#D63F63", zone: "Kendall / Homestead" },
+      { companyId, name: "Carlos Betancourt", color: "#DB962A", zone: "Miami Central" },
+      { companyId, name: "Yolanda Hernández", color: "#4C5FE0", zone: "Doral / Hialeah" },
+      { companyId, name: "Osvaldo Reyes", color: "#D63F63", zone: "Kendall / Homestead" },
     ])
     .returning();
 
@@ -29,6 +37,7 @@ export async function seedBase(db: Db) {
     .insert(schema.services)
     .values([
       {
+        companyId,
         slug: "carpet",
         name: "Limpieza de Alfombras",
         category: "Alfombras",
@@ -48,6 +57,7 @@ export async function seedBase(db: Db) {
         ],
       },
       {
+        companyId,
         slug: "sofa",
         name: "Limpieza de Sofás",
         category: "Sofás y Otros",
@@ -65,6 +75,7 @@ export async function seedBase(db: Db) {
         ],
       },
       {
+        companyId,
         slug: "rug-pickup",
         name: "Recogida de Tapetes",
         category: "Tapetes",
@@ -73,6 +84,7 @@ export async function seedBase(db: Db) {
         twoAddresses: true,
       },
       {
+        companyId,
         slug: "rug-delivery",
         name: "Entrega de Tapetes",
         category: "Tapetes",
@@ -86,6 +98,7 @@ export async function seedBase(db: Db) {
   const customer = await db
     .insert(schema.customers)
     .values({
+      companyId,
       code: "CLI-1001",
       firstName: "Andrés",
       lastName: "Molina",
@@ -109,6 +122,7 @@ export async function seedBase(db: Db) {
     .returning();
 
   return {
+    companyId,
     techs,
     services: Object.fromEntries(svc.map((s) => [s.slug, s])),
     customer: customer[0],

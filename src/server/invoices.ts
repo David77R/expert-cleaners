@@ -18,8 +18,8 @@ function toSnapshot(address: Address): AddressSnapshot {
   };
 }
 
-export async function getInvoice(db: Db, appointmentId: string) {
-  const row = await getAppointment(db, appointmentId);
+export async function getInvoice(db: Db, companyId: string, appointmentId: string) {
+  const row = await getAppointment(db, companyId, appointmentId);
   if (row.invoiceStatus === "not_generated") {
     throw new DomainError("invoice_not_generated", "La factura aún no se ha generado");
   }
@@ -48,7 +48,7 @@ export async function getInvoice(db: Db, appointmentId: string) {
   return invoice;
 }
 
-export async function getInvoicePdf(db: Db, appointmentId: string) {
-  const invoice = await getInvoice(db, appointmentId);
+export async function getInvoicePdf(db: Db, companyId: string, appointmentId: string) {
+  const invoice = await getInvoice(db, companyId, appointmentId);
   return { invoice, pdf: await renderInvoicePdf(invoice) };
 }

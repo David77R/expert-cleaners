@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { isAdmin } from "@/domain/permissions";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { getDb } from "@/db/client";
@@ -41,7 +42,7 @@ export default async function CustomerPage({ params, searchParams }: PageProps<"
 
   let customer;
   try {
-    customer = await getCustomer(getDb(), parsed.data);
+    customer = await getCustomer(getDb(), actor.companyId, parsed.data);
   } catch (error) {
     if (error instanceof DomainError && error.code === "not_found") notFound();
     throw error;
@@ -53,16 +54,16 @@ export default async function CustomerPage({ params, searchParams }: PageProps<"
   const deleteFailed = first(query.error) === "no-eliminado";
   const confirmMissing = first(query.error) === "confirmar";
   const merged = first(query.aviso) === "unido";
-  const isAdmin = actor.role === "admin";
-  const canDelete = isAdmin;
+  const adminView = isAdmin(actor);
+  const canDelete = adminView;
   const hasAppointments = customer.appointmentCount > 0;
-  const mergeCandidates = isAdmin ? await possibleDuplicates(getDb(), customer) : [];
+  const mergeCandidates = adminView ? await possibleDuplicates(getDb(), customer) : [];
   const duplicateIds = justCreated
     ? parseDuplicateIds(first(query.dup), (value) => z.uuid().safeParse(value).success).filter(
         (id) => id !== customer.id,
       )
     : [];
-  const duplicates = await customersByIds(getDb(), duplicateIds);
+  const duplicates = await customersByIds(getDb(), actor.companyId, duplicateIds);
 
   const fullName = `${customer.firstName} ${customer.lastName}`;
 
@@ -197,7 +198,7 @@ export default async function CustomerPage({ params, searchParams }: PageProps<"
                 ))}
               </ol>
             )}
-            {isAdmin && (
+            {adminView && (
               <details className="group rounded-md border border-hair bg-paper">
                 <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold">
                   Unir con otro cliente

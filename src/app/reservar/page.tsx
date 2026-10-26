@@ -8,7 +8,8 @@ import { bookingWindow } from "@/domain/booking";
 import { BOOKING_COPY } from "@/domain/booking-copy";
 import { weekdayIndex } from "@/domain/calendar-view";
 import { enumerateDates, minutesNowIn, todayIn } from "@/domain/date-rules";
-import { bookingServices } from "@/server/booking";
+import { bookingCompany, bookingServices } from "@/server/booking";
+import { DomainError } from "@/domain/appointment-rules";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +27,12 @@ function first(value: string | string[] | undefined): string {
 export default async function BookingPage({ searchParams }: PageProps<"/reservar">) {
   if (!client.features.publicBooking) notFound();
   const params = await searchParams;
-  const services = await bookingServices(getDb());
+  const db = getDb();
+  const company = await bookingCompany(db, client.id).catch((error) => {
+    if (error instanceof DomainError) notFound();
+    throw error;
+  });
+  const services = await bookingServices(db, company);
   const window = bookingWindow(todayIn(), minutesNowIn(), client.booking.minNoticeHours, client.booking.maxDaysAhead);
   const days: BookingDay[] = enumerateDates(window.firstDate, window.lastDate).map((date) => ({
     date,
@@ -48,7 +54,13 @@ export default async function BookingPage({ searchParams }: PageProps<"/reservar
         </div>
       </header>
       <div className="mx-auto -mt-4 w-full max-w-2xl flex-1 px-4 pb-16">
-        <BookingForm locale={client.booking.locale} services={services} days={days} preset={preset} />
+        <BookingForm
+          company={company.slug}
+          locale={client.booking.locale}
+          services={services}
+          days={days}
+          preset={preset}
+        />
       </div>
     </main>
   );

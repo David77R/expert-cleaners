@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { EXPERT_CLEANERS_COMPANY_ID } from "@/domain/companies";
 import { AGENT_JOSUE } from "@/db/seed-data";
 import {
   appointmentFieldErrors,
@@ -236,7 +237,7 @@ describe("crear la cita desde el formulario", () => {
 
 describe("resumen del cliente para el formulario", () => {
   it("devuelve datos de contacto y direcciones", async () => {
-    const summary = await getCustomerSummary(ctx.db, ctx.customer.id);
+    const summary = await getCustomerSummary(ctx.db, EXPERT_CLEANERS_COMPANY_ID, ctx.customer.id);
     expect(summary?.id).toBe(ctx.customer.id);
     expect(summary?.addresses.length).toBeGreaterThan(0);
     expect(summary?.addresses[0]).toHaveProperty("line1");
@@ -244,7 +245,9 @@ describe("resumen del cliente para el formulario", () => {
   });
 
   it("devuelve nulo si el cliente no existe", async () => {
-    expect(await getCustomerSummary(ctx.db, "00000000-0000-4000-8000-000000000099")).toBeNull();
+    expect(
+      await getCustomerSummary(ctx.db, EXPERT_CLEANERS_COMPANY_ID, "00000000-0000-4000-8000-000000000099"),
+    ).toBeNull();
   });
 });
 

@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { EXPERT_CLEANERS_COMPANY_ID } from "@/domain/companies";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema";
@@ -125,7 +126,14 @@ async function main() {
   for (const c of NEW_CUSTOMERS) {
     const [customer] = await db
       .insert(schema.customers)
-      .values({ code: c.code, firstName: c.firstName, lastName: c.lastName, phone: c.phone, email: c.email })
+      .values({
+        companyId: EXPERT_CLEANERS_COMPANY_ID,
+        code: c.code,
+        firstName: c.firstName,
+        lastName: c.lastName,
+        phone: c.phone,
+        email: c.email,
+      })
       .returning();
     const [address] = await db
       .insert(schema.addresses)
@@ -145,7 +153,7 @@ async function main() {
 
   const [brickell, doral, hialeah, kendall, homestead] = created;
 
-  const actor = { id: agent.id, name: agent.name, role: agent.role };
+  const actor = { id: agent.id, name: agent.name, role: agent.role, companyId: EXPERT_CLEANERS_COMPANY_ID };
   const date = new Date().toISOString().slice(0, 10);
 
   // Carlos — Miami Central

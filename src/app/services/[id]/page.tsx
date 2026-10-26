@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { isAdmin } from "@/domain/permissions";
 import { z } from "zod";
 import { getDb } from "@/db/client";
 import { serviceFormFromService } from "@/domain/service-form";
@@ -12,17 +13,17 @@ import { countServiceAppointments, getService, listServices } from "@/server/ser
 export default async function EditServicePage({ params }: PageProps<"/services/[id]">) {
   const actor = await getActor();
   if (!actor) redirect("/login");
-  if (actor.role !== "admin") redirect("/calendar");
+  if (!isAdmin(actor)) redirect("/calendar");
 
   const { id } = await params;
   if (!z.uuid().safeParse(id).success) notFound();
 
   const db = getDb();
-  const service = await getService(db, id).catch(() => null);
+  const service = await getService(db, actor.companyId, id).catch(() => null);
   if (!service) notFound();
 
   const [all, used] = await Promise.all([
-    listServices(db, { includeInactive: "true" }, actor),
+    listServices(db, actor.companyId, { includeInactive: "true" }, actor),
     countServiceAppointments(db, id),
   ]);
   const categories = [...new Set(all.map((item) => item.category))].sort((a, b) => a.localeCompare(b, "es"));
