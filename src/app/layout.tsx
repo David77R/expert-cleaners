@@ -1,8 +1,8 @@
 import { NavigationTrail } from "@/components/back-link";
 import type { Metadata, Viewport } from "next";
 import { BrandProvider } from "@/components/brand-provider";
-import { brandIcon, brandStyle } from "@/domain/companies";
-import { getBrand } from "@/server/auth";
+import { PLATFORM, brandIcon, brandStyle } from "@/domain/companies";
+import { getBrand, hasSession } from "@/server/auth";
 import localFont from "next/font/local";
 import "./globals.css";
 
@@ -26,6 +26,27 @@ const grotesk = localFont({
 });
 
 export async function generateMetadata(): Promise<Metadata> {
+  if (!(await hasSession())) {
+    return {
+      title: PLATFORM.name,
+      description: PLATFORM.description,
+      appleWebApp: { capable: true, title: PLATFORM.name, statusBarStyle: "black-translucent" },
+      icons: { apple: `${PLATFORM.icons}/apple-icon.png`, icon: `${PLATFORM.icons}/icon-192.png` },
+      openGraph: {
+        title: PLATFORM.name,
+        description: PLATFORM.description,
+        siteName: PLATFORM.name,
+        type: "website",
+        images: [{ url: PLATFORM.image, width: 1200, height: 630, alt: PLATFORM.name }],
+      },
+      twitter: {
+        card: "summary_large_image",
+        title: PLATFORM.name,
+        description: PLATFORM.description,
+        images: [PLATFORM.image],
+      },
+    };
+  }
   const brand = await getBrand();
   return {
     title: brand.shortName,
@@ -36,8 +57,8 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export async function generateViewport(): Promise<Viewport> {
-  const brand = await getBrand();
-  return { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: brand.themeColor };
+  const themeColor = (await hasSession()) ? (await getBrand()).themeColor : PLATFORM.themeColor;
+  return { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor };
 }
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {

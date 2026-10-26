@@ -9,7 +9,7 @@ import { DomainError } from "@/domain/appointment-rules";
 import { bookingWindow } from "@/domain/booking";
 import { BOOKING_COPY } from "@/domain/booking-copy";
 import { weekdayIndex } from "@/domain/calendar-view";
-import { brandOf, brandStyle } from "@/domain/companies";
+import { brandIcon, brandOf, brandStyle } from "@/domain/companies";
 import { enumerateDates, minutesNowIn, todayIn } from "@/domain/date-rules";
 import { bookingCompany, bookingServices } from "@/server/booking";
 
@@ -31,7 +31,15 @@ function first(value: string | string[] | undefined): string {
 export async function generateMetadata({ params }: PageProps<"/reservar/[slug]">): Promise<Metadata> {
   const company = await loadCompany((await params).slug);
   const copy = BOOKING_COPY[company.settings.booking.locale];
-  return { title: `${copy.title} · ${company.settings.shortName}`, description: copy.subtitle };
+  const brand = brandOf(company);
+  const title = `${copy.title} · ${brand.shortName}`;
+  const image = brand.logo?.src ?? brandIcon(brand, "icon-512.png");
+  return {
+    title,
+    description: copy.subtitle,
+    icons: { apple: brandIcon(brand, "apple-icon.png"), icon: brandIcon(brand, "icon-192.png") },
+    openGraph: { title, description: copy.subtitle, siteName: brand.name, type: "website", images: [image] },
+  };
 }
 
 export default async function BookingPage({ params, searchParams }: PageProps<"/reservar/[slug]">) {

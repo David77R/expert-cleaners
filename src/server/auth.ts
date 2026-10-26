@@ -35,6 +35,10 @@ const activeCompany = cache(async (): Promise<Company | null> => {
   return id ? findCompany(getDb(), id) : null;
 });
 
+export async function hasSession(): Promise<boolean> {
+  return (await currentProfile()) !== null;
+}
+
 export async function getActor(): Promise<Actor | null> {
   const session = await currentProfile();
   if (!session) return null;

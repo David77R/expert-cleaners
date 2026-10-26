@@ -55,3 +55,11 @@ export function brandIcon(brand: Pick<Brand, "slug" | "icons">, file: string): s
 export function brandStyle(brand: Pick<Brand, "theme" | "backgroundTint">): CSSProperties {
   return { ...brand.theme, "--tint": brand.backgroundTint } as CSSProperties;
 }
+
+export const PLATFORM = {
+  name: "Company Solutions",
+  description: "Agenda, rutas, técnicos y reservas en línea para empresas de servicio a domicilio.",
+  icons: "/company-solutions",
+  image: "/company-solutions/og.png",
+  themeColor: "#070b14",
+};
