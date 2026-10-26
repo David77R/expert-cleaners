@@ -1,5 +1,7 @@
 import { NavigationTrail } from "@/components/back-link";
+import type { CSSProperties } from "react";
 import type { Metadata, Viewport } from "next";
+import { client, iconPath } from "@/config/clients";
 import localFont from "next/font/local";
 import "./globals.css";
 
@@ -23,21 +25,24 @@ const grotesk = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Expert Cleaners",
+  title: client.shortName,
   description: "Operación diaria: calendario, rutas y citas",
-  appleWebApp: { capable: true, title: "Expert Cleaners", statusBarStyle: "black-translucent" },
+  appleWebApp: { capable: true, title: client.shortName, statusBarStyle: "black-translucent" },
+  icons: { apple: iconPath("apple-icon.png"), icon: iconPath("icon-192.png") },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#12181f",
+  themeColor: client.themeColor,
 };
+
+const themeStyle = { ...client.theme, "--tint": client.backgroundTint } as CSSProperties;
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="es" className={`${plex.variable} ${grotesk.variable} h-full antialiased`}>
+    <html lang="es" className={`${plex.variable} ${grotesk.variable} h-full antialiased`} style={themeStyle}>
       <body className="min-h-full flex flex-col">
         <NavigationTrail />
         {children}

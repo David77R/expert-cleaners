@@ -1,13 +1,25 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { client } from "@/config/clients";
 import { BUSINESS_TIMEZONE } from "@/domain/date-rules";
+
+function hexToRgb(hex: string) {
+  const value = hex.replace("#", "");
+  return rgb(
+    parseInt(value.slice(0, 2), 16) / 255,
+    parseInt(value.slice(2, 4), 16) / 255,
+    parseInt(value.slice(4, 6), 16) / 255,
+  );
+}
 
 export const PAGE = { width: 612, height: 792 };
 export const MARGIN = 54;
 export const CONTENT_WIDTH = PAGE.width - MARGIN * 2;
 
 export const COLORS = {
-  brand: rgb(13 / 255, 156 / 255, 142 / 255),
-  brandSoft: rgb(223 / 255, 244 / 255, 240 / 255),
+  brand: client.theme["--brand"] ? hexToRgb(client.theme["--brand"]) : rgb(13 / 255, 156 / 255, 142 / 255),
+  brandSoft: client.theme["--brand-soft"]
+    ? hexToRgb(client.theme["--brand-soft"])
+    : rgb(223 / 255, 244 / 255, 240 / 255),
   ink: rgb(21 / 255, 26 / 255, 33 / 255),
   muted: rgb(110 / 255, 116 / 255, 124 / 255),
   hair: rgb(227 / 255, 225 / 255, 218 / 255),
@@ -98,9 +110,9 @@ export function formatBusinessDateTime(date: Date): string {
 export async function createPdf(title: string, date: Date) {
   const pdf = await PDFDocument.create({ updateMetadata: false });
   pdf.setTitle(title);
-  pdf.setAuthor("Expert Cleaners");
-  pdf.setCreator("Expert Cleaners");
-  pdf.setProducer("Expert Cleaners");
+  pdf.setAuthor(client.name);
+  pdf.setCreator(client.name);
+  pdf.setProducer(client.name);
   pdf.setCreationDate(date);
   pdf.setModificationDate(date);
 
@@ -136,8 +148,8 @@ export function drawBrandHeader(
   sub: string,
 ) {
   page.drawRectangle({ x: 0, y: PAGE.height - 92, width: PAGE.width, height: 92, color: COLORS.brand });
-  draw("Expert Cleaners", MARGIN, PAGE.height - 52, { size: 24, font: bold, color: COLORS.white });
-  draw("Miami, FL", MARGIN, PAGE.height - 70, { size: 10, color: COLORS.white });
+  draw(client.shortName, MARGIN, PAGE.height - 52, { size: 24, font: bold, color: COLORS.white });
+  draw(client.location.label, MARGIN, PAGE.height - 70, { size: 10, color: COLORS.white });
   draw(heading, PAGE.width - MARGIN, PAGE.height - 48, { size: 20, font: bold, color: COLORS.white, align: "right" });
   draw(sub, PAGE.width - MARGIN, PAGE.height - 68, { size: 12, color: COLORS.white, align: "right" });
 }

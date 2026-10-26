@@ -1,3 +1,4 @@
+import { client } from "@/config/clients";
 import { env } from "@/lib/env";
 
 export interface GeocodeInput {
@@ -21,7 +22,7 @@ export interface Geocoder {
 
 const ORS_GEOCODE_URL = "https://api.openrouteservice.org/geocode/search";
 const ORS_STRUCTURED_URL = "https://api.openrouteservice.org/geocode/search/structured";
-const SERVICE_AREA = { lat: 25.7617, lng: -80.1918, radiusKm: 200 };
+const SERVICE_AREA = { ...client.location.center, radiusKm: client.location.radiusKm };
 const PRECISE_LAYERS = new Set(["address", "venue"]);
 
 type GeocodeFeature = {
@@ -213,7 +214,7 @@ async function requestCensus(input: GeocodeInput, withZip: boolean, timeoutMs = 
   const url = new URL(CENSUS_URL);
   url.searchParams.set("street", input.line1.trim());
   if (input.city.trim()) url.searchParams.set("city", input.city.trim());
-  url.searchParams.set("state", input.state.trim() || "FL");
+  url.searchParams.set("state", input.state.trim() || client.location.state);
   if (withZip && input.zip.trim()) url.searchParams.set("zip", zip5(input.zip));
   url.searchParams.set("benchmark", "Public_AR_Current");
   url.searchParams.set("format", "json");
@@ -298,7 +299,7 @@ export type AddressSuggestion = {
 };
 
 const ORS_AUTOCOMPLETE_URL = "https://api.openrouteservice.org/geocode/autocomplete";
-const MIAMI_FOCUS = { lat: 25.7617, lng: -80.1918 };
+const AREA_FOCUS = client.location.center;
 const MAX_SUGGESTIONS = 6;
 const SUGGEST_TIMEOUT_MS = 4000;
 const CACHE_TTL_MS = 10 * 60 * 1000;
@@ -341,7 +342,7 @@ export function parseSuggestions(data: unknown): AddressSuggestion[] {
 }
 
 const PHOTON_URL = "https://photon.komoot.io/api/";
-const SOUTH_FLORIDA_BBOX = "-81.9,24.4,-79.9,27.3";
+const AREA_BBOX = client.location.bbox;
 
 const US_STATES: Record<string, string> = {
   alabama: "AL",
@@ -457,8 +458,8 @@ function orsSuggestionUrl(base: string, apiKey: string, query: string): URL {
   url.searchParams.set("api_key", apiKey);
   url.searchParams.set("text", query);
   url.searchParams.set("boundary.country", "US");
-  url.searchParams.set("focus.point.lat", String(MIAMI_FOCUS.lat));
-  url.searchParams.set("focus.point.lon", String(MIAMI_FOCUS.lng));
+  url.searchParams.set("focus.point.lat", String(AREA_FOCUS.lat));
+  url.searchParams.set("focus.point.lon", String(AREA_FOCUS.lng));
   url.searchParams.set("layers", "address,street,venue");
   url.searchParams.set("size", String(MAX_SUGGESTIONS));
   return url;
@@ -511,9 +512,9 @@ function photonUrl(query: string): URL {
   photon.searchParams.set("q", query);
   photon.searchParams.set("limit", String(MAX_SUGGESTIONS * 2));
   photon.searchParams.set("lang", "en");
-  photon.searchParams.set("lat", String(MIAMI_FOCUS.lat));
-  photon.searchParams.set("lon", String(MIAMI_FOCUS.lng));
-  photon.searchParams.set("bbox", SOUTH_FLORIDA_BBOX);
+  photon.searchParams.set("lat", String(AREA_FOCUS.lat));
+  photon.searchParams.set("lon", String(AREA_FOCUS.lng));
+  photon.searchParams.set("bbox", AREA_BBOX);
   return photon;
 }
 
@@ -523,7 +524,8 @@ const MAX_VERIFICATIONS = 6;
 async function censusFromQuery(query: string): Promise<AddressSuggestion[]> {
   const house = splitHouseNumber(query);
   if (!house) return [];
-  const line = /,|\bfl\b|\bflorida\b/i.test(query) ? query : `${query}, FL`;
+  const mentionsState = new RegExp(`,|\\b${client.location.state}\\b|\\b${client.location.stateName}\\b`, "i");
+  const line = mentionsState.test(query) ? query : `${query}, ${client.location.state}`;
   return parseCensusSuggestions(await requestCensusOneLine(line, SUGGEST_CENSUS_TIMEOUT_MS), house.number);
 }
 
@@ -571,7 +573,12 @@ async function verifyWithCensus(
     candidates.map(async (candidate) => {
       const zip = zip5(candidate.zip);
       const data = await requestCensus(
-        { line1: candidate.line1, city: zip ? "" : candidate.city, state: candidate.state || "FL", zip },
+        {
+          line1: candidate.line1,
+          city: zip ? "" : candidate.city,
+          state: candidate.state || client.location.state,
+          zip,
+        },
         zip !== "",
         SUGGEST_CENSUS_TIMEOUT_MS,
       );

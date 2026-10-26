@@ -59,9 +59,9 @@
 body {
   background-color: var(--canvas);
   background-image:
-    radial-gradient(60rem 40rem at 100% 0%, rgb(13 156 142 / 0.07), transparent 70%),
+    radial-gradient(60rem 40rem at 100% 0%, rgb(var(--tint, 13 156 142) / 0.07), transparent 70%),
     radial-gradient(50rem 36rem at 0% 100%, rgb(76 95 224 / 0.05), transparent 70%),
-    linear-gradient(180deg, #f3f6f6 0%, #eef2f1 100%);
+    linear-gradient(180deg, color-mix(in srgb, var(--canvas) 55%, #ffffff) 0%, var(--canvas) 100%);
   background-attachment: fixed;
   color: var(--ink);
   font-family: var(--font-plex), system-ui, sans-serif;

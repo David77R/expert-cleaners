@@ -46,6 +46,7 @@ import { formatAddress, formatMoney } from "@/domain/invoice";
 import { addDays, confirmationMessage, whatsappHref } from "@/domain/order";
 import { guessServiceIcon } from "@/domain/service-icons";
 import { calendarHref } from "@/lib/calendar-links";
+import { DEFAULT_STATE } from "@/domain/customer-form";
 
 type Line = {
   uid: number;
@@ -381,7 +382,7 @@ function ScheduleForm({
                 <input
                   name={`${DESTINATION_PREFIX}state`}
                   maxLength={2}
-                  defaultValue={initial?.destination?.state ?? "FL"}
+                  defaultValue={initial?.destination?.state ?? DEFAULT_STATE}
                   className={`${FIELD} uppercase`}
                 />
               </label>

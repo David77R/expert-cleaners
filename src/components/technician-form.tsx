@@ -40,7 +40,7 @@ export function TechnicianForm({
               name="zone"
               defaultValue={values.zone}
               required
-              placeholder="Ej: Miami Central"
+              placeholder="Ej: Zona norte"
               className={INPUT}
             />
           )}

@@ -11,6 +11,7 @@ import { calendarHref } from "@/lib/calendar-links";
 import { DateJump } from "@/components/date-jump";
 import { Icon } from "@/components/icons";
 import type { CalendarTechnician } from "@/components/calendar-types";
+import { client } from "@/config/clients";
 
 const VIEW_LABEL: Record<CalendarView, string> = { day: "Día", week: "Semana", month: "Mes" };
 const STEP_LABEL: Record<CalendarView, string> = { day: "día", week: "semana", month: "mes" };
@@ -95,30 +96,32 @@ export function CalendarToolbar({
         </div>
 
         <div className="grid w-full grid-cols-2 items-center gap-x-3 gap-y-3 sm:flex sm:w-auto sm:flex-wrap sm:gap-x-6">
-          <Link
-            href={toggleHref}
-            scroll={false}
-            aria-pressed={entregas}
-            className={`flex items-center justify-center gap-2 rounded-md border px-3.5 py-2.5 text-sm font-semibold transition-colors ${
-              entregas
-                ? "border-brand bg-brand-soft text-brand-ink"
-                : "border-dashed border-hair bg-paper text-soft hover:text-ink"
-            }`}
-          >
-            <span
-              aria-hidden="true"
-              className={`flex h-4 w-4 items-center justify-center rounded-[3px] border text-[10px] ${
-                entregas ? "border-brand bg-brand text-white" : "border-hair"
+          {client.features.rugPickup && (
+            <Link
+              href={toggleHref}
+              scroll={false}
+              aria-pressed={entregas}
+              className={`flex items-center justify-center gap-2 rounded-md border px-3.5 py-2.5 text-sm font-semibold transition-colors ${
+                entregas
+                  ? "border-brand bg-brand-soft text-brand-ink"
+                  : "border-dashed border-hair bg-paper text-soft hover:text-ink"
               }`}
             >
-              {entregas ? "✓" : ""}
-            </span>
-            Entregas
-            <span className="font-display tabular-nums text-muted">{deliveryCount}</span>
-          </Link>
+              <span
+                aria-hidden="true"
+                className={`flex h-4 w-4 items-center justify-center rounded-[3px] border text-[10px] ${
+                  entregas ? "border-brand bg-brand text-white" : "border-hair"
+                }`}
+              >
+                {entregas ? "✓" : ""}
+              </span>
+              Entregas
+              <span className="font-display tabular-nums text-muted">{deliveryCount}</span>
+            </Link>
+          )}
           <Link
             href={newAppointmentHref}
-            className="flex items-center justify-center gap-2 rounded-md bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            className={`flex items-center justify-center gap-2 ${client.features.rugPickup ? "" : "col-span-2"} rounded-md bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90`}
           >
             <Icon name="plus" />
             Nueva cita

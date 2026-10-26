@@ -5,6 +5,7 @@ import { AppointmentItemsEditor, type EditorItem } from "@/components/appointmen
 import { INPUT } from "@/components/form-kit";
 import type { ItemValues } from "@/domain/appointment-items";
 import { DESTINATION_PREFIX, type FormService } from "@/domain/appointment-form";
+import { DEFAULT_STATE } from "@/domain/customer-form";
 
 const DESTINATION_INPUTS = [
   { field: "line1", label: "Calle y número" },
@@ -55,7 +56,7 @@ export function PanelItemsForm({
               {label}
               <input
                 name={`${DESTINATION_PREFIX}${field}`}
-                defaultValue={field === "state" ? "FL" : ""}
+                defaultValue={field === "state" ? DEFAULT_STATE : ""}
                 className={INPUT}
               />
             </label>

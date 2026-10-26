@@ -22,6 +22,7 @@ import {
 import { formatMinutes } from "@/domain/appointment-rules";
 import { formatAddress } from "@/domain/invoice";
 import { calendarHref } from "@/lib/calendar-links";
+import { DEFAULT_STATE } from "@/domain/customer-form";
 
 function AppointmentField(props: Omit<ComponentProps<typeof Field>, "prefix">) {
   return <Field prefix="appointment" {...props} />;
@@ -241,7 +242,7 @@ export function AppointmentForm({
                     <input
                       {...props}
                       name={`${DESTINATION_PREFIX}state`}
-                      defaultValue={values[`${DESTINATION_PREFIX}state`] ?? "FL"}
+                      defaultValue={values[`${DESTINATION_PREFIX}state`] ?? DEFAULT_STATE}
                       maxLength={2}
                       className={`${INPUT} uppercase`}
                     />

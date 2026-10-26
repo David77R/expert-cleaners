@@ -6,6 +6,7 @@ import { itemsPayloadFromValues } from "@/domain/appointment-items";
 import { DESTINATION_PREFIX, destinationFromValues, readAppointmentForm } from "@/domain/appointment-form";
 import { runAction } from "@/server/actions";
 import type { Db } from "@/server/appointments";
+import { DEFAULT_STATE } from "@/domain/customer-form";
 
 export type PanelAction =
   | "confirm"
@@ -60,7 +61,7 @@ export function payloadFromForm(action: PanelAction, form: FormData): Record<str
           line1: text(form, "line1"),
           unit: text(form, "unit"),
           city: text(form, "city"),
-          state: text(form, "state") || "FL",
+          state: text(form, "state") || DEFAULT_STATE,
           zip: text(form, "zip"),
           ...(text(form, "lat") && text(form, "lng") && Number.isFinite(lat) && Number.isFinite(lng)
             ? { lat, lng }

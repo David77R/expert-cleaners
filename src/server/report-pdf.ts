@@ -1,4 +1,5 @@
 import type { PDFFont, PDFPage } from "pdf-lib";
+import { client } from "@/config/clients";
 import { formatMoney } from "@/domain/invoice";
 import {
   COLORS,
@@ -17,8 +18,7 @@ import type { AgentReport, ReportMetrics } from "@/server/reports";
 
 const BOTTOM_LIMIT = 78;
 const ROW_HEIGHT = 22;
-const NOTE =
-  "Las citas agendadas se cuentan por la fecha en que cada agente las creó, en horario de Miami. El dinero excluye las citas canceladas.";
+const NOTE = `Las citas agendadas se cuentan por la fecha en que cada agente las creó, en horario de ${client.location.city}. El dinero excluye las citas canceladas.`;
 const NUMERIC_EDGES = [192, 236, 280, 352, 424, 496];
 
 export function formatPeriod(from: string, to: string): string {
@@ -200,7 +200,7 @@ export async function renderReportPdf(report: AgentReport, generatedAt: Date): P
       thickness: 0.75,
       color: COLORS.hair,
     });
-    draw("Expert Cleaners", MARGIN, 44, { size: 9, color: COLORS.muted });
+    draw(client.shortName, MARGIN, 44, { size: 9, color: COLORS.muted });
     draw(`Página ${index + 1} de ${pages.length}`, MARGIN + CONTENT_WIDTH, 44, {
       size: 9,
       color: COLORS.muted,

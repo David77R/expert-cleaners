@@ -1,3 +1,4 @@
+import { client } from "@/config/clients";
 import { formatMinutes } from "@/domain/appointment-rules";
 import { formatMoney, type InvoiceData } from "@/domain/invoice";
 import {
@@ -115,7 +116,7 @@ export async function renderInvoicePdf(invoice: InvoiceData): Promise<Uint8Array
     color: statusColor,
   });
 
-  drawFooter(page, draw, "Gracias por confiar en Expert Cleaners.");
+  drawFooter(page, draw, `Gracias por confiar en ${client.shortName}.`);
 
   return pdf.save();
 }

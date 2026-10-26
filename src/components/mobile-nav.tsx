@@ -18,6 +18,7 @@ export function MobileNav({
   userInitials,
   roleLabel,
   bell,
+  brand,
   logout,
 }: {
   links: MobileLink[];
@@ -27,6 +28,7 @@ export function MobileNav({
   userInitials: string;
   roleLabel: string;
   bell: ReactNode;
+  brand: ReactNode;
   logout: () => Promise<void>;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -58,12 +60,8 @@ export function MobileNav({
   return (
     <>
       <header className="sticky top-0 z-30 flex items-center gap-2 bg-rail px-3 pb-2 pt-[max(0.5rem,env(safe-area-inset-top))] lg:hidden">
-        <Link
-          href="/inicio"
-          aria-label="Expert Cleaners: inicio"
-          className="font-display flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-brand text-sm font-bold text-white"
-        >
-          EC
+        <Link href="/inicio" aria-label="Inicio" className="flex shrink-0 items-center">
+          {brand}
         </Link>
         <span className="font-display min-w-0 flex-1 truncate text-base font-semibold text-white">{title}</span>
         <button

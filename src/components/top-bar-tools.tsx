@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { Icon } from "@/components/icons";
+import { client } from "@/config/clients";
 import { formatPhone } from "@/domain/customer-rules";
 
 type Found = { id: string; code: string; firstName: string; lastName: string; phone: string };
@@ -28,7 +29,7 @@ export function MiamiClock() {
         {TIME.format(now)}
       </span>
       <span className="text-[11px] text-muted first-letter:uppercase" suppressHydrationWarning>
-        Miami · {DAY.format(now)}
+        {client.location.city} · {DAY.format(now)}
       </span>
     </span>
   );

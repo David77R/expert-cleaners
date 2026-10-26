@@ -1,10 +1,12 @@
+import { client } from "@/config/clients";
 import { slugify } from "./service-rules";
 
 const PICKUP_WORDS = new Set(["rug", "rugs", "alfombra", "alfombras", "tapete", "tapetes"]);
 
 type ServiceLike = { name: string; slug?: string | null; category?: string | null };
 
-export function isPickupService(service: ServiceLike): boolean {
+export function isPickupService(service: ServiceLike, enabled: boolean = client.features.rugPickup): boolean {
+  if (!enabled) return false;
   const words = [service.name, service.slug ?? "", service.category ?? ""]
     .map((value) => slugify(value))
     .join("-")

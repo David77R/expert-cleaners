@@ -1,3 +1,4 @@
+import { client } from "@/config/clients";
 import { formatMinutes } from "./appointment-rules";
 import { formatDayLabel } from "./calendar-view";
 import { formatMoney } from "./invoice";
@@ -34,7 +35,7 @@ export function confirmationMessage(order: {
   totalCents: number;
 }): string {
   const lines = [
-    `Hola ${order.customerName.trim()}, le confirmamos su servicio con Expert Cleaners.`,
+    `Hola ${order.customerName.trim()}, le confirmamos su servicio con ${client.shortName}.`,
     "",
     `${order.kind === "visit" ? "Cita" : "Recogida"}: ${formatDayLabel(order.pickup.date)}, ${formatMinutes(order.pickup.startMin)}`,
   ];

@@ -1,21 +1,22 @@
 import type { MetadataRoute } from "next";
+import { client, iconPath } from "@/config/clients";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Expert Cleaners",
-    short_name: "Expert Cleaners",
+    name: client.name,
+    short_name: client.shortName,
     description: "Operación diaria: calendario, rutas y citas",
     start_url: "/inicio",
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    background_color: "#eef2f1",
-    theme_color: "#12181f",
+    background_color: client.theme["--canvas"] ?? "#eef2f1",
+    theme_color: client.themeColor,
     lang: "es",
     icons: [
-      { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
-      { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
-      { src: "/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+      { src: iconPath("icon-192.png"), sizes: "192x192", type: "image/png" },
+      { src: iconPath("icon-512.png"), sizes: "512x512", type: "image/png" },
+      { src: iconPath("icon-maskable-512.png"), sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
   };
 }

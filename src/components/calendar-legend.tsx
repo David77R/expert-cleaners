@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Icon } from "@/components/icons";
 import { LegendDisclosure } from "@/components/legend-disclosure";
+import { client } from "@/config/clients";
 import { initialsOf, readableOn } from "@/domain/calendar-view";
 import type { CalendarTechnician } from "@/components/calendar-types";
 
@@ -131,30 +132,34 @@ export function CalendarLegend({ technicians }: { technicians: CalendarTechnicia
                 </Sample>
               }
             />
-            <Item
-              title="Alfombras: recogida"
-              text="Franja morada. Solo las alfombras llevan recogida y entrega."
-              sample={
-                <Sample>
-                  <span className="flex h-3 shrink-0 items-center whitespace-nowrap bg-indigo px-1 text-[6.5px] font-bold uppercase text-white">
-                    Recogida
-                  </span>
-                  <Header />
-                </Sample>
-              }
-            />
-            <Item
-              title="Alfombras: entrega"
-              text="Franja verde y borde punteado. Se ven al activar «Entregas»."
-              sample={
-                <Sample className="!border-2 border-dashed">
-                  <span className="flex h-3 shrink-0 items-center whitespace-nowrap bg-success px-1 text-[6.5px] font-bold uppercase text-white">
-                    Entrega
-                  </span>
-                  <Header />
-                </Sample>
-              }
-            />
+            {client.features.rugPickup && (
+              <>
+                <Item
+                  title="Alfombras: recogida"
+                  text="Franja morada. Solo las alfombras llevan recogida y entrega."
+                  sample={
+                    <Sample>
+                      <span className="flex h-3 shrink-0 items-center whitespace-nowrap bg-indigo px-1 text-[6.5px] font-bold uppercase text-white">
+                        Recogida
+                      </span>
+                      <Header />
+                    </Sample>
+                  }
+                />
+                <Item
+                  title="Alfombras: entrega"
+                  text="Franja verde y borde punteado. Se ven al activar «Entregas»."
+                  sample={
+                    <Sample className="!border-2 border-dashed">
+                      <span className="flex h-3 shrink-0 items-center whitespace-nowrap bg-success px-1 text-[6.5px] font-bold uppercase text-white">
+                        Entrega
+                      </span>
+                      <Header />
+                    </Sample>
+                  }
+                />
+              </>
+            )}
             <Item
               title="Cancelada"
               text="Se ve tenue y con el texto tachado."
@@ -183,13 +188,15 @@ export function CalendarLegend({ technicians }: { technicians: CalendarTechnicia
             </span>
             Aro y «!»: sin confirmar
           </span>
-          <span className="flex items-center gap-2">
-            <span
-              className="flex h-4 w-4 rotate-45 items-center justify-center rounded-[3px] border-2 border-white shadow"
-              style={{ backgroundColor: SAMPLE_COLOR }}
-            />
-            Rombo: entrega
-          </span>
+          {client.features.rugPickup && (
+            <span className="flex items-center gap-2">
+              <span
+                className="flex h-4 w-4 rotate-45 items-center justify-center rounded-[3px] border-2 border-white shadow"
+                style={{ backgroundColor: SAMPLE_COLOR }}
+              />
+              Rombo: entrega
+            </span>
+          )}
           <span>El número es el orden de la ruta del técnico.</span>
         </div>
       </LegendDisclosure>

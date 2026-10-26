@@ -9,6 +9,7 @@ import { formatRange, initialsOf, readableOn } from "@/domain/calendar-view";
 import { appointmentIdFromKey } from "@/domain/delivery";
 import { spreadPositions } from "@/domain/map-positions";
 import { Icon } from "@/components/icons";
+import { client } from "@/config/clients";
 
 export type MapStop = {
   id: string;
@@ -44,7 +45,7 @@ export type MapRouteDraft = {
 
 const DEFAULT_ROUTE_COLOR = "#1d4ed8";
 const DRAFT_ROUTE_COLOR = "#7c3aed";
-const DEFAULT_CENTER: [number, number] = [25.7617, -80.1918]; // Miami-Dade
+const DEFAULT_CENTER: [number, number] = [client.location.center.lat, client.location.center.lng];
 const DEFAULT_ZOOM = 10;
 
 function numberedIcon(

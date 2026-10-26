@@ -1,3 +1,4 @@
+import { client } from "@/config/clients";
 import type { ZodError } from "zod";
 
 export const FORM_FIELDS = [
@@ -18,7 +19,7 @@ export type CustomerFormField = (typeof FORM_FIELDS)[number];
 export type CustomerFormValues = Record<CustomerFormField | "allowMarketing" | "lat" | "lng", string>;
 export type CustomerFormErrors = Partial<Record<CustomerFormField, string>>;
 
-export const DEFAULT_STATE = "FL";
+export const DEFAULT_STATE = client.location.state;
 
 const FIELD_MESSAGES: Partial<Record<CustomerFormField, string>> = {
   phone: "Escribe un teléfono válido (mínimo 7 dígitos)",

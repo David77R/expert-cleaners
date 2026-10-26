@@ -36,7 +36,7 @@ export function AgentForm({ agentId, initialValues }: { agentId?: string; initia
               defaultValue={values.email}
               required
               autoComplete="off"
-              placeholder="agente@expertcleaners.com"
+              placeholder="agente@empresa.com"
               className={INPUT}
             />
           )}

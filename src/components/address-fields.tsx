@@ -3,6 +3,7 @@
 import { useId } from "react";
 import { AddressAutocomplete } from "@/components/address-autocomplete";
 import { FIELD } from "@/components/panel-kit";
+import { DEFAULT_STATE } from "@/domain/customer-form";
 
 type AddressDefaults = {
   line1?: string;
@@ -39,7 +40,12 @@ export function AddressFields({ defaults = {} }: { defaults?: AddressDefaults })
       </label>
       <label className={label}>
         Estado
-        <input name="state" maxLength={2} defaultValue={defaults.state ?? "FL"} className={`${FIELD} uppercase`} />
+        <input
+          name="state"
+          maxLength={2}
+          defaultValue={defaults.state ?? DEFAULT_STATE}
+          className={`${FIELD} uppercase`}
+        />
       </label>
       <label className={label}>
         Código postal

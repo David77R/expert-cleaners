@@ -6,7 +6,9 @@ import { todayIn } from "@/domain/date-rules";
 import { logout } from "@/app/login/actions";
 import { AlertsBell, BellLink } from "@/components/alerts-bell";
 import { Icon, type IconName } from "@/components/icons";
+import { BrandMark } from "@/components/brand-mark";
 import { MobileNav } from "@/components/mobile-nav";
+import { client } from "@/config/clients";
 import { GlobalSearch, MiamiClock } from "@/components/top-bar-tools";
 
 type Section =
@@ -37,13 +39,11 @@ const TITLES: Record<Section, string> = {
 
 function Brand() {
   return (
-    <Link href="/inicio" aria-label="Expert Cleaners: inicio" className="flex shrink-0 items-center gap-3">
-      <span className="font-display flex h-9 w-9 items-center justify-center rounded-md bg-brand text-sm font-bold text-white">
-        EC
-      </span>
-      <span className="font-display text-[17px] font-semibold leading-none text-white">
-        Expert Cleaners
-        <span className="mt-1 block text-[11px] font-normal text-rail-text">Centro de operaciones</span>
+    <Link href="/inicio" aria-label={`${client.name}: inicio`} className="flex shrink-0 items-center gap-3">
+      <BrandMark size={client.logo ? "lg" : "md"} />
+      <span className="font-display min-w-0 text-[17px] font-semibold leading-none text-white">
+        {client.logo ? <span className="sr-only">{client.name}</span> : client.shortName}
+        <span className="mt-1 block text-[11px] font-normal text-rail-text">{client.tagline}</span>
       </span>
     </Link>
   );
@@ -136,6 +136,7 @@ export function AppShell({ active, actor, children }: { active: Section; actor: 
         userInitials={initialsOf(actor.name)}
         roleLabel={actor.role === "admin" ? "Administrador" : "Agente"}
         logout={logout}
+        brand={<BrandMark size="sm" />}
         bell={
           <Suspense fallback={<BellLink count={null} active={active === "alerts"} tone="dark" />}>
             <AlertsBell active={active === "alerts"} tone="dark" />
