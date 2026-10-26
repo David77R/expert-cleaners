@@ -11,7 +11,6 @@ import { calendarHref } from "@/lib/calendar-links";
 import { DateJump } from "@/components/date-jump";
 import { Icon } from "@/components/icons";
 import type { CalendarTechnician } from "@/components/calendar-types";
-import { client } from "@/config/clients";
 
 const VIEW_LABEL: Record<CalendarView, string> = { day: "Día", week: "Semana", month: "Mes" };
 const STEP_LABEL: Record<CalendarView, string> = { day: "día", week: "semana", month: "mes" };
@@ -26,6 +25,7 @@ export function CalendarToolbar({
   entregas,
   deliveryCount,
   estado = null,
+  rugPickup,
 }: {
   view: CalendarView;
   date: string;
@@ -36,6 +36,7 @@ export function CalendarToolbar({
   entregas: boolean;
   deliveryCount: number;
   estado?: string | null;
+  rugPickup: boolean;
 }) {
   const heading = viewHeading(view, date);
   const previous = calendarHref({ view, date: shiftAnchor(view, date, -1), tech, mapa, entregas, estado });
@@ -96,7 +97,7 @@ export function CalendarToolbar({
         </div>
 
         <div className="grid w-full grid-cols-2 items-center gap-x-3 gap-y-3 sm:flex sm:w-auto sm:flex-wrap sm:gap-x-6">
-          {client.features.rugPickup && (
+          {rugPickup && (
             <Link
               href={toggleHref}
               scroll={false}
@@ -121,7 +122,7 @@ export function CalendarToolbar({
           )}
           <Link
             href={newAppointmentHref}
-            className={`flex items-center justify-center gap-2 ${client.features.rugPickup ? "" : "col-span-2"} rounded-md bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90`}
+            className={`flex items-center justify-center gap-2 ${rugPickup ? "" : "col-span-2"} rounded-md bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90`}
           >
             <Icon name="plus" />
             Nueva cita

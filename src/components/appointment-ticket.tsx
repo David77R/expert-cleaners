@@ -35,6 +35,7 @@ export function AppointmentTicket({
   peers = [],
   className = "",
   style,
+  rugPickup: rugEnabled,
 }: {
   appointment: CalendarAppointment;
   nav: CalendarNav;
@@ -44,6 +45,7 @@ export function AppointmentTicket({
   peers?: readonly CalendarAppointment[];
   className?: string;
   style?: CSSProperties;
+  rugPickup: boolean;
 }) {
   const cancelled = appointment.status === "cancelled";
   const delivery = appointment.kind === "delivery";
@@ -56,7 +58,7 @@ export function AppointmentTicket({
   const partners = conflicting ? conflictPartners(appointment, peers) : [];
   const dashed = delivery;
   const unconfirmed = !delivery && appointment.status === "not_confirmed";
-  const rugPickup = !delivery && appointmentNeedsPickup(appointment);
+  const rugPickup = !delivery && appointmentNeedsPickup(appointment, rugEnabled);
 
   const conflictHint = (
     <span className="flex flex-col gap-1">

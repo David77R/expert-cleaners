@@ -29,10 +29,9 @@ import { formatDayLabel, formatRange } from "@/domain/calendar-view";
 import { formatAddress, formatMoney } from "@/domain/invoice";
 import { calendarHref } from "@/lib/calendar-links";
 import { getAppointment } from "@/server/appointments";
-import { getActor } from "@/server/auth";
+import { getActor, getBrand } from "@/server/auth";
 import { panelPhotos } from "@/server/photos";
 import { getPhotoStorage } from "@/server/storage";
-import { client } from "@/config/clients";
 import { listVehicles } from "@/server/vehicles";
 import { vehicleSummary } from "@/domain/vehicles";
 
@@ -59,6 +58,7 @@ function Card({ title, hint, children }: { title: string; hint?: string; childre
 export default async function EditAppointmentPage({ params, searchParams }: PageProps<"/appointments/[id]/edit">) {
   const actor = await getActor();
   if (!actor) redirect("/login");
+  const brand = await getBrand();
 
   const { id } = await params;
   if (!z.uuid().safeParse(id).success) notFound();
@@ -103,7 +103,7 @@ export default async function EditAppointmentPage({ params, searchParams }: Page
             vehicle: null,
           },
         ];
-  const vehicles = client.features.vehicles ? await listVehicles(db, actor.companyId, appointment.customer.id) : [];
+  const vehicles = brand.features.vehicles ? await listVehicles(db, actor.companyId, appointment.customer.id) : [];
   const customer = appointment.customer;
 
   return (
@@ -254,7 +254,7 @@ export default async function EditAppointmentPage({ params, searchParams }: Page
               </Card>
             )}
 
-            {(appointmentNeedsPickup(appointment) || hasDelivery(appointment)) && (
+            {(appointmentNeedsPickup(appointment, brand.features.rugPickup) || hasDelivery(appointment)) && (
               <div className="overflow-hidden rounded-md border border-indigo/40 bg-paper [&>section]:border-t-0">
                 <AppointmentDeliverySection
                   appointment={appointment}

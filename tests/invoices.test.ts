@@ -1,4 +1,5 @@
 import { PDFName } from "pdf-lib";
+import { EXPERT_BRAND } from "./brands";
 import { EXPERT_CLEANERS_COMPANY_ID } from "@/domain/companies";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { AGENT_JOSUE } from "@/db/seed-data";
@@ -137,7 +138,7 @@ describe("texto seguro para PDF", () => {
 
 describe("PDF de factura", () => {
   it("genera un PDF válido de una página tamaño carta con metadatos del negocio", async () => {
-    const bytes = await renderInvoicePdf(buildInvoice(source()));
+    const bytes = await renderInvoicePdf(buildInvoice(source()), EXPERT_BRAND);
     expect(Buffer.from(bytes.slice(0, 5)).toString()).toBe("%PDF-");
 
     const pdf = await loadPdf(bytes);
@@ -149,19 +150,19 @@ describe("PDF de factura", () => {
   });
 
   it("incluye número, cliente, servicio, total y estado de pago", async () => {
-    const unpaid = await pageText(await renderInvoicePdf(buildInvoice(source())));
+    const unpaid = await pageText(await renderInvoicePdf(buildInvoice(source()), EXPERT_BRAND));
     for (const expected of ["INV-2031", "Andrés Peña", "Limpieza de Alfombras", "$180.00", "PENDIENTE DE PAGO"]) {
       expect(unpaid).toContain(hexOf(expected));
     }
 
-    const paid = await pageText(await renderInvoicePdf(buildInvoice(source({ paymentStatus: "paid" }))));
+    const paid = await pageText(await renderInvoicePdf(buildInvoice(source({ paymentStatus: "paid" })), EXPERT_BRAND));
     expect(paid).toContain(hexOf("PAGADA"));
     expect(paid).not.toContain(hexOf("PENDIENTE DE PAGO"));
   });
 
   it("produce exactamente los mismos bytes para la misma factura", async () => {
-    const first = await renderInvoicePdf(buildInvoice(source()));
-    const second = await renderInvoicePdf(buildInvoice(source()));
+    const first = await renderInvoicePdf(buildInvoice(source()), EXPERT_BRAND);
+    const second = await renderInvoicePdf(buildInvoice(source()), EXPERT_BRAND);
     expect(Buffer.from(first).equals(Buffer.from(second))).toBe(true);
   });
 
@@ -174,6 +175,7 @@ describe("PDF de factura", () => {
           billingAddress: { line1: long, unit: "", city: "Miami", state: "FL", zip: "33131" },
         }),
       ),
+      EXPERT_BRAND,
     );
     expect((await loadPdf(bytes)).getPageCount()).toBe(1);
   });
@@ -187,6 +189,7 @@ describe("PDF de factura", () => {
           specs: { length: "14 📏", carpetType: "Lana" },
         }),
       ),
+      EXPERT_BRAND,
     );
     const text = await pageText(bytes);
     expect(text).toContain(hexOf("Calle ? 12"));
@@ -194,7 +197,7 @@ describe("PDF de factura", () => {
   });
 
   it("el recurso de contenido existe en la página", async () => {
-    const pdf = await loadPdf(await renderInvoicePdf(buildInvoice(source())));
+    const pdf = await loadPdf(await renderInvoicePdf(buildInvoice(source()), EXPERT_BRAND));
     expect(pdf.getPage(0).node.Resources()?.has(PDFName.of("Font"))).toBe(true);
   });
 });

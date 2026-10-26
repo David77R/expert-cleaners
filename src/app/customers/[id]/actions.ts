@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { z, ZodError } from "zod";
 import { getDb } from "@/db/client";
 import { DomainError } from "@/domain/appointment-rules";
-import { getActor } from "@/server/auth";
+import { getActor, getBrand } from "@/server/auth";
 import { getPhotoStorage } from "@/server/storage";
 import {
   addAddress,
@@ -18,7 +18,7 @@ import {
   relocateAddress,
   updateAddress,
 } from "@/server/customers";
-import { DEFAULT_STATE, coordinatesFrom } from "@/domain/customer-form";
+import { coordinatesFrom } from "@/domain/customer-form";
 import type { ActionState } from "@/app/calendar/actions";
 import type { VehicleSize } from "@/domain/vehicles";
 import { createVehicle, deleteVehicle, updateVehicle } from "@/server/vehicles";
@@ -106,13 +106,13 @@ export async function mergeCustomerAction(
   redirect(`/customers/${targetId}?aviso=unido`);
 }
 
-function addressFromForm(formData: FormData) {
+function addressFromForm(formData: FormData, defaultState: string) {
   const field = (name: string) => String(formData.get(name) ?? "").trim();
   return {
     line1: field("line1"),
     unit: field("unit"),
     city: field("city"),
-    state: (field("state") || DEFAULT_STATE).toUpperCase(),
+    state: (field("state") || defaultState).toUpperCase(),
     zip: field("zip"),
     notes: field("notes"),
     ...coordinatesFrom(field("lat"), field("lng")),
@@ -147,7 +147,7 @@ function afterAddressChange(customerId: string, previous: ActionState, notice?: 
 export async function addAddressAction(customerId: string, previous: ActionState, formData: FormData) {
   const { companyId } = await addressActor();
   try {
-    const { notes, ...address } = addressFromForm(formData);
+    const { notes, ...address } = addressFromForm(formData, (await getBrand()).location.state);
     const created = await addAddress(getDb(), companyId, customerId, { ...address, ...(notes ? { notes } : {}) });
     return afterAddressChange(
       customerId,
@@ -167,7 +167,7 @@ export async function updateAddressAction(
 ) {
   const { companyId } = await addressActor();
   try {
-    const { notes, ...address } = addressFromForm(formData);
+    const { notes, ...address } = addressFromForm(formData, (await getBrand()).location.state);
     const updated = await updateAddress(getDb(), companyId, customerId, addressId, {
       ...address,
       notes: notes || null,

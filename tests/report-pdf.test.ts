@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { EXPERT_BRAND } from "./brands";
 import { EXPERT_CLEANERS_COMPANY_ID } from "@/domain/companies";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -89,6 +90,7 @@ describe("PDF del reporte", () => {
     const bytes = await renderReportPdf(
       buildReport("2026-10-01", "2026-10-31", ["Josué Perfecto", "Juancho"]),
       GENERATED_AT,
+      EXPERT_BRAND,
     );
     expect(Buffer.from(bytes.slice(0, 5)).toString()).toBe("%PDF-");
 
@@ -101,7 +103,11 @@ describe("PDF del reporte", () => {
 
   it("muestra el período, los agentes, el total y la nota de cálculo", async () => {
     const text = await pageText(
-      await renderReportPdf(buildReport("2026-10-01", "2026-10-31", ["Josué Perfecto", "Zoë Núñez"]), GENERATED_AT),
+      await renderReportPdf(
+        buildReport("2026-10-01", "2026-10-31", ["Josué Perfecto", "Zoë Núñez"]),
+        GENERATED_AT,
+        EXPERT_BRAND,
+      ),
     );
     for (const expected of [
       "REPORTE",
@@ -120,7 +126,7 @@ describe("PDF del reporte", () => {
 
   it("con un solo agente muestra su nombre y omite la fila de total", async () => {
     const text = await pageText(
-      await renderReportPdf(buildReport("2026-10-07", "2026-10-07", ["Josué Perfecto"]), GENERATED_AT),
+      await renderReportPdf(buildReport("2026-10-07", "2026-10-07", ["Josué Perfecto"]), GENERATED_AT, EXPERT_BRAND),
     );
     expect(text).toContain(hexOf("Josué Perfecto"));
     expect(text).not.toContain(hexOf("Todos los agentes"));
@@ -128,14 +134,18 @@ describe("PDF del reporte", () => {
   });
 
   it("reemplaza caracteres no soportados sin romper la generación", async () => {
-    const bytes = await renderReportPdf(buildReport("2026-10-07", "2026-10-07", ["Zoë 😀"]), GENERATED_AT);
+    const bytes = await renderReportPdf(
+      buildReport("2026-10-07", "2026-10-07", ["Zoë 😀"]),
+      GENERATED_AT,
+      EXPERT_BRAND,
+    );
     const text = await pageText(bytes);
     expect(text).toContain(hexOf("Zoë ?"));
   });
 
   it("pagina muchos agentes repitiendo el encabezado y numerando cada página", async () => {
     const names = Array.from({ length: 30 }, (_, index) => `Agente ${String(index + 1).padStart(2, "0")}`);
-    const bytes = await renderReportPdf(buildReport("2026-10-01", "2026-10-31", names), GENERATED_AT);
+    const bytes = await renderReportPdf(buildReport("2026-10-01", "2026-10-31", names), GENERATED_AT, EXPERT_BRAND);
     const pdf = await loadPdf(bytes);
     const total = pdf.getPageCount();
     expect(total).toBeGreaterThan(1);
@@ -151,7 +161,7 @@ describe("PDF del reporte", () => {
 
   it("nunca deja la fila de total sola en una página", async () => {
     const names = Array.from({ length: 6 }, (_, index) => `Agente ${index + 1}`);
-    const bytes = await renderReportPdf(buildReport("2026-07-01", "2026-09-30", names), GENERATED_AT);
+    const bytes = await renderReportPdf(buildReport("2026-07-01", "2026-09-30", names), GENERATED_AT, EXPERT_BRAND);
     const pdf = await loadPdf(bytes);
     const last = await pageText(bytes, pdf.getPageCount() - 1);
     expect(last).toContain(hexOf("Total"));
@@ -160,8 +170,8 @@ describe("PDF del reporte", () => {
 
   it("produce exactamente los mismos bytes con los mismos datos", async () => {
     const report = buildReport("2026-10-01", "2026-10-07", ["Josué Perfecto", "Juancho"]);
-    const first = await renderReportPdf(report, GENERATED_AT);
-    const second = await renderReportPdf(report, GENERATED_AT);
+    const first = await renderReportPdf(report, GENERATED_AT, EXPERT_BRAND);
+    const second = await renderReportPdf(report, GENERATED_AT, EXPERT_BRAND);
     expect(Buffer.from(first).equals(Buffer.from(second))).toBe(true);
   });
 
@@ -170,7 +180,11 @@ describe("PDF del reporte", () => {
       ["2026-10-07", "2026-10-07"],
       ["2026-07-01", "2026-09-30"],
     ]) {
-      const bytes = await renderReportPdf(buildReport(from, to, ["Josué Perfecto", "Juancho"]), GENERATED_AT);
+      const bytes = await renderReportPdf(
+        buildReport(from, to, ["Josué Perfecto", "Juancho"]),
+        GENERATED_AT,
+        EXPERT_BRAND,
+      );
       expect((await loadPdf(bytes)).getPageCount()).toBeGreaterThanOrEqual(1);
     }
   });

@@ -64,6 +64,7 @@ export function AppointmentPanel({
   photos,
   conflicts = [],
   vehicles = [],
+  rugPickup,
 }: {
   appointment: Detail;
   technicians: CalendarTechnician[];
@@ -72,6 +73,7 @@ export function AppointmentPanel({
   photos: PanelPhotos;
   conflicts?: ConflictPartner[];
   vehicles?: PickerVehicle[];
+  rugPickup: boolean;
 }) {
   const actions = panelActions(appointment.status, appointment.paymentStatus, appointment.invoiceStatus);
   const closeHref = calendarHref(nav);
@@ -306,7 +308,7 @@ export function AppointmentPanel({
           </Section>
         )}
 
-        {(appointmentNeedsPickup(appointment) || hasDelivery(appointment)) && (
+        {(appointmentNeedsPickup(appointment, rugPickup) || hasDelivery(appointment)) && (
           <AppointmentDeliverySection appointment={appointment} technicians={technicians} nav={nav} />
         )}
 

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useBrand } from "@/components/brand-provider";
 import { useActionState, type ComponentProps } from "react";
 import { createCustomerAction, type CustomerFormState } from "@/app/customers/new/actions";
 import { emptyCustomerForm, type CustomerFormField, type CustomerPrefill } from "@/domain/customer-form";
@@ -12,7 +13,8 @@ function CustomerField(props: Omit<ComponentProps<typeof Field>, "prefix" | "nam
 }
 
 export function CustomerForm({ prefill = {} }: { prefill?: CustomerPrefill }) {
-  const initial: CustomerFormState = { values: { ...emptyCustomerForm(), ...prefill }, errors: {} };
+  const brand = useBrand();
+  const initial: CustomerFormState = { values: { ...emptyCustomerForm(brand.location.state), ...prefill }, errors: {} };
   const [state, action, pending] = useActionState(createCustomerAction, initial);
   const { values, errors } = state;
 

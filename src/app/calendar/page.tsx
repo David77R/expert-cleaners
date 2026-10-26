@@ -31,12 +31,11 @@ import type { MapRouteDraft, MapServiceOption, MapStop, MapTechnicianOption } fr
 import { MonthView } from "@/components/month-view";
 import { WeekView } from "@/components/week-view";
 import { conflictingAppointments, getAppointment, getDay, getDeliveries, getRange } from "@/server/appointments";
-import { getActor } from "@/server/auth";
+import { getActor, getBrand } from "@/server/auth";
 import { locateMissingAddresses } from "@/server/customers";
 import { panelPhotos } from "@/server/photos";
 import { listRouteDraftsForDay } from "@/server/route-drafts";
 import { getPhotoStorage } from "@/server/storage";
-import { client } from "@/config/clients";
 import { listVehicles } from "@/server/vehicles";
 
 function first(value: string | string[] | undefined): string | undefined {
@@ -46,6 +45,7 @@ function first(value: string | string[] | undefined): string | undefined {
 export default async function CalendarPage({ searchParams }: PageProps<"/calendar">) {
   const actor = await getActor();
   if (!actor) redirect("/login");
+  const brand = await getBrand();
 
   const params = await searchParams;
   const today = todayIn();
@@ -129,6 +129,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
       const located = await locateMissingAddresses(
         db,
         unlocated.map((a) => a.address),
+        brand.location,
       );
       for (const appointment of unlocated) {
         const coords = located.get(appointment.address.id);
@@ -144,7 +145,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
       lat: a.address.lat as number,
       lng: a.address.lng as number,
       status: a.status,
-      rug: appointmentNeedsPickup(a),
+      rug: appointmentNeedsPickup(a, brand.features.rugPickup),
       deliveryLabel: hasDelivery(a)
         ? `${formatDayLabel(a.deliveryDate)} · ${formatMinutes(a.deliveryStartMin)}`
         : undefined,
@@ -176,6 +177,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
         const located = await locateMissingAddresses(
           db,
           unlocatedDeliveries.map((a) => a.address),
+          brand.location,
         );
         for (const row of unlocatedDeliveries) {
           const coords = located.get(row.address.id);
@@ -214,7 +216,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
   const photos = selected ? await panelPhotos(db, getPhotoStorage, actor, selected.id) : null;
   const selectedConflicts = selected ? await conflictingAppointments(db, actor.companyId, selected.id) : [];
   const selectedVehicles =
-    selected && client.features.vehicles ? await listVehicles(db, actor.companyId, selected.customer.id) : [];
+    selected && brand.features.vehicles ? await listVehicles(db, actor.companyId, selected.customer.id) : [];
   const panelServices = selected
     ? (await companyServices(db, actor.companyId))
         .filter((s) => s.active || selected.items.some((item) => item.serviceId === s.id))
@@ -238,6 +240,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
           entregas={entregas}
           deliveryCount={deliveryEntries.length}
           estado={estado}
+          rugPickup={brand.features.rugPickup}
         />
         <CalendarSummary
           summary={summaryForDisplay}
@@ -353,6 +356,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
             nav={nav}
             selectedId={selectedId}
             nowMin={nowMin}
+            rugPickup={brand.features.rugPickup}
           />
         )}
         {!mapa && view === "day" && (
@@ -372,13 +376,14 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
             appointments={entries}
             overlapIds={data.overlapIds}
             selectedId={selectedId}
+            rugPickup={brand.features.rugPickup}
           />
         )}
         {!mapa && view === "month" && (
           <MonthView nav={nav} today={today} appointments={entries} overlapIds={data.overlapIds} />
         )}
 
-        <CalendarLegend technicians={allTechnicians} />
+        <CalendarLegend technicians={allTechnicians} rugPickup={brand.features.rugPickup} />
       </main>
 
       <CalendarNotice />
@@ -408,6 +413,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
           photos={photos}
           conflicts={selectedConflicts}
           vehicles={selectedVehicles}
+          rugPickup={brand.features.rugPickup}
         />
       )}
     </AppShell>

@@ -15,6 +15,7 @@ export function DayGrid({
   nav,
   selectedId,
   nowMin,
+  rugPickup,
 }: {
   appointments: CalendarAppointment[];
   overlapIds: string[];
@@ -22,6 +23,7 @@ export function DayGrid({
   nav: CalendarNav;
   selectedId: string | null;
   nowMin: number | null;
+  rugPickup: boolean;
 }) {
   const overlap = new Set(overlapIds);
   const { startHour, endHour } = gridHours(appointments);
@@ -157,6 +159,7 @@ export function DayGrid({
                       detail={detail}
                       peers={appointments}
                       className="h-full w-full"
+                      rugPickup={rugPickup}
                     />
                   </DragTicket>
                 );

@@ -9,8 +9,9 @@ import { AlertsBell, BellLink } from "@/components/alerts-bell";
 import { Icon, type IconName } from "@/components/icons";
 import { BrandMark } from "@/components/brand-mark";
 import { MobileNav } from "@/components/mobile-nav";
-import { client } from "@/config/clients";
-import { GlobalSearch, MiamiClock } from "@/components/top-bar-tools";
+import type { Brand } from "@/domain/companies";
+import { getBrand } from "@/server/auth";
+import { GlobalSearch, CityClock } from "@/components/top-bar-tools";
 
 type Section =
   "home" | "orders" | "calendar" | "customers" | "services" | "agents" | "technicians" | "reports" | "alerts";
@@ -38,13 +39,13 @@ const TITLES: Record<Section, string> = {
   alerts: "Alertas",
 };
 
-function Brand() {
+function SidebarBrand({ brand }: { brand: Brand }) {
   return (
-    <Link href="/inicio" aria-label={`${client.name}: inicio`} className="flex shrink-0 items-center gap-3">
-      <BrandMark size={client.logo ? "lg" : "md"} />
+    <Link href="/inicio" aria-label={`${brand.name}: inicio`} className="flex shrink-0 items-center gap-3">
+      <BrandMark brand={brand} size={brand.logo ? "lg" : "md"} />
       <span className="font-display min-w-0 text-[17px] font-semibold leading-none text-white">
-        {client.logo ? <span className="sr-only">{client.name}</span> : client.shortName}
-        <span className="mt-1 block text-[11px] font-normal text-rail-text">{client.tagline}</span>
+        {brand.logo ? <span className="sr-only">{brand.name}</span> : brand.shortName}
+        <span className="mt-1 block text-[11px] font-normal text-rail-text">{brand.tagline}</span>
       </span>
     </Link>
   );
@@ -56,7 +57,8 @@ function RoleLabel({ role }: { role: Actor["role"] }) {
   return ROLE_LABEL[role];
 }
 
-export function AppShell({ active, actor, children }: { active: Section; actor: Actor; children: ReactNode }) {
+export async function AppShell({ active, actor, children }: { active: Section; actor: Actor; children: ReactNode }) {
+  const brand = await getBrand();
   const today = todayIn();
   const month = viewHeading("month", today);
   const links = LINKS.filter((link) => !link.adminOnly || isAdmin(actor));
@@ -65,7 +67,7 @@ export function AppShell({ active, actor, children }: { active: Section; actor: 
     <div className="flex min-h-full flex-1 flex-col lg:flex-row">
       <aside className="hidden w-60 shrink-0 flex-col bg-rail lg:sticky lg:top-0 lg:flex lg:h-screen">
         <div className="px-5 pb-4 pt-6">
-          <Brand />
+          <SidebarBrand brand={brand} />
         </div>
 
         <Link
@@ -139,7 +141,7 @@ export function AppShell({ active, actor, children }: { active: Section; actor: 
         userInitials={initialsOf(actor.name)}
         roleLabel={ROLE_LABEL[actor.role]}
         logout={logout}
-        brand={<BrandMark size="sm" />}
+        brand={<BrandMark brand={brand} size="sm" />}
         bell={
           <Suspense fallback={<BellLink count={null} active={active === "alerts"} tone="dark" />}>
             <AlertsBell companyId={actor.companyId} active={active === "alerts"} tone="dark" />
@@ -151,7 +153,7 @@ export function AppShell({ active, actor, children }: { active: Section; actor: 
         <div className="sticky top-0 z-30 hidden items-center gap-4 border-b border-hair bg-paper/90 px-8 py-2.5 backdrop-blur lg:flex">
           <GlobalSearch />
           <div className="ml-auto flex items-center gap-3">
-            <MiamiClock />
+            <CityClock city={brand.location.city} />
             <span aria-hidden="true" className="hidden h-8 w-px bg-hair xl:block" />
             <Link
               href="/orders/new"

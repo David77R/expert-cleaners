@@ -38,6 +38,7 @@ import { hasDelivery } from "@/domain/delivery";
 import { geocodeIfNeeded } from "@/server/geocoding";
 import { isPickupService } from "@/domain/pickup";
 import { assertVehiclesBelong } from "@/server/vehicles";
+import { companyBrand } from "@/server/companies";
 
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -302,8 +303,11 @@ async function nextCode(tx: Tx, companyId: string): Promise<string> {
 
 export async function createAppointment(db: Db, actor: Actor, raw: CreateAppointmentInput): Promise<Mutation> {
   const input = createAppointmentSchema.parse(raw);
-  const destinationAddress = input.destinationAddress ? await geocodeIfNeeded(input.destinationAddress) : null;
-  const billingAddress = input.billingAddress ? await geocodeIfNeeded(input.billingAddress) : null;
+  const brand = await companyBrand(db, actor.companyId);
+  const destinationAddress = input.destinationAddress
+    ? await geocodeIfNeeded(input.destinationAddress, brand.location)
+    : null;
+  const billingAddress = input.billingAddress ? await geocodeIfNeeded(input.billingAddress, brand.location) : null;
   const requested = input.items ?? (input.serviceId ? [{ serviceId: input.serviceId, specs: input.specs }] : []);
   if (requested.length === 0) throw new DomainError("service_required", "Elige un servicio");
   const companyId = actor.companyId;
@@ -330,7 +334,11 @@ export async function createAppointment(db: Db, actor: Actor, raw: CreateAppoint
     if (twoAddresses && !input.destinationAddress) {
       throw new DomainError("destination_required", "Este servicio requiere dirección de entrega");
     }
-    if (!twoAddresses && !items.some((item) => isPickupService(item.service)) && input.destinationAddress) {
+    if (
+      !twoAddresses &&
+      !items.some((item) => isPickupService(item.service, brand.features.rugPickup)) &&
+      input.destinationAddress
+    ) {
       throw new DomainError("destination_not_allowed", "Este servicio no usa dirección de entrega");
     }
 
@@ -524,12 +532,13 @@ export async function advanceInvoice(db: Db, actor: Actor, id: string): Promise<
 
 export async function setDestinationAddress(db: Db, actor: Actor, id: string, raw: unknown): Promise<Mutation> {
   const parsed = raw === null ? null : addressSnapshotSchema.parse(raw);
-  const address = parsed ? await geocodeIfNeeded(parsed) : null;
+  const brand = await companyBrand(db, actor.companyId);
+  const address = parsed ? await geocodeIfNeeded(parsed, brand.location) : null;
   return db.transaction(async (tx) => {
     const current = await load(tx, actor.companyId, id);
     const items = await currentItems(tx, current);
     const twoAddresses = items.some((item) => item.service.twoAddresses);
-    if (!twoAddresses && !items.some((item) => isPickupService(item.service))) {
+    if (!twoAddresses && !items.some((item) => isPickupService(item.service, brand.features.rugPickup))) {
       throw new DomainError("destination_not_allowed", "Este servicio no usa dirección de entrega");
     }
     if (!address && twoAddresses) {
@@ -544,7 +553,7 @@ export async function setDestinationAddress(db: Db, actor: Actor, id: string, ra
 
 export async function setBillingAddress(db: Db, actor: Actor, id: string, raw: unknown): Promise<Mutation> {
   const parsed = addressSnapshotSchema.parse(raw);
-  const address = await geocodeIfNeeded(parsed);
+  const address = await geocodeIfNeeded(parsed, (await companyBrand(db, actor.companyId)).location);
   return db.transaction(async (tx) => {
     const current = await load(tx, actor.companyId, id);
     const updated = await persist(tx, actor, current, { billingAddress: address }, [
@@ -580,7 +589,8 @@ export async function setAppointmentAddress(db: Db, actor: Actor, id: string, ra
 
 export async function updateAppointmentItems(db: Db, actor: Actor, id: string, raw: unknown): Promise<Mutation> {
   const input = updateItemsSchema.parse(raw);
-  const destination = input.destinationAddress ? await geocodeIfNeeded(input.destinationAddress) : null;
+  const brand = await companyBrand(db, actor.companyId);
+  const destination = input.destinationAddress ? await geocodeIfNeeded(input.destinationAddress, brand.location) : null;
   return db.transaction(async (tx) => {
     const current = await load(tx, actor.companyId, id);
     if (current.status === "cancelled") {
@@ -606,7 +616,7 @@ export async function updateAppointmentItems(db: Db, actor: Actor, id: string, r
       if (!destinationAddress) {
         throw new DomainError("destination_required", "Agrega la dirección de entrega para este servicio");
       }
-    } else if (items.some((item) => isPickupService(item.service))) {
+    } else if (items.some((item) => isPickupService(item.service, brand.features.rugPickup))) {
       destinationAddress = destination ?? destinationAddress;
     } else {
       destinationAddress = null;

@@ -3,13 +3,14 @@
 import { useActionState } from "react";
 import { login } from "./actions";
 import { BrandMark } from "@/components/brand-mark";
-import { client } from "@/config/clients";
+import { useBrand } from "@/components/brand-provider";
 
 const FIELD =
   "mt-1.5 w-full rounded-md border border-hair bg-paper px-3.5 py-2.5 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20";
 
 export default function LoginPage() {
   const [state, action, pending] = useActionState(login, undefined);
+  const brand = useBrand();
 
   return (
     <main className="flex flex-1 flex-col lg:flex-row">
@@ -26,13 +27,13 @@ export default function LoginPage() {
           }}
         />
         <div className="relative flex items-center gap-3">
-          <BrandMark size="lg" />
-          {!client.logo && <span className="font-display text-xl font-semibold text-white">{client.shortName}</span>}
+          <BrandMark brand={brand} size="lg" />
+          {!brand.logo && <span className="font-display text-xl font-semibold text-white">{brand.shortName}</span>}
         </div>
         <div className="relative max-w-md">
-          <p className="font-display text-3xl font-semibold leading-tight text-white">{client.headline}</p>
+          <p className="font-display text-3xl font-semibold leading-tight text-white">{brand.headline}</p>
           <p className="mt-4 text-sm text-rail-text">
-            {client.tagline} · {client.location.label}
+            {brand.tagline} · {brand.location.label}
           </p>
         </div>
       </section>
@@ -40,7 +41,7 @@ export default function LoginPage() {
       <section className="flex flex-1 items-center justify-center px-6 py-12">
         <form action={action} className="w-full max-w-sm">
           <span className="mb-6 flex w-fit rounded-lg bg-rail p-2 lg:hidden">
-            <BrandMark size="lg" />
+            <BrandMark brand={brand} size="lg" />
           </span>
           <h1 className="font-display text-2xl font-semibold tracking-tight">Iniciar sesión</h1>
           <p className="mt-1.5 text-sm text-soft">Entra con tu cuenta del equipo.</p>

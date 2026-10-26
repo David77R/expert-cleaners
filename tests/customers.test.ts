@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { MIAMI } from "./brands";
 import { EXPERT_CLEANERS_COMPANY_ID } from "@/domain/companies";
 import { eq } from "drizzle-orm";
 import { ZodError } from "zod";
@@ -449,7 +450,7 @@ describe("ubicación de direcciones para el mapa", () => {
       .where(eq(addressesTable.id, addresses[0].id))
       .returning();
 
-    const found = await locateMissingAddresses(ctx.db, [legacy, legacy]);
+    const found = await locateMissingAddresses(ctx.db, [legacy, legacy], MIAMI);
     expect(found.get(legacy.id)).toEqual({ lat: 25.77, lng: -80.19 });
     const [saved] = (await getCustomer(ctx.db, EXPERT_CLEANERS_COMPANY_ID, customer.id)).addresses;
     expect(saved).toMatchObject({ lat: 25.77, lng: -80.19 });

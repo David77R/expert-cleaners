@@ -1,9 +1,9 @@
 "use client";
 
 import { useId } from "react";
+import { useBrand } from "@/components/brand-provider";
 import { AddressAutocomplete } from "@/components/address-autocomplete";
 import { FIELD } from "@/components/panel-kit";
-import { DEFAULT_STATE } from "@/domain/customer-form";
 
 type AddressDefaults = {
   line1?: string;
@@ -15,6 +15,7 @@ type AddressDefaults = {
 };
 
 export function AddressFields({ defaults = {} }: { defaults?: AddressDefaults }) {
+  const brand = useBrand();
   const id = useId();
   const label = "flex flex-col gap-1 text-xs font-medium text-soft";
   return (
@@ -43,7 +44,7 @@ export function AddressFields({ defaults = {} }: { defaults?: AddressDefaults })
         <input
           name="state"
           maxLength={2}
-          defaultValue={defaults.state ?? DEFAULT_STATE}
+          defaultValue={defaults.state ?? brand.location.state}
           className={`${FIELD} uppercase`}
         />
       </label>

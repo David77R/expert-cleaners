@@ -1,4 +1,3 @@
-import { client } from "@/config/clients";
 import { formatMinutes } from "./appointment-rules";
 import { formatDayLabel } from "./calendar-view";
 import { formatMoney } from "./invoice";
@@ -26,6 +25,7 @@ export function groupOrderItems(items: readonly { name: string; priceCents: numb
 }
 
 export function confirmationMessage(order: {
+  companyName: string;
   customerName: string;
   code: string;
   pickup: OrderVisit;
@@ -35,7 +35,7 @@ export function confirmationMessage(order: {
   totalCents: number;
 }): string {
   const lines = [
-    `Hola ${order.customerName.trim()}, le confirmamos su servicio con ${client.shortName}.`,
+    `Hola ${order.customerName.trim()}, le confirmamos su servicio con ${order.companyName}.`,
     "",
     `${order.kind === "visit" ? "Cita" : "Recogida"}: ${formatDayLabel(order.pickup.date)}, ${formatMinutes(order.pickup.startMin)}`,
   ];

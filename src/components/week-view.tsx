@@ -14,12 +14,14 @@ export function WeekView({
   appointments,
   overlapIds,
   selectedId,
+  rugPickup,
 }: {
   nav: CalendarNav;
   today: string;
   appointments: CalendarAppointment[];
   overlapIds: string[];
   selectedId: string | null;
+  rugPickup: boolean;
 }) {
   const overlap = new Set(overlapIds);
   const dates = weekDates(nav.date);
@@ -86,6 +88,7 @@ export function WeekView({
                       selected={appointment.id === selectedId}
                       detail="full"
                       peers={dayAppointments}
+                      rugPickup={rugPickup}
                     />
                   </li>
                 ))}

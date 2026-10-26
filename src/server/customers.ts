@@ -15,7 +15,8 @@ import {
   type CustomerSort,
 } from "@/domain/schemas";
 import type { Db } from "@/server/appointments";
-import { geocodeIfNeeded } from "@/server/geocoding";
+import { geocodeIfNeeded, type ServiceArea } from "@/server/geocoding";
+import { companyBrand } from "@/server/companies";
 import type { PhotoStorage } from "@/server/storage";
 
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -80,7 +81,8 @@ function definedOnly<T extends Record<string, unknown>>(value: T): Partial<T> {
 
 export async function createCustomer(db: Db, companyId: string, raw: CreateCustomerInput) {
   const input = createCustomerSchema.parse(raw);
-  const located = await Promise.all(input.addresses.map((address) => geocodeIfNeeded(address)));
+  const area = (await companyBrand(db, companyId)).location;
+  const located = await Promise.all(input.addresses.map((address) => geocodeIfNeeded(address, area)));
   const digits = phoneDigits(input.phone);
   return db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`customer:${companyId}:${digits}`}))`);
@@ -340,7 +342,7 @@ export async function deleteCustomer(
 }
 
 export async function addAddress(db: Db, companyId: string, customerId: string, raw: unknown) {
-  const input = await geocodeIfNeeded(addressSnapshotSchema.parse(raw));
+  const input = await geocodeIfNeeded(addressSnapshotSchema.parse(raw), (await companyBrand(db, companyId)).location);
   await requireCustomer(db, companyId, customerId);
   const [address] = await db
     .insert(addresses)
@@ -364,34 +366,41 @@ const LOCATION_FIELDS = ["line1", "unit", "city", "state", "zip"] as const;
 export async function updateAddress(db: Db, companyId: string, customerId: string, addressId: string, raw: unknown) {
   const input = updateAddressSchema.parse(raw);
   const current = await requireAddress(db, companyId, customerId, addressId);
+  const area = (await companyBrand(db, companyId)).location;
   const patch: Record<string, unknown> = definedOnly(input);
 
   const moved = LOCATION_FIELDS.some((field) => input[field] !== undefined && input[field] !== current[field]);
   const coordsGiven = input.lat != null && input.lng != null;
   const saving = LOCATION_FIELDS.some((field) => input[field] !== undefined);
   if (coordsGiven) {
-    const checked = await geocodeIfNeeded({
-      line1: input.line1 ?? current.line1,
-      unit: input.unit ?? current.unit,
-      city: input.city ?? current.city,
-      state: input.state ?? current.state,
-      zip: input.zip ?? current.zip,
-      lat: input.lat,
-      lng: input.lng,
-    });
+    const checked = await geocodeIfNeeded(
+      {
+        line1: input.line1 ?? current.line1,
+        unit: input.unit ?? current.unit,
+        city: input.city ?? current.city,
+        state: input.state ?? current.state,
+        zip: input.zip ?? current.zip,
+        lat: input.lat,
+        lng: input.lng,
+      },
+      area,
+    );
     patch.lat = checked.lat;
     patch.lng = checked.lng;
     if (checked.zip !== (input.zip ?? current.zip)) patch.zip = checked.zip;
   } else if (saving) {
-    const located = await geocodeIfNeeded({
-      line1: input.line1 ?? current.line1,
-      unit: input.unit ?? current.unit,
-      city: input.city ?? current.city,
-      state: input.state ?? current.state,
-      zip: input.zip ?? current.zip,
-      lat: null,
-      lng: null,
-    });
+    const located = await geocodeIfNeeded(
+      {
+        line1: input.line1 ?? current.line1,
+        unit: input.unit ?? current.unit,
+        city: input.city ?? current.city,
+        state: input.state ?? current.state,
+        zip: input.zip ?? current.zip,
+        lat: null,
+        lng: null,
+      },
+      area,
+    );
     if (located.lat != null || moved) {
       patch.lat = located.lat ?? null;
       patch.lng = located.lng ?? null;
@@ -405,15 +414,18 @@ export async function updateAddress(db: Db, companyId: string, customerId: strin
 
 export async function relocateAddress(db: Db, companyId: string, customerId: string, addressId: string) {
   const current = await requireAddress(db, companyId, customerId, addressId);
-  const located = await geocodeIfNeeded({
-    line1: current.line1,
-    unit: current.unit,
-    city: current.city,
-    state: current.state,
-    zip: current.zip,
-    lat: null,
-    lng: null,
-  });
+  const located = await geocodeIfNeeded(
+    {
+      line1: current.line1,
+      unit: current.unit,
+      city: current.city,
+      state: current.state,
+      zip: current.zip,
+      lat: null,
+      lng: null,
+    },
+    (await companyBrand(db, companyId)).location,
+  );
   if (located.lat == null || located.lng == null) return { address: current, found: false };
   const [address] = await db
     .update(addresses)
@@ -426,12 +438,13 @@ export async function relocateAddress(db: Db, companyId: string, customerId: str
 export async function locateMissingAddresses(
   db: Db,
   rows: { id: string; line1: string; unit: string | null; city: string; state: string; zip: string }[],
+  area: ServiceArea,
   limit = 10,
 ): Promise<Map<string, { lat: number; lng: number }>> {
   const found = new Map<string, { lat: number; lng: number }>();
   const unique = [...new Map(rows.map((row) => [row.id, row])).values()].slice(0, limit);
   for (const row of unique) {
-    const located = await geocodeIfNeeded({ ...row, unit: row.unit ?? undefined, lat: null, lng: null });
+    const located = await geocodeIfNeeded({ ...row, unit: row.unit ?? undefined, lat: null, lng: null }, area);
     if (located.lat == null || located.lng == null) continue;
     await db.update(addresses).set({ lat: located.lat, lng: located.lng }).where(eq(addresses.id, row.id));
     found.set(row.id, { lat: located.lat, lng: located.lng });

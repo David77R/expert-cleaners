@@ -1,4 +1,4 @@
-import { client } from "@/config/clients";
+import type { CompanyLocation } from "@/domain/companies";
 import { env } from "@/lib/env";
 
 export interface GeocodeInput {
@@ -16,13 +16,14 @@ export interface GeocodeResult {
   exact?: boolean;
 }
 
+export type ServiceArea = Pick<CompanyLocation, "center" | "radiusKm" | "bbox" | "state" | "stateName">;
+
 export interface Geocoder {
   geocode(input: GeocodeInput): Promise<GeocodeResult | null>;
 }
 
 const ORS_GEOCODE_URL = "https://api.openrouteservice.org/geocode/search";
 const ORS_STRUCTURED_URL = "https://api.openrouteservice.org/geocode/search/structured";
-const SERVICE_AREA = { ...client.location.center, radiusKm: client.location.radiusKm };
 const PRECISE_LAYERS = new Set(["address", "venue"]);
 
 type GeocodeFeature = {
@@ -53,13 +54,13 @@ export function pickGeocodeResult(data: unknown, input: Pick<GeocodeInput, "zip"
   return { lat, lng };
 }
 
-function withServiceArea(url: URL, apiKey: string): URL {
+function withServiceArea(url: URL, apiKey: string, area: ServiceArea): URL {
   url.searchParams.set("api_key", apiKey);
   url.searchParams.set("size", "5");
   url.searchParams.set("boundary.country", "US");
-  url.searchParams.set("boundary.circle.lat", String(SERVICE_AREA.lat));
-  url.searchParams.set("boundary.circle.lon", String(SERVICE_AREA.lng));
-  url.searchParams.set("boundary.circle.radius", String(SERVICE_AREA.radiusKm));
+  url.searchParams.set("boundary.circle.lat", String(area.center.lat));
+  url.searchParams.set("boundary.circle.lon", String(area.center.lng));
+  url.searchParams.set("boundary.circle.radius", String(area.radiusKm));
   return url;
 }
 
@@ -77,10 +78,10 @@ async function requestFeatures(url: URL): Promise<unknown> {
   }
 }
 
-export function createOrsGeocoder(apiKey: string): Geocoder {
+export function createOrsGeocoder(apiKey: string, area: ServiceArea): Geocoder {
   return {
     async geocode(input) {
-      const structured = withServiceArea(new URL(ORS_STRUCTURED_URL), apiKey);
+      const structured = withServiceArea(new URL(ORS_STRUCTURED_URL), apiKey, area);
       structured.searchParams.set("address", input.line1.trim());
       structured.searchParams.set("locality", input.city.trim());
       structured.searchParams.set("region", input.state.trim());
@@ -89,15 +90,15 @@ export function createOrsGeocoder(apiKey: string): Geocoder {
       const first = pickGeocodeResult(await requestFeatures(structured), input);
       if (first) return first;
 
-      const free = withServiceArea(new URL(ORS_GEOCODE_URL), apiKey);
+      const free = withServiceArea(new URL(ORS_GEOCODE_URL), apiKey, area);
       free.searchParams.set("text", [input.line1, input.city, input.state, input.zip].filter(Boolean).join(", "));
       free.searchParams.set("layers", "address,venue,street");
-      free.searchParams.set("focus.point.lat", String(SERVICE_AREA.lat));
-      free.searchParams.set("focus.point.lon", String(SERVICE_AREA.lng));
+      free.searchParams.set("focus.point.lat", String(area.center.lat));
+      free.searchParams.set("focus.point.lon", String(area.center.lng));
       const second = pickGeocodeResult(await requestFeatures(free), input);
       if (second || !input.zip.trim()) return second;
 
-      const noZip = withServiceArea(new URL(ORS_STRUCTURED_URL), apiKey);
+      const noZip = withServiceArea(new URL(ORS_STRUCTURED_URL), apiKey, area);
       noZip.searchParams.set("address", input.line1.trim());
       noZip.searchParams.set("locality", input.city.trim());
       noZip.searchParams.set("region", input.state.trim());
@@ -210,11 +211,16 @@ export function pickCensusMatch(data: unknown, input: Pick<GeocodeInput, "zip" |
   };
 }
 
-async function requestCensus(input: GeocodeInput, withZip: boolean, timeoutMs = 7000): Promise<unknown> {
+async function requestCensus(
+  input: GeocodeInput,
+  withZip: boolean,
+  fallbackState: string,
+  timeoutMs = 7000,
+): Promise<unknown> {
   const url = new URL(CENSUS_URL);
   url.searchParams.set("street", input.line1.trim());
   if (input.city.trim()) url.searchParams.set("city", input.city.trim());
-  url.searchParams.set("state", input.state.trim() || client.location.state);
+  url.searchParams.set("state", input.state.trim() || fallbackState);
   if (withZip && input.zip.trim()) url.searchParams.set("zip", zip5(input.zip));
   url.searchParams.set("benchmark", "Public_AR_Current");
   url.searchParams.set("format", "json");
@@ -231,16 +237,16 @@ async function requestCensus(input: GeocodeInput, withZip: boolean, timeoutMs = 
   }
 }
 
-export function createCensusGeocoder(): Geocoder {
+export function createCensusGeocoder(fallbackState: string): Geocoder {
   return {
     async geocode(input) {
       if (!hasHouseNumber(input.line1)) return null;
       if (zip5(input.zip)) {
-        const withZip = pickCensusMatch(await requestCensus(input, true), input);
+        const withZip = pickCensusMatch(await requestCensus(input, true, fallbackState), input);
         if (withZip) return withZip;
       }
       if (!input.city.trim()) return null;
-      return pickCensusMatch(await requestCensus(input, false), input);
+      return pickCensusMatch(await requestCensus(input, false, fallbackState), input);
     },
   };
 }
@@ -257,25 +263,33 @@ export function chainGeocoders(geocoders: readonly Geocoder[]): Geocoder {
   };
 }
 
-let cached: Geocoder | null | undefined;
+const geocoders = new Map<string, Geocoder>();
 
-export function getGeocoder(): Geocoder | null {
-  if (cached === undefined) {
+function areaKey(area: ServiceArea): string {
+  return `${area.center.lat},${area.center.lng},${area.radiusKm},${area.state}`;
+}
+
+export function getGeocoder(area: ServiceArea): Geocoder | null {
+  const key = areaKey(area);
+  let geocoder = geocoders.get(key);
+  if (!geocoder) {
     const { ORS_API_KEY } = env();
-    cached = chainGeocoders([createCensusGeocoder(), ...(ORS_API_KEY ? [createOrsGeocoder(ORS_API_KEY)] : [])]);
+    geocoder = chainGeocoders([
+      createCensusGeocoder(area.state),
+      ...(ORS_API_KEY ? [createOrsGeocoder(ORS_API_KEY, area)] : []),
+    ]);
+    geocoders.set(key, geocoder);
   }
-  return cached;
+  return geocoder;
 }
 
 type Geocodable = GeocodeInput & { lat?: number | null; lng?: number | null };
 
-let census: Geocoder | undefined;
-
-export async function geocodeIfNeeded<T extends Geocodable>(address: T): Promise<T> {
+export async function geocodeIfNeeded<T extends Geocodable>(address: T, area: ServiceArea): Promise<T> {
   const hasCoords = address.lat != null && address.lng != null;
   if (hasCoords && !hasHouseNumber(address.line1)) return address;
 
-  const geocoder = hasCoords ? (census ??= createCensusGeocoder()) : getGeocoder();
+  const geocoder = hasCoords ? createCensusGeocoder(area.state) : getGeocoder(area);
   if (!geocoder) return address;
 
   const result = await geocoder.geocode(address);
@@ -299,7 +313,6 @@ export type AddressSuggestion = {
 };
 
 const ORS_AUTOCOMPLETE_URL = "https://api.openrouteservice.org/geocode/autocomplete";
-const AREA_FOCUS = client.location.center;
 const MAX_SUGGESTIONS = 6;
 const SUGGEST_TIMEOUT_MS = 4000;
 const CACHE_TTL_MS = 10 * 60 * 1000;
@@ -342,7 +355,6 @@ export function parseSuggestions(data: unknown): AddressSuggestion[] {
 }
 
 const PHOTON_URL = "https://photon.komoot.io/api/";
-const AREA_BBOX = client.location.bbox;
 
 const US_STATES: Record<string, string> = {
   alabama: "AL",
@@ -453,13 +465,13 @@ async function fetchJson(url: URL, source: string): Promise<unknown> {
   }
 }
 
-function orsSuggestionUrl(base: string, apiKey: string, query: string): URL {
+function orsSuggestionUrl(base: string, apiKey: string, query: string, area: ServiceArea): URL {
   const url = new URL(base);
   url.searchParams.set("api_key", apiKey);
   url.searchParams.set("text", query);
   url.searchParams.set("boundary.country", "US");
-  url.searchParams.set("focus.point.lat", String(AREA_FOCUS.lat));
-  url.searchParams.set("focus.point.lon", String(AREA_FOCUS.lng));
+  url.searchParams.set("focus.point.lat", String(area.center.lat));
+  url.searchParams.set("focus.point.lon", String(area.center.lng));
   url.searchParams.set("layers", "address,street,venue");
   url.searchParams.set("size", String(MAX_SUGGESTIONS));
   return url;
@@ -507,25 +519,25 @@ export function rankSuggestions(query: string, lists: readonly AddressSuggestion
 
 const suggestionCache = new Map<string, { at: number; value: AddressSuggestion[] }>();
 
-function photonUrl(query: string): URL {
+function photonUrl(query: string, area: ServiceArea): URL {
   const photon = new URL(PHOTON_URL);
   photon.searchParams.set("q", query);
   photon.searchParams.set("limit", String(MAX_SUGGESTIONS * 2));
   photon.searchParams.set("lang", "en");
-  photon.searchParams.set("lat", String(AREA_FOCUS.lat));
-  photon.searchParams.set("lon", String(AREA_FOCUS.lng));
-  photon.searchParams.set("bbox", AREA_BBOX);
+  photon.searchParams.set("lat", String(area.center.lat));
+  photon.searchParams.set("lon", String(area.center.lng));
+  photon.searchParams.set("bbox", area.bbox);
   return photon;
 }
 
 const SUGGEST_CENSUS_TIMEOUT_MS = 4500;
 const MAX_VERIFICATIONS = 6;
 
-async function censusFromQuery(query: string): Promise<AddressSuggestion[]> {
+async function censusFromQuery(query: string, area: ServiceArea): Promise<AddressSuggestion[]> {
   const house = splitHouseNumber(query);
   if (!house) return [];
-  const mentionsState = new RegExp(`,|\\b${client.location.state}\\b|\\b${client.location.stateName}\\b`, "i");
-  const line = mentionsState.test(query) ? query : `${query}, ${client.location.state}`;
+  const mentionsState = new RegExp(`,|\\b${area.state}\\b|\\b${area.stateName}\\b`, "i");
+  const line = mentionsState.test(query) ? query : `${query}, ${area.state}`;
   return parseCensusSuggestions(await requestCensusOneLine(line, SUGGEST_CENSUS_TIMEOUT_MS), house.number);
 }
 
@@ -567,6 +579,7 @@ async function verifyWithCensus(
   houseNumber: string,
   ranked: AddressSuggestion[],
   direct: AddressSuggestion[],
+  area: ServiceArea,
 ): Promise<AddressSuggestion[]> {
   const candidates = ranked.filter((suggestion) => suggestion.approximate).slice(0, MAX_VERIFICATIONS);
   const checks = await Promise.all(
@@ -576,10 +589,11 @@ async function verifyWithCensus(
         {
           line1: candidate.line1,
           city: zip ? "" : candidate.city,
-          state: candidate.state || client.location.state,
+          state: candidate.state || area.state,
           zip,
         },
         zip !== "",
+        area.state,
         SUGGEST_CENSUS_TIMEOUT_MS,
       );
       return parseCensusSuggestions(data, houseNumber);
@@ -590,35 +604,36 @@ async function verifyWithCensus(
   return mergeVerified(query, verified, ranked);
 }
 
-export async function suggestAddresses(query: string): Promise<AddressSuggestion[]> {
+export async function suggestAddresses(query: string, area: ServiceArea): Promise<AddressSuggestion[]> {
   const textQuery = query.trim().replace(/\s+/g, " ");
   if (textQuery.length < 3) return [];
 
-  const cacheKey = textQuery.toLowerCase();
+  const cacheKey = `${areaKey(area)}|${textQuery.toLowerCase()}`;
   const hit = suggestionCache.get(cacheKey);
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.value;
 
   const { ORS_API_KEY } = env();
-  const censusDirect = censusFromQuery(textQuery);
+  const censusDirect = censusFromQuery(textQuery, area);
   const [ors, photon] = await Promise.all([
     ORS_API_KEY
-      ? fetchJson(orsSuggestionUrl(ORS_AUTOCOMPLETE_URL, ORS_API_KEY, textQuery), "OpenRouteService autocomplete").then(
-          parseSuggestions,
-        )
+      ? fetchJson(
+          orsSuggestionUrl(ORS_AUTOCOMPLETE_URL, ORS_API_KEY, textQuery, area),
+          "OpenRouteService autocomplete",
+        ).then(parseSuggestions)
       : Promise.resolve([]),
-    fetchJson(photonUrl(textQuery), "Photon").then(parsePhotonSuggestions),
+    fetchJson(photonUrl(textQuery, area), "Photon").then(parsePhotonSuggestions),
   ]);
 
   let value = rankSuggestions(textQuery, [ors, photon]);
   if (value.length === 0 && ORS_API_KEY) {
     const search = parseSuggestions(
-      await fetchJson(orsSuggestionUrl(ORS_GEOCODE_URL, ORS_API_KEY, textQuery), "OpenRouteService search"),
+      await fetchJson(orsSuggestionUrl(ORS_GEOCODE_URL, ORS_API_KEY, textQuery, area), "OpenRouteService search"),
     );
     value = rankSuggestions(textQuery, [search]);
   }
 
   const house = splitHouseNumber(textQuery);
-  if (house) value = await verifyWithCensus(textQuery, house.number, value, await censusDirect);
+  if (house) value = await verifyWithCensus(textQuery, house.number, value, await censusDirect, area);
   if (value.length > 0) {
     if (suggestionCache.size >= CACHE_LIMIT) suggestionCache.delete(suggestionCache.keys().next().value as string);
     suggestionCache.set(cacheKey, { at: Date.now(), value });

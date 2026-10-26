@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useBrand } from "@/components/brand-provider";
 import { AppointmentItemsEditor, type EditorItem } from "@/components/appointment-items-editor";
 import { INPUT } from "@/components/form-kit";
 import type { PickerVehicle } from "@/components/vehicle-select";
 import type { ItemValues } from "@/domain/appointment-items";
 import { DESTINATION_PREFIX, type FormService } from "@/domain/appointment-form";
-import { DEFAULT_STATE } from "@/domain/customer-form";
 
 const DESTINATION_INPUTS = [
   { field: "line1", label: "Calle y número" },
@@ -37,6 +37,7 @@ export function PanelItemsForm({
   customerId?: string | null;
   vehicles?: PickerVehicle[];
 }) {
+  const brand = useBrand();
   const [needsDestination, setNeedsDestination] = useState(false);
   const idPrefix = `panel-${appointmentId}`;
 
@@ -63,7 +64,7 @@ export function PanelItemsForm({
               {label}
               <input
                 name={`${DESTINATION_PREFIX}${field}`}
-                defaultValue={field === "state" ? DEFAULT_STATE : ""}
+                defaultValue={field === "state" ? brand.location.state : ""}
                 className={INPUT}
               />
             </label>

@@ -4,6 +4,7 @@ import { fieldsForService } from "@/domain/appointment-items";
 import { buildInvoice } from "@/domain/invoice";
 import { getAppointment, type Db } from "@/server/appointments";
 import { renderInvoicePdf } from "@/server/invoice-pdf";
+import { companyBrand } from "@/server/companies";
 
 function toSnapshot(address: Address): AddressSnapshot {
   return {
@@ -50,5 +51,5 @@ export async function getInvoice(db: Db, companyId: string, appointmentId: strin
 
 export async function getInvoicePdf(db: Db, companyId: string, appointmentId: string) {
   const invoice = await getInvoice(db, companyId, appointmentId);
-  return { invoice, pdf: await renderInvoicePdf(invoice) };
+  return { invoice, pdf: await renderInvoicePdf(invoice, await companyBrand(db, companyId)) };
 }

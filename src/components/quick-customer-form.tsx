@@ -1,11 +1,12 @@
 "use client";
 
 import { useActionState } from "react";
+import { useBrand } from "@/components/brand-provider";
 import { quickCreateCustomerAction, type QuickCustomerState } from "@/app/orders/new/actions";
 import { AddressAutocomplete } from "@/components/address-autocomplete";
 import { Field, INPUT } from "@/components/form-kit";
 import type { PickerCustomer } from "@/domain/appointment-form";
-import { DEFAULT_STATE, type CustomerFormValues, type CustomerPrefill } from "@/domain/customer-form";
+import { type CustomerFormValues, type CustomerPrefill } from "@/domain/customer-form";
 
 export function QuickCustomerForm({
   onCreated,
@@ -16,6 +17,7 @@ export function QuickCustomerForm({
   onCancel: () => void;
   prefill?: CustomerPrefill;
 }) {
+  const brand = useBrand();
   const [state, action, pending] = useActionState(
     async (previous: QuickCustomerState, formData: FormData) => {
       const next = await quickCreateCustomerAction(previous, formData);
@@ -65,7 +67,7 @@ export function QuickCustomerForm({
               {...props}
               name="state"
               maxLength={2}
-              defaultValue={values?.state || DEFAULT_STATE}
+              defaultValue={values?.state || brand.location.state}
               className={`${INPUT} uppercase`}
             />
           )}

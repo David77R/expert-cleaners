@@ -12,6 +12,8 @@ import { createAppointment } from "@/server/appointments";
 import { getCustomerSummary } from "@/server/customers";
 import { createTestDb } from "./helpers";
 
+const EXPERT = { defaultState: "FL", rugPickup: true };
+
 vi.mock("@/server/geocoding", () => ({
   geocodeIfNeeded: async (address: unknown) => address,
   getGeocoder: () => null,
@@ -63,7 +65,7 @@ function findService(id: string) {
 }
 
 function inputFor(entries: Record<string, string>) {
-  return appointmentInputFromForm(readAppointmentForm(formData(entries)), findService);
+  return appointmentInputFromForm(readAppointmentForm(formData(entries)), findService, EXPERT);
 }
 
 function errorsFor(entries: Record<string, string>) {
@@ -76,8 +78,8 @@ function errorsFor(entries: Record<string, string>) {
 }
 
 describe("lectura del formulario de cita", () => {
-  it("empieza vacío con Florida en la dirección de entrega", () => {
-    const values = emptyAppointmentForm();
+  it("empieza vacío con el estado de la empresa en la dirección de entrega", () => {
+    const values = emptyAppointmentForm("FL");
     expect(values.date).toBe("");
     expect(values.dest_state).toBe("FL");
   });
@@ -284,6 +286,7 @@ describe("entrega de alfombras en Nueva cita", () => {
         deliveryTechnicianId: "t2",
       },
       find,
+      EXPERT,
     );
     expect(input).toMatchObject({
       delivery: { date: "2026-11-05", startMin: 870, durationMin: 30, technicianId: "t2" },
@@ -295,6 +298,7 @@ describe("entrega de alfombras en Nueva cita", () => {
     const { input } = appointmentInputFromForm(
       { ...base, "items.0.serviceId": sofa.id, "items.0.price": "90", deliveryDate: "2026-11-05" },
       find,
+      EXPERT,
     );
     expect("delivery" in input).toBe(false);
   });
@@ -310,6 +314,7 @@ describe("entrega de alfombras en Nueva cita", () => {
         dest_zip: "33131",
       },
       find,
+      EXPERT,
     );
     expect(input.destinationAddress).toMatchObject({ line1: "1200 Brickell Ave", city: "Miami" });
   });

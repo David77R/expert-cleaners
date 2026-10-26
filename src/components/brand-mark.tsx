@@ -1,14 +1,20 @@
 import Image from "next/image";
-import { client } from "@/config/clients";
+import type { Brand } from "@/domain/companies";
 
-export function BrandMark({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
+export function BrandMark({
+  brand,
+  size = "md",
+}: {
+  brand: Pick<Brand, "logo" | "name" | "initials">;
+  size?: "sm" | "md" | "lg";
+}) {
   const height = size === "sm" ? 36 : size === "lg" ? 56 : 44;
-  if (client.logo) {
-    const width = Math.round((client.logo.width / client.logo.height) * height);
+  if (brand.logo) {
+    const width = Math.round((brand.logo.width / brand.logo.height) * height);
     return (
       <Image
-        src={client.logo.src}
-        alt={client.name}
+        src={brand.logo.src}
+        alt={brand.name}
         width={width}
         height={height}
         priority
@@ -22,7 +28,7 @@ export function BrandMark({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
     <span
       className={`font-display flex shrink-0 items-center justify-center rounded-md bg-brand font-bold text-white ${box}`}
     >
-      {client.initials}
+      {brand.initials}
     </span>
   );
 }

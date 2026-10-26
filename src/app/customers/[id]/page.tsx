@@ -13,11 +13,10 @@ import { Icon } from "@/components/icons";
 import { CustomerAddresses } from "@/components/customer-addresses";
 import { CustomerAppointmentsTable } from "@/components/customer-appointments-table";
 import { CustomerVehicles } from "@/components/customer-vehicles";
-import { client } from "@/config/clients";
 import { MergeCustomerForm } from "@/components/merge-customer-form";
 import { NoteForm } from "@/components/note-form";
 import { deleteCustomerAction } from "@/app/customers/[id]/actions";
-import { getActor } from "@/server/auth";
+import { getActor, getBrand } from "@/server/auth";
 import { customersByIds, getCustomer, possibleDuplicates } from "@/server/customers";
 
 const NOTE_DATE = new Intl.DateTimeFormat("es-US", {
@@ -36,6 +35,7 @@ function first(value: string | string[] | undefined): string | undefined {
 export default async function CustomerPage({ params, searchParams }: PageProps<"/customers/[id]">) {
   const actor = await getActor();
   if (!actor) redirect("/login");
+  const brand = await getBrand();
 
   const parsed = z.uuid().safeParse((await params).id);
   if (!parsed.success) notFound();
@@ -164,7 +164,7 @@ export default async function CustomerPage({ params, searchParams }: PageProps<"
               </h2>
               <CustomerAddresses customerId={customer.id} addresses={customer.addresses} />
             </section>
-            {client.features.vehicles && (
+            {brand.features.vehicles && (
               <section className="flex flex-col gap-3">
                 <h2 className="font-display text-lg font-semibold">
                   Vehículos <span className="text-sm font-normal text-muted">({customer.vehicles.length})</span>

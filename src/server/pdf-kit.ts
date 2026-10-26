@@ -1,5 +1,5 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
-import { client } from "@/config/clients";
+import type { Brand } from "@/domain/companies";
 import { BUSINESS_TIMEZONE } from "@/domain/date-rules";
 
 function hexToRgb(hex: string) {
@@ -15,11 +15,18 @@ export const PAGE = { width: 612, height: 792 };
 export const MARGIN = 54;
 export const CONTENT_WIDTH = PAGE.width - MARGIN * 2;
 
+export type PdfBrand = Pick<Brand, "name" | "shortName" | "theme" | "location">;
+
+export function pdfPalette(brand: Pick<Brand, "theme">) {
+  return {
+    brand: brand.theme["--brand"] ? hexToRgb(brand.theme["--brand"]) : rgb(13 / 255, 156 / 255, 142 / 255),
+    brandSoft: brand.theme["--brand-soft"]
+      ? hexToRgb(brand.theme["--brand-soft"])
+      : rgb(223 / 255, 244 / 255, 240 / 255),
+  };
+}
+
 export const COLORS = {
-  brand: client.theme["--brand"] ? hexToRgb(client.theme["--brand"]) : rgb(13 / 255, 156 / 255, 142 / 255),
-  brandSoft: client.theme["--brand-soft"]
-    ? hexToRgb(client.theme["--brand-soft"])
-    : rgb(223 / 255, 244 / 255, 240 / 255),
   ink: rgb(21 / 255, 26 / 255, 33 / 255),
   muted: rgb(110 / 255, 116 / 255, 124 / 255),
   hair: rgb(227 / 255, 225 / 255, 218 / 255),
@@ -107,12 +114,12 @@ export function formatBusinessDateTime(date: Date): string {
   }).format(date);
 }
 
-export async function createPdf(title: string, date: Date) {
+export async function createPdf(title: string, date: Date, brand: PdfBrand) {
   const pdf = await PDFDocument.create({ updateMetadata: false });
   pdf.setTitle(title);
-  pdf.setAuthor(client.name);
-  pdf.setCreator(client.name);
-  pdf.setProducer(client.name);
+  pdf.setAuthor(brand.name);
+  pdf.setCreator(brand.name);
+  pdf.setProducer(brand.name);
   pdf.setCreationDate(date);
   pdf.setModificationDate(date);
 
@@ -146,10 +153,11 @@ export function drawBrandHeader(
   bold: PDFFont,
   heading: string,
   sub: string,
+  brand: PdfBrand,
 ) {
-  page.drawRectangle({ x: 0, y: PAGE.height - 92, width: PAGE.width, height: 92, color: COLORS.brand });
-  draw(client.shortName, MARGIN, PAGE.height - 52, { size: 24, font: bold, color: COLORS.white });
-  draw(client.location.label, MARGIN, PAGE.height - 70, { size: 10, color: COLORS.white });
+  page.drawRectangle({ x: 0, y: PAGE.height - 92, width: PAGE.width, height: 92, color: pdfPalette(brand).brand });
+  draw(brand.shortName, MARGIN, PAGE.height - 52, { size: 24, font: bold, color: COLORS.white });
+  draw(brand.location.label, MARGIN, PAGE.height - 70, { size: 10, color: COLORS.white });
   draw(heading, PAGE.width - MARGIN, PAGE.height - 48, { size: 20, font: bold, color: COLORS.white, align: "right" });
   draw(sub, PAGE.width - MARGIN, PAGE.height - 68, { size: 12, color: COLORS.white, align: "right" });
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useBrand } from "@/components/brand-provider";
 import { useActionState, useState, useTransition, type ComponentProps, type FormEvent } from "react";
 import { createServiceAction, updateServiceAction, type ServiceFormState } from "@/app/services/actions";
 import { Card, Field, INPUT } from "@/components/form-kit";
@@ -8,7 +9,6 @@ import { Icon } from "@/components/icons";
 import { ServiceIcon } from "@/components/service-icon";
 import { SERVICE_ICONS, SERVICE_ICON_KEYS } from "@/domain/service-icons";
 import { VEHICLE_SIZES, VEHICLE_SIZE_LABELS } from "@/domain/vehicles";
-import { client } from "@/config/clients";
 import {
   MAX_SERVICE_FIELDS,
   SIZE_PRICE_PREFIX,
@@ -41,6 +41,7 @@ export function ServiceForm({
   categories: string[];
   lockTwoAddresses: boolean;
 }) {
+  const brand = useBrand();
   const initial: ServiceFormState = { values: initialValues, errors: {} };
   const [state, action, actionPending] = useActionState(
     serviceId ? updateServiceAction.bind(null, serviceId) : createServiceAction,
@@ -166,7 +167,7 @@ export function ServiceForm({
             )}
           </ServiceFormField>
         </div>
-        {client.features.vehicles && (
+        {brand.features.vehicles && (
           <fieldset className="flex flex-col gap-2 sm:col-span-2">
             <legend className="text-sm font-medium">
               Precio según el tipo de vehículo <span className="font-normal text-muted">(opcional)</span>

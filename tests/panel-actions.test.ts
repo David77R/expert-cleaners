@@ -36,8 +36,8 @@ function form(values: Record<string, string>): FormData {
 
 describe("datos de los formularios del panel", () => {
   it("arma el cuerpo de cada acción", () => {
-    expect(payloadFromForm("confirm", form({}))).toEqual({ action: "confirm" });
-    expect(payloadFromForm("cancel", form({ reason: "weather", explanation: "Tormenta" }))).toEqual({
+    expect(payloadFromForm("confirm", form({}), "FL")).toEqual({ action: "confirm" });
+    expect(payloadFromForm("cancel", form({ reason: "weather", explanation: "Tormenta" }), "FL")).toEqual({
       action: "cancel",
       reason: "weather",
       explanation: "Tormenta",
@@ -46,6 +46,7 @@ describe("datos de los formularios del panel", () => {
       payloadFromForm(
         "reschedule",
         form({ date: "2027-08-01", time: "10:30", technicianId: "", reason: "Pidió otro día" }),
+        "FL",
       ),
     ).toEqual({
       action: "reschedule",
@@ -54,14 +55,14 @@ describe("datos de los formularios del panel", () => {
       technicianId: undefined,
       reason: "Pidió otro día",
     });
-    expect(payloadFromForm("update_notes", form({ notes: "  Portón azul  " }))).toEqual({
+    expect(payloadFromForm("update_notes", form({ notes: "  Portón azul  " }), "FL")).toEqual({
       action: "update_notes",
       notes: "Portón azul",
     });
   });
 
   it("deja la hora sin definir cuando no es válida", () => {
-    const payload = payloadFromForm("reschedule", form({ date: "2027-08-01", time: "25:99", reason: "x" }));
+    const payload = payloadFromForm("reschedule", form({ date: "2027-08-01", time: "25:99", reason: "x" }), "FL");
     expect(payload.startMin).toBeUndefined();
   });
 });
@@ -91,7 +92,7 @@ describe("ejecución de acciones del panel", () => {
       ctx.db,
       AGENT_JOSUE,
       created.id,
-      payloadFromForm("cancel", form({ reason: "", explanation: "" })),
+      payloadFromForm("cancel", form({ reason: "", explanation: "" }), "FL"),
     );
     expect(noReason).toEqual({ ok: false, error: "Elige un motivo de cancelación" });
 
@@ -99,7 +100,7 @@ describe("ejecución de acciones del panel", () => {
       ctx.db,
       AGENT_JOSUE,
       created.id,
-      payloadFromForm("cancel", form({ reason: "other", explanation: "" })),
+      payloadFromForm("cancel", form({ reason: "other", explanation: "" }), "FL"),
     );
     expect(noExplanation).toEqual({ ok: false, error: "Explica el motivo de la cancelación" });
 
@@ -107,7 +108,7 @@ describe("ejecución de acciones del panel", () => {
       ctx.db,
       AGENT_JOSUE,
       created.id,
-      payloadFromForm("cancel", form({ reason: "weather", explanation: "" })),
+      payloadFromForm("cancel", form({ reason: "weather", explanation: "" }), "FL"),
     );
     expect(ok).toEqual({ ok: true });
     expect((await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, created.id)).status).toBe("cancelled");
@@ -121,7 +122,7 @@ describe("ejecución de acciones del panel", () => {
       ctx.db,
       AGENT_JOSUE,
       second.id,
-      payloadFromForm("reschedule", form({ date: first.date, time: "", reason: "Cambio" })),
+      payloadFromForm("reschedule", form({ date: first.date, time: "", reason: "Cambio" }), "FL"),
     );
     expect(badTime).toEqual({ ok: false, error: "Elige una hora válida" });
 
@@ -129,7 +130,7 @@ describe("ejecución de acciones del panel", () => {
       ctx.db,
       AGENT_JOSUE,
       second.id,
-      payloadFromForm("reschedule", form({ date: "2027-13-45", time: "09:00", reason: "Cambio" })),
+      payloadFromForm("reschedule", form({ date: "2027-13-45", time: "09:00", reason: "Cambio" }), "FL"),
     );
     expect(badDate).toEqual({ ok: false, error: "Elige una fecha válida" });
 
@@ -137,7 +138,7 @@ describe("ejecución de acciones del panel", () => {
       ctx.db,
       AGENT_JOSUE,
       second.id,
-      payloadFromForm("reschedule", form({ date: first.date, time: "09:00", reason: " " })),
+      payloadFromForm("reschedule", form({ date: first.date, time: "09:00", reason: " " }), "FL"),
     );
     expect(noReason.ok).toBe(false);
 
@@ -145,7 +146,7 @@ describe("ejecución de acciones del panel", () => {
       ctx.db,
       AGENT_JOSUE,
       second.id,
-      payloadFromForm("reschedule", form({ date: first.date, time: "09:30", reason: "Pidió este día" })),
+      payloadFromForm("reschedule", form({ date: first.date, time: "09:30", reason: "Pidió este día" }), "FL"),
     );
     expect(overlapped).toEqual({
       ok: true,
@@ -162,7 +163,12 @@ describe("ejecución de acciones del panel", () => {
     expect(await executeAction(ctx.db, AGENT_JOSUE, created.id, { action: "mark_paid" })).toEqual({ ok: true });
     expect(await executeAction(ctx.db, AGENT_JOSUE, created.id, { action: "advance_invoice" })).toEqual({ ok: true });
     expect(
-      await executeAction(ctx.db, AGENT_JOSUE, created.id, payloadFromForm("update_notes", form({ notes: " Perro " }))),
+      await executeAction(
+        ctx.db,
+        AGENT_JOSUE,
+        created.id,
+        payloadFromForm("update_notes", form({ notes: " Perro " }), "FL"),
+      ),
     ).toEqual({ ok: true });
 
     const detail = await getAppointment(ctx.db, EXPERT_CLEANERS_COMPANY_ID, created.id);

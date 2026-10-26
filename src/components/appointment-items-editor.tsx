@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useBrand } from "@/components/brand-provider";
 import { VehicleSelect, fetchVehicles, type PickerVehicle } from "@/components/vehicle-select";
-import { client } from "@/config/clients";
 import { isVehicleSize, priceForSize, vehicleName } from "@/domain/vehicles";
 import { INPUT } from "@/components/form-kit";
 import { Icon } from "@/components/icons";
@@ -85,6 +85,7 @@ function ItemFields({
   onSpec: (key: string, value: string) => void;
   onDetail: (key: DetailKey, value: string) => void;
 }) {
+  const brand = useBrand();
   return (
     <div className="grid gap-2.5 sm:grid-cols-2">
       <label className={LABEL}>
@@ -134,7 +135,7 @@ function ItemFields({
           {errors[`spec.${field.key}`] && <span className="text-attention">{errors[`spec.${field.key}`]}</span>}
         </label>
       ))}
-      {(client.features.vehicles ? [] : (["color", "size", "dimensions"] as const)).map((detail) => (
+      {(brand.features.vehicles ? [] : (["color", "size", "dimensions"] as const)).map((detail) => (
         <label key={detail} className={LABEL}>
           {DETAIL_LABELS[detail]}
           <input
@@ -185,6 +186,7 @@ export function AppointmentItemsEditor({
   customerId?: string | null;
   vehicles?: PickerVehicle[];
 }) {
+  const brand = useBrand();
   const byId = new Map(services.map((service) => [service.id, service]));
   const categories = [...new Set(services.map((service) => service.category))];
   const [rows, setRows] = useState<Row[]>(() =>
@@ -210,8 +212,9 @@ export function AppointmentItemsEditor({
   });
   const vehicles = loaded.customerId === customerId ? loaded.list : [];
 
+  const vehiclesOn = brand.features.vehicles;
   useEffect(() => {
-    if (!client.features.vehicles || !customerId || loaded.customerId === customerId) return;
+    if (!vehiclesOn || !customerId || loaded.customerId === customerId) return;
     let alive = true;
     void fetchVehicles(customerId).then((list) => {
       if (alive) setLoaded({ customerId, list });
@@ -219,7 +222,7 @@ export function AppointmentItemsEditor({
     return () => {
       alive = false;
     };
-  }, [customerId, loaded.customerId]);
+  }, [vehiclesOn, customerId, loaded.customerId]);
 
   function setRowVehicle(uid: number, vehicleId: string | null, known: readonly PickerVehicle[] = vehicles) {
     const vehicle = known.find((item) => item.id === vehicleId);
@@ -575,7 +578,7 @@ export function AppointmentItemsEditor({
                             </div>
                             {rowOpen && (
                               <div className="flex flex-col gap-2.5 border-t border-hair px-2.5 py-2.5">
-                                {client.features.vehicles && (
+                                {brand.features.vehicles && (
                                   <VehicleSelect
                                     customerId={customerId}
                                     vehicles={vehicles}

@@ -1,7 +1,8 @@
 import { NavigationTrail } from "@/components/back-link";
-import type { CSSProperties } from "react";
 import type { Metadata, Viewport } from "next";
-import { client, iconPath } from "@/config/clients";
+import { BrandProvider } from "@/components/brand-provider";
+import { brandIcon, brandStyle } from "@/domain/companies";
+import { getBrand } from "@/server/auth";
 import localFont from "next/font/local";
 import "./globals.css";
 
@@ -24,28 +25,30 @@ const grotesk = localFont({
   ],
 });
 
-export const metadata: Metadata = {
-  title: client.shortName,
-  description: "Operación diaria: calendario, rutas y citas",
-  appleWebApp: { capable: true, title: client.shortName, statusBarStyle: "black-translucent" },
-  icons: { apple: iconPath("apple-icon.png"), icon: iconPath("icon-192.png") },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const brand = await getBrand();
+  return {
+    title: brand.shortName,
+    description: "Operación diaria: calendario, rutas y citas",
+    appleWebApp: { capable: true, title: brand.shortName, statusBarStyle: "black-translucent" },
+    icons: { apple: brandIcon(brand, "apple-icon.png"), icon: brandIcon(brand, "icon-192.png") },
+  };
+}
 
-export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-  viewportFit: "cover",
-  themeColor: client.themeColor,
-};
+export async function generateViewport(): Promise<Viewport> {
+  const brand = await getBrand();
+  return { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: brand.themeColor };
+}
 
-const themeStyle = { ...client.theme, "--tint": client.backgroundTint } as CSSProperties;
-
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const brand = await getBrand();
   return (
-    <html lang="es" className={`${plex.variable} ${grotesk.variable} h-full antialiased`} style={themeStyle}>
+    <html lang="es" className={`${plex.variable} ${grotesk.variable} h-full antialiased`} style={brandStyle(brand)}>
       <body className="min-h-full flex flex-col">
-        <NavigationTrail />
-        {children}
+        <BrandProvider brand={brand}>
+          <NavigationTrail />
+          {children}
+        </BrandProvider>
       </body>
     </html>
   );

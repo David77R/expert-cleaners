@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { Icon } from "@/components/icons";
 import { LegendDisclosure } from "@/components/legend-disclosure";
-import { client } from "@/config/clients";
 import { initialsOf, readableOn } from "@/domain/calendar-view";
 import type { CalendarTechnician } from "@/components/calendar-types";
 
@@ -41,7 +40,7 @@ function Item({ sample, title, text }: { sample: ReactNode; title: string; text:
   );
 }
 
-export function CalendarLegend({ technicians }: { technicians: CalendarTechnician[] }) {
+export function CalendarLegend({ technicians, rugPickup }: { technicians: CalendarTechnician[]; rugPickup: boolean }) {
   return (
     <section
       aria-label="Cómo leer el calendario"
@@ -132,7 +131,7 @@ export function CalendarLegend({ technicians }: { technicians: CalendarTechnicia
                 </Sample>
               }
             />
-            {client.features.rugPickup && (
+            {rugPickup && (
               <>
                 <Item
                   title="Alfombras: recogida"
@@ -188,7 +187,7 @@ export function CalendarLegend({ technicians }: { technicians: CalendarTechnicia
             </span>
             Aro y «!»: sin confirmar
           </span>
-          {client.features.rugPickup && (
+          {rugPickup && (
             <span className="flex items-center gap-2">
               <span
                 className="flex h-4 w-4 rotate-45 items-center justify-center rounded-[3px] border-2 border-white shadow"

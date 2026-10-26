@@ -17,7 +17,7 @@ import {
 } from "@/domain/customer-form";
 import { createAppointmentSchema, type CreateAppointmentInput } from "@/domain/schemas";
 import { createAppointment } from "@/server/appointments";
-import { getActor } from "@/server/auth";
+import { getActor, getBrand } from "@/server/auth";
 import { createCustomer } from "@/server/customers";
 
 export type OrderResult =
@@ -75,7 +75,11 @@ export async function quickCreateCustomerAction(
 
   const values = readCustomerForm(formData);
   try {
-    const created = await createCustomer(getDb(), actor.companyId, customerInputFromForm(values));
+    const created = await createCustomer(
+      getDb(),
+      actor.companyId,
+      customerInputFromForm(values, (await getBrand()).location.state),
+    );
     revalidatePath("/customers");
     return {
       errors: {},

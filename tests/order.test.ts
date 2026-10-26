@@ -6,6 +6,7 @@ import { guessServiceIcon, serviceIconOf } from "@/domain/service-icons";
 describe("mensaje de confirmación del pedido", () => {
   it("incluye recogida, entrega, servicios, total y código", () => {
     const text = confirmationMessage({
+      companyName: "Expert Cleaners",
       customerName: " Melissa ",
       code: "SVC-7774",
       pickup: { date: "2026-10-14", startMin: 540 },
@@ -26,6 +27,7 @@ describe("mensaje de confirmación del pedido", () => {
 
   it("omite la entrega si no está programada", () => {
     const text = confirmationMessage({
+      companyName: "Expert Cleaners",
       customerName: "Ana",
       code: "SVC-1",
       pickup: { date: "2026-10-14", startMin: 540 },
@@ -38,6 +40,7 @@ describe("mensaje de confirmación del pedido", () => {
 
   it("agrupa los artículos iguales con el total y el precio por unidad", () => {
     const text = confirmationMessage({
+      companyName: "Expert Cleaners",
       customerName: "Blanquita",
       code: "SVC-9",
       pickup: { date: "2026-10-14", startMin: 540 },
@@ -55,6 +58,7 @@ describe("mensaje de confirmación del pedido", () => {
 
   it("muestra el precio exacto por unidad cuando todos cuestan lo mismo", () => {
     const text = confirmationMessage({
+      companyName: "Expert Cleaners",
       customerName: "Ana",
       code: "SVC-2",
       pickup: { date: "2026-10-14", startMin: 540 },

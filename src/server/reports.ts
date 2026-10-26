@@ -5,6 +5,7 @@ import { BUSINESS_TIMEZONE, enumerateDates } from "@/domain/date-rules";
 import { reportQuerySchema } from "@/domain/schemas";
 import type { Db } from "@/server/appointments";
 import { renderReportPdf } from "@/server/report-pdf";
+import { companyBrand } from "@/server/companies";
 
 type Actor = schema.Actor;
 
@@ -130,6 +131,6 @@ export async function getAgentReport(db: Db, actor: Actor, raw: unknown) {
 
 export async function getAgentReportPdf(db: Db, actor: Actor, raw: unknown, generatedAt: Date = new Date()) {
   const report = await getAgentReport(db, actor, raw);
-  const pdf = await renderReportPdf(report, generatedAt);
+  const pdf = await renderReportPdf(report, generatedAt, await companyBrand(db, actor.companyId));
   return { report, pdf };
 }

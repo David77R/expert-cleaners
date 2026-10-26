@@ -1,4 +1,3 @@
-import { client } from "@/config/clients";
 import { formatMinutes } from "@/domain/appointment-rules";
 import { formatMoney, type InvoiceData } from "@/domain/invoice";
 import {
@@ -9,18 +8,21 @@ import {
   createDrawer,
   createPdf,
   drawBrandHeader,
+  pdfPalette,
+  type PdfBrand,
   drawFooter,
   formatBusinessDate,
   formatLongDate,
   wrap,
 } from "@/server/pdf-kit";
 
-export async function renderInvoicePdf(invoice: InvoiceData): Promise<Uint8Array> {
-  const { pdf, regular, bold, supported } = await createPdf(`Factura ${invoice.number}`, invoice.issuedAt);
+export async function renderInvoicePdf(invoice: InvoiceData, brand: PdfBrand): Promise<Uint8Array> {
+  const { pdf, regular, bold, supported } = await createPdf(`Factura ${invoice.number}`, invoice.issuedAt, brand);
+  const palette = pdfPalette(brand);
   let page = pdf.addPage([PAGE.width, PAGE.height]);
   const draw = createDrawer(() => page, regular, supported);
 
-  drawBrandHeader(page, draw, bold, "FACTURA", invoice.number);
+  drawBrandHeader(page, draw, bold, "FACTURA", invoice.number, brand);
 
   let y = PAGE.height - 130;
   const metaColumns = [
@@ -49,11 +51,11 @@ export async function renderInvoicePdf(invoice: InvoiceData): Promise<Uint8Array
   }
 
   y = billY - 22;
-  page.drawRectangle({ x: MARGIN, y: y - 6, width: CONTENT_WIDTH, height: 24, color: COLORS.brandSoft });
-  draw("DESCRIPCIÓN", MARGIN + 10, y + 2, { size: 8, font: bold, color: COLORS.brand });
-  draw("CANT.", MARGIN + CONTENT_WIDTH - 190, y + 2, { size: 8, font: bold, color: COLORS.brand, align: "right" });
-  draw("PRECIO", MARGIN + CONTENT_WIDTH - 100, y + 2, { size: 8, font: bold, color: COLORS.brand, align: "right" });
-  draw("IMPORTE", MARGIN + CONTENT_WIDTH - 10, y + 2, { size: 8, font: bold, color: COLORS.brand, align: "right" });
+  page.drawRectangle({ x: MARGIN, y: y - 6, width: CONTENT_WIDTH, height: 24, color: palette.brandSoft });
+  draw("DESCRIPCIÓN", MARGIN + 10, y + 2, { size: 8, font: bold, color: palette.brand });
+  draw("CANT.", MARGIN + CONTENT_WIDTH - 190, y + 2, { size: 8, font: bold, color: palette.brand, align: "right" });
+  draw("PRECIO", MARGIN + CONTENT_WIDTH - 100, y + 2, { size: 8, font: bold, color: palette.brand, align: "right" });
+  draw("IMPORTE", MARGIN + CONTENT_WIDTH - 10, y + 2, { size: 8, font: bold, color: palette.brand, align: "right" });
 
   for (const [index, line] of invoice.lines.entries()) {
     if (y < 220) {
@@ -116,7 +118,7 @@ export async function renderInvoicePdf(invoice: InvoiceData): Promise<Uint8Array
     color: statusColor,
   });
 
-  drawFooter(page, draw, `Gracias por confiar en ${client.shortName}.`);
+  drawFooter(page, draw, `Gracias por confiar en ${brand.shortName}.`);
 
   return pdf.save();
 }

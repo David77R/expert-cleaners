@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { MIAMI } from "./brands";
 import {
   parsePhotonSuggestions,
   parseSuggestions,
@@ -166,7 +167,7 @@ describe("sugerencias de respaldo", () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon-key");
     vi.stubEnv("ORS_API_KEY", "ors-key");
-    const suggestions = await suggestAddresses("1200 Brick");
+    const suggestions = await suggestAddresses("1200 Brick", MIAMI);
     expect(suggestions.map((s) => s.line1)).toEqual(["1200 Brickell Ave"]);
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes("photon"))).toBe(true);
   });
@@ -280,7 +281,7 @@ describe("ubicación exacta con el Census", () => {
         JSON.stringify(url.searchParams.get("zip") ? census([]) : census([match("33150", -80.21, 25.85)])),
       );
     });
-    const result = await createCensusGeocoder().geocode({
+    const result = await createCensusGeocoder("FL").geocode({
       line1: "795 Northwest 80th Terrace",
       city: "Miami",
       state: "FL",
@@ -293,7 +294,7 @@ describe("ubicación exacta con el Census", () => {
   it("sin número de casa no consulta el Census y pasa al siguiente", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch");
     const fallback = { geocode: async () => ({ lat: 1, lng: 2 }) };
-    const result = await chainGeocoders([createCensusGeocoder(), fallback]).geocode({
+    const result = await chainGeocoders([createCensusGeocoder("FL"), fallback]).geocode({
       line1: "Brickell Ave",
       city: "Miami",
       state: "FL",
@@ -385,7 +386,7 @@ describe("sugerencias verificadas con el Census", () => {
       }
       return new Response(JSON.stringify({ features: [] }));
     });
-    const suggestions = await suggestAddresses("795 Northwest 80th Terrace");
+    const suggestions = await suggestAddresses("795 Northwest 80th Terrace", MIAMI);
     expect(zips.sort()).toEqual(["33166", "33324"]);
     expect(suggestions[0]).toMatchObject({ city: "Plantation", zip: "33324", verified: true });
     expect(suggestions.map((s) => s.city)).toEqual(["Plantation", "Medley"]);

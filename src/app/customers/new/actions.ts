@@ -12,7 +12,7 @@ import {
   type CustomerFormErrors,
   type CustomerFormValues,
 } from "@/domain/customer-form";
-import { getActor } from "@/server/auth";
+import { getActor, getBrand } from "@/server/auth";
 import { createCustomer } from "@/server/customers";
 
 export type CustomerFormState = {
@@ -31,7 +31,11 @@ export async function createCustomerAction(
   const values = readCustomerForm(formData);
   let created: Awaited<ReturnType<typeof createCustomer>>;
   try {
-    created = await createCustomer(getDb(), actor.companyId, customerInputFromForm(values));
+    created = await createCustomer(
+      getDb(),
+      actor.companyId,
+      customerInputFromForm(values, (await getBrand()).location.state),
+    );
   } catch (error) {
     if (error instanceof ZodError) return { values, errors: customerFieldErrors(error) };
     if (error instanceof DomainError) return { values, errors: {}, message: error.message };

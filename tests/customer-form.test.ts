@@ -40,14 +40,14 @@ const complete = {
 };
 
 function errorsFor(entries: Record<string, string>) {
-  const result = createCustomerSchema.safeParse(customerInputFromForm(readCustomerForm(formData(entries))));
+  const result = createCustomerSchema.safeParse(customerInputFromForm(readCustomerForm(formData(entries)), "FL"));
   if (result.success) return {};
   return customerFieldErrors(result.error);
 }
 
 describe("lectura del formulario", () => {
-  it("empieza vacío con Florida como estado", () => {
-    const values = emptyCustomerForm();
+  it("empieza vacío con el estado de la empresa", () => {
+    const values = emptyCustomerForm("FL");
     expect(values.state).toBe("FL");
     expect(values.firstName).toBe("");
     expect(values.allowMarketing).toBe("");
@@ -71,7 +71,7 @@ describe("lectura del formulario", () => {
 
 describe("entrada del cliente", () => {
   it("arma una entrada válida con una dirección", () => {
-    const input = customerInputFromForm(readCustomerForm(formData(complete)));
+    const input = customerInputFromForm(readCustomerForm(formData(complete)), "FL");
     const parsed = createCustomerSchema.parse(input);
     expect(parsed.email).toBe("laura@correo.com");
     expect(parsed.allowMarketing).toBe(true);
@@ -83,6 +83,7 @@ describe("entrada del cliente", () => {
   it("convierte los campos opcionales vacíos en ausentes", () => {
     const input = customerInputFromForm(
       readCustomerForm(formData({ ...complete, email: "  ", notes: "", addressNotes: "", unit: "" })),
+      "FL",
     );
     expect(input.email).toBeUndefined();
     expect(input.notes).toBeUndefined();
@@ -91,10 +92,12 @@ describe("entrada del cliente", () => {
   });
 
   it("usa Florida cuando el estado queda vacío y lo pone en mayúsculas", () => {
-    expect(customerInputFromForm(readCustomerForm(formData({ ...complete, state: "" }))).addresses[0].state).toBe("FL");
-    expect(customerInputFromForm(readCustomerForm(formData({ ...complete, state: "ga" }))).addresses[0].state).toBe(
-      "GA",
+    expect(customerInputFromForm(readCustomerForm(formData({ ...complete, state: "" })), "TX").addresses[0].state).toBe(
+      "TX",
     );
+    expect(
+      customerInputFromForm(readCustomerForm(formData({ ...complete, state: "ga" })), "FL").addresses[0].state,
+    ).toBe("GA");
   });
 });
 
@@ -202,7 +205,7 @@ describe("búsqueda por ids", () => {
 
   it("el alta desde el formulario detecta un teléfono repetido", async () => {
     const entries = { ...complete, phone: "(954) 555 0777" };
-    const input = customerInputFromForm(readCustomerForm(formData(entries)));
+    const input = customerInputFromForm(readCustomerForm(formData(entries)), "FL");
     const first = await createCustomer(ctx.db, EXPERT_CLEANERS_COMPANY_ID, input);
     expect(first.duplicates).toHaveLength(0);
 

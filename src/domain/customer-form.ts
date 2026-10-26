@@ -1,4 +1,3 @@
-import { client } from "@/config/clients";
 import type { ZodError } from "zod";
 
 export const FORM_FIELDS = [
@@ -19,8 +18,6 @@ export type CustomerFormField = (typeof FORM_FIELDS)[number];
 export type CustomerFormValues = Record<CustomerFormField | "allowMarketing" | "lat" | "lng", string>;
 export type CustomerFormErrors = Partial<Record<CustomerFormField, string>>;
 
-export const DEFAULT_STATE = client.location.state;
-
 const FIELD_MESSAGES: Partial<Record<CustomerFormField, string>> = {
   phone: "Escribe un teléfono válido (mínimo 7 dígitos)",
   email: "Escribe un correo válido",
@@ -36,7 +33,7 @@ function blankToUndefined(value: string): string | undefined {
   return trimmed === "" ? undefined : trimmed;
 }
 
-export function emptyCustomerForm(): CustomerFormValues {
+export function emptyCustomerForm(state = ""): CustomerFormValues {
   return {
     firstName: "",
     lastName: "",
@@ -46,7 +43,7 @@ export function emptyCustomerForm(): CustomerFormValues {
     line1: "",
     unit: "",
     city: "",
-    state: DEFAULT_STATE,
+    state,
     zip: "",
     addressNotes: "",
     allowMarketing: "",
@@ -76,7 +73,7 @@ export function coordinatesFrom(rawLat: string | undefined, rawLng: string | und
   return valid ? { lat, lng } : {};
 }
 
-export function customerInputFromForm(values: CustomerFormValues) {
+export function customerInputFromForm(values: CustomerFormValues, defaultState: string) {
   return {
     firstName: values.firstName,
     lastName: values.lastName,
@@ -89,7 +86,7 @@ export function customerInputFromForm(values: CustomerFormValues) {
         line1: values.line1,
         unit: values.unit,
         city: values.city,
-        state: (blankToUndefined(values.state) ?? DEFAULT_STATE).toUpperCase(),
+        state: (blankToUndefined(values.state) ?? defaultState).toUpperCase(),
         zip: values.zip,
         notes: blankToUndefined(values.addressNotes),
         ...coordinatesFrom(values.lat, values.lng),

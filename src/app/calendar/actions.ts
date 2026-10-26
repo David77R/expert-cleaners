@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDb } from "@/db/client";
-import { getActor } from "@/server/auth";
+import { getActor, getBrand } from "@/server/auth";
 import { executeAction, payloadFromForm, type PanelAction } from "@/server/panel-actions";
 
 export type ActionState = { error?: string; notice?: string; stamp: number };
@@ -12,7 +12,12 @@ async function run(id: string, previous: ActionState, action: PanelAction, formD
   const actor = await getActor();
   if (!actor) redirect("/login");
 
-  const result = await executeAction(getDb(), actor, id, payloadFromForm(action, formData));
+  const result = await executeAction(
+    getDb(),
+    actor,
+    id,
+    payloadFromForm(action, formData, (await getBrand()).location.state),
+  );
   revalidatePath("/calendar");
   revalidatePath(`/appointments/${id}/edit`);
   return result.ok

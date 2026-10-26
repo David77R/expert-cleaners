@@ -9,7 +9,7 @@ import { formatRange, initialsOf, readableOn } from "@/domain/calendar-view";
 import { appointmentIdFromKey } from "@/domain/delivery";
 import { spreadPositions } from "@/domain/map-positions";
 import { Icon } from "@/components/icons";
-import { client } from "@/config/clients";
+import { useBrand } from "@/components/brand-provider";
 
 export type MapStop = {
   id: string;
@@ -45,7 +45,6 @@ export type MapRouteDraft = {
 
 const DEFAULT_ROUTE_COLOR = "#1d4ed8";
 const DRAFT_ROUTE_COLOR = "#7c3aed";
-const DEFAULT_CENTER: [number, number] = [client.location.center.lat, client.location.center.lng];
 const DEFAULT_ZOOM = 10;
 
 function numberedIcon(
@@ -140,6 +139,8 @@ export function MapView({
   drafts: MapRouteDraft[];
   returnHref: string;
 }) {
+  const brand = useBrand();
+  const defaultCenter: [number, number] = [brand.location.center.lat, brand.location.center.lng];
   const router = useRouter();
   const [mode, setMode] = useState<"tech" | "service">("tech");
   const [selectedStop, setSelectedStop] = useState<MapStop | null>(null);
@@ -557,7 +558,7 @@ export function MapView({
           ) : (
             <MapContainer
               key="empty"
-              center={DEFAULT_CENTER}
+              center={defaultCenter}
               zoom={DEFAULT_ZOOM}
               className="h-full w-full"
               scrollWheelZoom

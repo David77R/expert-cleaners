@@ -1,5 +1,4 @@
 import type { PDFFont, PDFPage } from "pdf-lib";
-import { client } from "@/config/clients";
 import { formatMoney } from "@/domain/invoice";
 import {
   COLORS,
@@ -9,6 +8,8 @@ import {
   createDrawer,
   createPdf,
   drawBrandHeader,
+  pdfPalette,
+  type PdfBrand,
   formatBusinessDateTime,
   formatLongDate,
   sanitizeFor,
@@ -18,7 +19,9 @@ import type { AgentReport, ReportMetrics } from "@/server/reports";
 
 const BOTTOM_LIMIT = 78;
 const ROW_HEIGHT = 22;
-const NOTE = `Las citas agendadas se cuentan por la fecha en que cada agente las creó, en horario de ${client.location.city}. El dinero excluye las citas canceladas.`;
+function note(city: string): string {
+  return `Las citas agendadas se cuentan por la fecha en que cada agente las creó, en horario de ${city}. El dinero excluye las citas canceladas.`;
+}
 const NUMERIC_EDGES = [192, 236, 280, 352, 424, 496];
 
 export function formatPeriod(from: string, to: string): string {
@@ -47,15 +50,17 @@ export function sortAgents<T extends { name: string; scheduled: number }>(agents
   return [...agents].sort((a, b) => b.scheduled - a.scheduled || a.name.localeCompare(b.name, "es"));
 }
 
-export async function renderReportPdf(report: AgentReport, generatedAt: Date): Promise<Uint8Array> {
+export async function renderReportPdf(report: AgentReport, generatedAt: Date, brand: PdfBrand): Promise<Uint8Array> {
+  const palette = pdfPalette(brand);
   const { pdf, regular, bold, supported } = await createPdf(
     `Reporte por agente ${report.from} a ${report.to}`,
     generatedAt,
+    brand,
   );
   let page: PDFPage = pdf.addPage([PAGE.width, PAGE.height]);
   const draw = createDrawer(() => page, regular, supported);
 
-  drawBrandHeader(page, draw, bold, "REPORTE", "Citas agendadas por agente");
+  drawBrandHeader(page, draw, bold, "REPORTE", "Citas agendadas por agente", brand);
 
   let y = PAGE.height - 130;
   const scope = report.agents.length === 1 ? report.agents[0].name : "Todos los agentes";
@@ -75,7 +80,7 @@ export async function renderReportPdf(report: AgentReport, generatedAt: Date): P
   });
 
   let noteY = metaBottom - 24;
-  for (const line of wrap(NOTE, regular, 8, CONTENT_WIDTH)) {
+  for (const line of wrap(note(brand.location.city), regular, 8, CONTENT_WIDTH)) {
     draw(line, MARGIN, noteY, { size: 8, color: COLORS.muted });
     noteY -= 11;
   }
@@ -97,8 +102,8 @@ export async function renderReportPdf(report: AgentReport, generatedAt: Date): P
     const row = Math.floor(index / 3);
     const x = MARGIN + column * (tileWidth + tileGap);
     const top = y - row * (54 + tileGap);
-    page.drawRectangle({ x, y: top - 54, width: tileWidth, height: 54, color: COLORS.brandSoft });
-    draw(tile.label.toUpperCase(), x + 12, top - 18, { size: 7.5, font: bold, color: COLORS.brand });
+    page.drawRectangle({ x, y: top - 54, width: tileWidth, height: 54, color: palette.brandSoft });
+    draw(tile.label.toUpperCase(), x + 12, top - 18, { size: 7.5, font: bold, color: palette.brand });
     draw(tile.value, x + 12, top - 42, { size: 19, font: bold });
   });
 
@@ -127,7 +132,7 @@ export async function renderReportPdf(report: AgentReport, generatedAt: Date): P
     const x = MARGIN + index * slot + (slot - barWidth) / 2;
     if (value > 0) {
       const height = (value / maxValue) * (chartHeight - 12);
-      page.drawRectangle({ x, y: chartBottom, width: barWidth, height, color: COLORS.brand });
+      page.drawRectangle({ x, y: chartBottom, width: barWidth, height, color: palette.brand });
       if (report.dates.length <= 16) {
         draw(String(value), x + barWidth / 2 - 2.5, chartBottom + height + 3, { size: 7.5, color: COLORS.muted });
       }
@@ -140,10 +145,10 @@ export async function renderReportPdf(report: AgentReport, generatedAt: Date): P
   const columns = ["AGEND.", "CANC.", "COMPL.", "AGENDADO", "COBRADO", "PENDIENTE"];
 
   const drawTableHeader = () => {
-    page.drawRectangle({ x: MARGIN, y: y - 6, width: CONTENT_WIDTH, height: 24, color: COLORS.brandSoft });
-    draw("AGENTE", MARGIN + 8, y + 2, { size: 8, font: bold, color: COLORS.brand });
+    page.drawRectangle({ x: MARGIN, y: y - 6, width: CONTENT_WIDTH, height: 24, color: palette.brandSoft });
+    draw("AGENTE", MARGIN + 8, y + 2, { size: 8, font: bold, color: palette.brand });
     columns.forEach((label, index) =>
-      draw(label, MARGIN + NUMERIC_EDGES[index], y + 2, { size: 8, font: bold, color: COLORS.brand, align: "right" }),
+      draw(label, MARGIN + NUMERIC_EDGES[index], y + 2, { size: 8, font: bold, color: palette.brand, align: "right" }),
     );
     y -= 26;
   };
@@ -200,7 +205,7 @@ export async function renderReportPdf(report: AgentReport, generatedAt: Date): P
       thickness: 0.75,
       color: COLORS.hair,
     });
-    draw(client.shortName, MARGIN, 44, { size: 9, color: COLORS.muted });
+    draw(brand.shortName, MARGIN, 44, { size: 9, color: COLORS.muted });
     draw(`Página ${index + 1} de ${pages.length}`, MARGIN + CONTENT_WIDTH, 44, {
       size: 9,
       color: COLORS.muted,

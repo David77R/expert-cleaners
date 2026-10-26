@@ -1,6 +1,7 @@
 "use client";
 
 import { DateInput } from "@/components/date-jump";
+import { useBrand } from "@/components/brand-provider";
 import Link from "next/link";
 import { useEffect, useRef, useState, useTransition, type FormEvent } from "react";
 import { scheduleOrderAction } from "@/app/orders/new/actions";
@@ -46,9 +47,7 @@ import { formatAddress, formatMoney } from "@/domain/invoice";
 import { addDays, confirmationMessage, whatsappHref } from "@/domain/order";
 import { guessServiceIcon } from "@/domain/service-icons";
 import { calendarHref } from "@/lib/calendar-links";
-import { DEFAULT_STATE } from "@/domain/customer-form";
 import { VehicleSelect, fetchVehicles, type PickerVehicle } from "@/components/vehicle-select";
-import { client } from "@/config/clients";
 import { isVehicleSize, priceForSize } from "@/domain/vehicles";
 
 type Line = {
@@ -118,6 +117,7 @@ function ScheduleForm({
   onApply: (schedule: Schedule) => void;
   onCancel: () => void;
 }) {
+  const brand = useBrand();
   const [wantsDelivery, setWithDelivery] = useState(initial ? initial.delivery !== null : true);
   const withDelivery = pickupMode && wantsDelivery;
   const visitWord = pickupMode ? "de la recogida" : "de la cita";
@@ -171,7 +171,7 @@ function ScheduleForm({
     }
     const values = Object.fromEntries([...data.entries()].map(([key, value]) => [key, String(value)]));
     const custom = needsDestination && destChoice === "custom";
-    const destination = custom ? destinationFromValues(values) : null;
+    const destination = custom ? destinationFromValues(values, brand.location.state) : null;
     if (destination && (!destination.line1 || !destination.city || !destination.zip)) {
       setError("Completa la dirección de entrega.");
       return;
@@ -386,7 +386,7 @@ function ScheduleForm({
                 <input
                   name={`${DESTINATION_PREFIX}state`}
                   maxLength={2}
-                  defaultValue={initial?.destination?.state ?? DEFAULT_STATE}
+                  defaultValue={initial?.destination?.state ?? brand.location.state}
                   className={`${FIELD} uppercase`}
                 />
               </label>
@@ -438,6 +438,7 @@ export function OrderBuilder({
   today: string;
   isAdmin?: boolean;
 }) {
+  const brand = useBrand();
   const categories = [...new Set(services.map((service) => service.category))];
   const [filters, setFilters] = useState<string[]>([]);
   const [lines, setLines] = useState<Line[]>([]);
@@ -486,7 +487,10 @@ export function OrderBuilder({
   }
   const totalCents = lines.reduce((sum, line) => sum + lineCents(line, byId.get(line.serviceId)), 0);
   const needsDestination = lines.some((line) => byId.get(line.serviceId)?.twoAddresses);
-  const pickupOrder = needsPickup(lines.map((line) => byId.get(line.serviceId)));
+  const pickupOrder = needsPickup(
+    lines.map((line) => byId.get(line.serviceId)),
+    brand.features.rugPickup,
+  );
   const suggestedDuration = Math.min(
     720,
     Math.max(
@@ -524,7 +528,7 @@ export function OrderBuilder({
     const priceKey = itemKey(index, "price");
     return (
       <>
-        {client.features.vehicles && (
+        {brand.features.vehicles && (
           <div className="px-2.5 pb-2">
             <VehicleSelect
               customerId={customer?.id ?? null}
@@ -611,7 +615,7 @@ export function OrderBuilder({
               </div>
             )}
             <TicketLineExtras
-              fabricDetails={!client.features.vehicles}
+              fabricDetails={!brand.features.vehicles}
               details={line.details}
               photos={line.photos}
               photoRoom={MAX_PHOTOS_PER_APPOINTMENT - photoCount}
@@ -739,7 +743,7 @@ export function OrderBuilder({
     setMessage(null);
     setVehicles([]);
     setLines((current) => current.map((line) => ({ ...line, vehicleId: null })));
-    if (client.features.vehicles) {
+    if (brand.features.vehicles) {
       void fetchVehicles(next.id).then((found) => {
         setVehicles(found);
         if (found.length === 1) assignVehicleToAll(found[0]);
@@ -884,6 +888,7 @@ export function OrderBuilder({
         phone: chosen.phone,
         photos: null,
         message: confirmationMessage({
+          companyName: brand.shortName,
           customerName: chosen.firstName,
           code: result.code,
           pickup: plan.pickup,

@@ -10,7 +10,7 @@ import { calendarHref } from "@/lib/calendar-links";
 import { AppShell } from "@/components/app-header";
 import { AppointmentForm } from "@/components/appointment-form";
 import { BackLink } from "@/components/back-link";
-import { getActor } from "@/server/auth";
+import { getActor, getBrand } from "@/server/auth";
 import { getCustomerSummary } from "@/server/customers";
 import { listServices } from "@/server/services";
 
@@ -53,7 +53,7 @@ export default async function NewAppointmentPage({ searchParams }: PageProps<"/a
     : null;
 
   const initialValues = {
-    ...emptyAppointmentForm(),
+    ...emptyAppointmentForm((await getBrand()).location.state),
     date,
     time,
     technicianId,

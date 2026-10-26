@@ -1,6 +1,7 @@
 "use client";
 
 import { DateInput } from "@/components/date-jump";
+import { useBrand } from "@/components/brand-provider";
 import Link from "next/link";
 import { useActionState, useState, useTransition, type ComponentProps, type FormEvent } from "react";
 import { createAppointmentAction, type AppointmentFormState } from "@/app/appointments/new/actions";
@@ -22,7 +23,6 @@ import {
 import { formatMinutes } from "@/domain/appointment-rules";
 import { formatAddress } from "@/domain/invoice";
 import { calendarHref } from "@/lib/calendar-links";
-import { DEFAULT_STATE } from "@/domain/customer-form";
 
 function AppointmentField(props: Omit<ComponentProps<typeof Field>, "prefix">) {
   return <Field prefix="appointment" {...props} />;
@@ -56,6 +56,7 @@ export function AppointmentForm({
   initialCustomer: PickerCustomer | null;
   initialValues: AppointmentFormValues;
 }) {
+  const brand = useBrand();
   const initial: AppointmentFormState = { values: initialValues, errors: {} };
   const [state, action, actionPending] = useActionState(createAppointmentAction, initial);
   const [transitionPending, startTransition] = useTransition();
@@ -75,7 +76,10 @@ export function AppointmentForm({
   const [time, setTime] = useState(initialValues.time ?? "");
 
   const twoAddresses = items.some((item) => item.service?.twoAddresses);
-  const pickupOrder = needsPickup(items.map((item) => item.service));
+  const pickupOrder = needsPickup(
+    items.map((item) => item.service),
+    brand.features.rugPickup,
+  );
   const needsDestination = twoAddresses || pickupOrder;
   const [destinationMode, setDestinationMode] = useState<"same" | "custom">("same");
   const sameDestination = customer?.addresses.find((address) => address.id === addressId) ?? null;
@@ -243,7 +247,7 @@ export function AppointmentForm({
                     <input
                       {...props}
                       name={`${DESTINATION_PREFIX}state`}
-                      defaultValue={values[`${DESTINATION_PREFIX}state`] ?? DEFAULT_STATE}
+                      defaultValue={values[`${DESTINATION_PREFIX}state`] ?? brand.location.state}
                       maxLength={2}
                       className={`${INPUT} uppercase`}
                     />

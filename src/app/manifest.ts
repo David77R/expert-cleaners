@@ -1,22 +1,24 @@
 import type { MetadataRoute } from "next";
-import { client, iconPath } from "@/config/clients";
+import { brandIcon } from "@/domain/companies";
+import { getBrand } from "@/server/auth";
 
-export default function manifest(): MetadataRoute.Manifest {
+export default async function manifest(): Promise<MetadataRoute.Manifest> {
+  const brand = await getBrand();
   return {
-    name: client.name,
-    short_name: client.shortName,
+    name: brand.name,
+    short_name: brand.shortName,
     description: "Operación diaria: calendario, rutas y citas",
     start_url: "/inicio",
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    background_color: client.theme["--canvas"] ?? "#eef2f1",
-    theme_color: client.themeColor,
+    background_color: brand.theme["--canvas"] ?? "#eef2f1",
+    theme_color: brand.themeColor,
     lang: "es",
     icons: [
-      { src: iconPath("icon-192.png"), sizes: "192x192", type: "image/png" },
-      { src: iconPath("icon-512.png"), sizes: "512x512", type: "image/png" },
-      { src: iconPath("icon-maskable-512.png"), sizes: "512x512", type: "image/png", purpose: "maskable" },
+      { src: brandIcon(brand, "icon-192.png"), sizes: "192x192", type: "image/png" },
+      { src: brandIcon(brand, "icon-512.png"), sizes: "512x512", type: "image/png" },
+      { src: brandIcon(brand, "icon-maskable-512.png"), sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
   };
 }

@@ -37,13 +37,13 @@ Para correr la app necesitas un proyecto Supabase (o Supabase CLI local):
 4. `npm run db:seed` carga técnicos, servicios y un cliente de ejemplo.
 5. Crea un usuario en Supabase Auth y `npm run dev`.
 
-## Un sistema, varios clientes
+## Un sistema, varias empresas
 
-Cada negocio usa el mismo código con su propia configuración en `src/config/clients.ts`: nombre, logo, colores, zona de trabajo, horario de reservas y funciones (recogida de alfombras, vehículos, reserva en línea). Los logos e íconos van en `public/clients/<cliente>/`.
+Todas las empresas viven en la misma base de datos, en la tabla `companies`. Cada empresa guarda ahí su nombre, logo, colores, zona de trabajo, horario de reservas y funciones (recogida de alfombras, vehículos, reserva en línea). Clientes, citas, técnicos, servicios, vehículos, rutas y agentes llevan `company_id`, y cada consulta filtra por la empresa de quien entró. Los logos e íconos van en `public/clients/<slug>/`.
 
-Cada cliente tiene su propio proyecto en Vercel (o Netlify) y su propia base en Supabase. El cliente se elige con la variable `NEXT_PUBLIC_CLIENT_ID` (`expert-cleaners` por defecto, `rva` para RVA Mobile Carwash).
+Un administrador o agente solo ve su empresa. El dueño (rol `owner`) puede ver cualquier empresa; la empresa activa se guarda en la cookie `cc-company`. La pantalla de inicio de sesión usa la empresa de `NEXT_PUBLIC_CLIENT_ID` (`expert-cleaners` si no está definida).
 
-Si el cliente tiene la reserva en línea activa, sus clientes reservan en `/reservar`. Se puede preseleccionar un paquete con `/reservar?package=<slug>`.
+Si una empresa tiene la reserva en línea activa, sus clientes reservan en `/reservar/<slug>`. Se puede preseleccionar un paquete con `/reservar/<slug>?package=<slug-del-paquete>`.
 
 ## Scripts
 

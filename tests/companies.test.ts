@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { EXPERT_CLEANERS_COMPANY_ID, RVA_COMPANY_ID } from "@/domain/companies";
+import { EXPERT_CLEANERS_COMPANY_ID, RVA_COMPANY_ID, brandIcon, brandStyle } from "@/domain/companies";
 import { todayIn } from "@/domain/date-rules";
 import { isAdmin } from "@/domain/permissions";
 import {
@@ -19,12 +19,14 @@ import { listRouteDraftsForDay, saveRouteDraft } from "@/server/route-drafts";
 import { createService, listServices, updateService } from "@/server/services";
 import { createTechnician, listTechnicians } from "@/server/technicians";
 import { createVehicle, listVehicles } from "@/server/vehicles";
-import { listCompanies } from "@/server/companies";
+import { companyBrand, listCompanies } from "@/server/companies";
+import { getAgentReportPdf } from "@/server/reports";
 import type { Technician } from "@/db/schema";
 import { AGENT_JOSUE } from "@/db/seed-data";
 import { appointmentInput, createTestDb } from "./helpers";
 import { createMemoryStorage, jpeg } from "./photo-helpers";
 import { createFakeUserAdmin } from "./user-admin-fake";
+import { hexOf, pageText } from "./pdf-helpers";
 
 vi.mock("@/server/geocoding", () => ({
   geocodeIfNeeded: async (address: unknown) => address,
@@ -220,6 +222,30 @@ describe("empresas separadas", () => {
     const dashboard = await getDashboard(ctx.db, RVA_COMPANY_ID, DATE);
     expect(dashboard.todayCount).toBe(1);
     expect(dashboard.agenda.map((row) => row.id)).toEqual([rvaAppointment.appointment.id]);
+  });
+
+  it("cada empresa trae su propia marca desde la base de datos", async () => {
+    const rva = await companyBrand(ctx.db, RVA_COMPANY_ID);
+    expect(rva).toMatchObject({ slug: "rva", shortName: "RVA Carwash", initials: "RVA" });
+    expect(rva.location.city).toBe("Orlando");
+    expect(rva.features).toEqual({ rugPickup: false, vehicles: true, publicBooking: true });
+    expect(brandIcon(rva, "icon-192.png")).toBe("/clients/rva/icon-192.png");
+    expect(brandStyle(rva)).toMatchObject({ "--brand": "#c9490a", "--tint": "242 106 27" });
+
+    const expert = await companyBrand(ctx.db, EXPERT_CLEANERS_COMPANY_ID);
+    expect(expert.location.city).toBe("Miami");
+    expect(expert.features.rugPickup).toBe(true);
+    await expect(companyBrand(ctx.db, "00000000-0000-4000-8000-0000000000ff")).rejects.toMatchObject({
+      code: "not_found",
+    });
+  });
+
+  it("los PDF salen con el nombre y la ciudad de la empresa activa", async () => {
+    const { pdf } = await getAgentReportPdf(ctx.db, RVA_ADMIN, { period: "month", date: todayIn() });
+    const text = await pageText(pdf);
+    expect(text).toContain(hexOf("RVA Carwash"));
+    expect(text).toContain(hexOf("Orlando, FL"));
+    expect(text).not.toContain(hexOf("Expert Cleaners"));
   });
 
   it("el dueño cuenta como administrador", () => {

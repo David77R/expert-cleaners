@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { Icon } from "@/components/icons";
-import { client } from "@/config/clients";
 import { formatPhone } from "@/domain/customer-rules";
 
 type Found = { id: string; code: string; firstName: string; lastName: string; phone: string };
@@ -17,7 +16,7 @@ const DAY = new Intl.DateTimeFormat("es-US", {
   month: "long",
 });
 
-export function MiamiClock() {
+export function CityClock({ city }: { city: string }) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 20_000);
@@ -29,7 +28,7 @@ export function MiamiClock() {
         {TIME.format(now)}
       </span>
       <span className="text-[11px] text-muted first-letter:uppercase" suppressHydrationWarning>
-        {client.location.city} · {DAY.format(now)}
+        {city} · {DAY.format(now)}
       </span>
     </span>
   );

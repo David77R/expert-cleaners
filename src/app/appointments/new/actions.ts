@@ -17,7 +17,7 @@ import { readItemValues } from "@/domain/appointment-items";
 import { createAppointmentSchema } from "@/domain/schemas";
 import { calendarHref } from "@/lib/calendar-links";
 import { createAppointment } from "@/server/appointments";
-import { getActor } from "@/server/auth";
+import { getActor, getBrand } from "@/server/auth";
 
 export type AppointmentFormState = {
   values: AppointmentFormValues;
@@ -32,6 +32,7 @@ export async function createAppointmentAction(
   const actor = await getActor();
   if (!actor) redirect("/login");
 
+  const brand = await getBrand();
   const values = readAppointmentForm(formData);
   const db = getDb();
   const ids = readItemValues(values)
@@ -40,7 +41,10 @@ export async function createAppointmentAction(
   const rows = ids.length > 0 ? (await companyServices(db, actor.companyId)).filter((row) => ids.includes(row.id)) : [];
   const byId = new Map(rows.filter((row) => row.active).map((row) => [row.id, row]));
 
-  const { input, itemErrors } = appointmentInputFromForm(values, (id) => byId.get(id));
+  const { input, itemErrors } = appointmentInputFromForm(values, (id) => byId.get(id), {
+    defaultState: brand.location.state,
+    rugPickup: brand.features.rugPickup,
+  });
   const parsed = createAppointmentSchema.safeParse(input);
   const errors: AppointmentFormErrors = {
     ...(parsed.success ? {} : appointmentFieldErrors(parsed.error.issues)),

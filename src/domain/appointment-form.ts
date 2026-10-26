@@ -3,7 +3,7 @@ import { needsPickup } from "./pickup";
 import { ITEM_PREFIX, itemKey, readItemValues, validateItems } from "./appointment-items";
 import { parseTimeInput } from "./appointment-panel";
 import { serviceIconOf, type ServiceIconKey } from "./service-icons";
-import { DEFAULT_STATE, coordinatesFrom } from "./customer-form";
+import { coordinatesFrom } from "./customer-form";
 import type { SizePrices } from "./vehicles";
 
 export type AppointmentFormValues = Record<string, string>;
@@ -66,7 +66,7 @@ const FIELD_MESSAGES: Record<string, string> = {
   durationMin: "Escribe la duración en minutos, entre 0 y 720",
 };
 
-export function emptyAppointmentForm(): AppointmentFormValues {
+export function emptyAppointmentForm(state: string): AppointmentFormValues {
   return {
     customerId: "",
     addressId: "",
@@ -75,7 +75,7 @@ export function emptyAppointmentForm(): AppointmentFormValues {
     time: "",
     durationMin: "",
     notes: "",
-    [`${DESTINATION_PREFIX}state`]: DEFAULT_STATE,
+    [`${DESTINATION_PREFIX}state`]: state,
   };
 }
 
@@ -89,14 +89,14 @@ export function readAppointmentForm(data: {
   return values;
 }
 
-export function destinationFromValues(values: AppointmentFormValues) {
+export function destinationFromValues(values: AppointmentFormValues, defaultState: string) {
   const destination = (field: (typeof DESTINATION_FIELDS)[number]) =>
     (values[`${DESTINATION_PREFIX}${field}`] ?? "").trim();
   return {
     line1: destination("line1"),
     unit: destination("unit"),
     city: destination("city"),
-    state: (destination("state") || DEFAULT_STATE).toUpperCase(),
+    state: (destination("state") || defaultState).toUpperCase(),
     zip: destination("zip"),
     ...coordinatesFrom(values[`${DESTINATION_PREFIX}lat`], values[`${DESTINATION_PREFIX}lng`]),
   };
@@ -105,10 +105,14 @@ export function destinationFromValues(values: AppointmentFormValues) {
 export function appointmentInputFromForm(
   values: AppointmentFormValues,
   findService: (id: string) => FormService | undefined,
+  company: { defaultState: string; rugPickup: boolean },
 ) {
   const { inputs, errors } = validateItems(readItemValues(values), findService);
   const twoAddresses = inputs.some((item) => findService(item.serviceId)?.twoAddresses);
-  const pickup = needsPickup(inputs.map((item) => findService(item.serviceId)));
+  const pickup = needsPickup(
+    inputs.map((item) => findService(item.serviceId)),
+    company.rugPickup,
+  );
   const customDestination = pickup && (values[`${DESTINATION_PREFIX}line1`] ?? "").trim() !== "";
   const deliveryDate = (values.deliveryDate ?? "").trim();
   const delivery =
@@ -131,7 +135,8 @@ export function appointmentInputFromForm(
       durationMin: values.durationMin?.trim() === "" ? Number.NaN : Number(values.durationMin),
       items: inputs,
       notes: (values.notes ?? "").trim(),
-      destinationAddress: twoAddresses || customDestination ? destinationFromValues(values) : undefined,
+      destinationAddress:
+        twoAddresses || customDestination ? destinationFromValues(values, company.defaultState) : undefined,
       ...(delivery ? { delivery } : {}),
     },
     itemErrors: errors,
