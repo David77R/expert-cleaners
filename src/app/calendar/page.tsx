@@ -35,6 +35,8 @@ import { locateMissingAddresses } from "@/server/customers";
 import { panelPhotos } from "@/server/photos";
 import { listRouteDraftsForDay } from "@/server/route-drafts";
 import { getPhotoStorage } from "@/server/storage";
+import { client } from "@/config/clients";
+import { listVehicles } from "@/server/vehicles";
 
 function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
@@ -209,6 +211,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
   const selectedId = selected?.id ?? null;
   const photos = selected ? await panelPhotos(db, getPhotoStorage, actor, selected.id) : null;
   const selectedConflicts = selected ? await conflictingAppointments(db, selected.id) : [];
+  const selectedVehicles = selected && client.features.vehicles ? await listVehicles(db, selected.customer.id) : [];
   const panelServices = selected
     ? (await db.select().from(servicesTable))
         .filter((s) => s.active || selected.items.some((item) => item.serviceId === s.id))
@@ -401,6 +404,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
           nav={nav}
           photos={photos}
           conflicts={selectedConflicts}
+          vehicles={selectedVehicles}
         />
       )}
     </AppShell>

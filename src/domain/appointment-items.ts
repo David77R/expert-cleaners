@@ -86,16 +86,18 @@ export type ItemValues = {
   price: string;
   specs: Record<string, string>;
   details?: Record<string, string>;
+  vehicleId?: string;
 };
 export type ItemInput = {
   serviceId: string;
   specs: Record<string, string | number>;
   details?: ItemDetails;
   priceCents?: number;
+  vehicleId?: string | null;
 };
 export type ItemErrors = Record<string, string>;
 
-export function itemKey(index: number, field: "serviceId" | "price"): string {
+export function itemKey(index: number, field: "serviceId" | "price" | "vehicleId"): string {
   return `${ITEM_PREFIX}${index}.${field}`;
 }
 
@@ -129,6 +131,7 @@ export function readItemValues(values: Readonly<Record<string, string>>): ItemVa
         price: values[itemKey(index, "price")] ?? "",
         specs,
         details,
+        vehicleId: (values[itemKey(index, "vehicleId")] ?? "").trim(),
       };
     });
 }
@@ -186,6 +189,7 @@ export function validateItems(
       specs,
       details: cleanDetails(item.details ?? {}),
       ...(priceCents !== null && !Number.isNaN(priceCents) ? { priceCents } : {}),
+      ...(item.vehicleId ? { vehicleId: item.vehicleId } : {}),
     });
   });
 

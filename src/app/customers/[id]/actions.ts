@@ -19,6 +19,8 @@ import {
 } from "@/server/customers";
 import { DEFAULT_STATE, coordinatesFrom } from "@/domain/customer-form";
 import type { ActionState } from "@/app/calendar/actions";
+import type { VehicleSize } from "@/domain/vehicles";
+import { createVehicle, deleteVehicle, updateVehicle } from "@/server/vehicles";
 
 export type NoteState = { error?: string; version: number };
 
@@ -201,5 +203,61 @@ export async function deleteAddressAction(customerId: string, addressId: string,
     return afterAddressChange(customerId, previous);
   } catch (error) {
     return addressFailure(error, previous);
+  }
+}
+
+function vehicleFromForm(formData: FormData) {
+  const field = (name: string) => String(formData.get(name) ?? "");
+  return {
+    make: field("make"),
+    model: field("model"),
+    year: field("year"),
+    color: field("color"),
+    plate: field("plate"),
+    size: field("size") as VehicleSize,
+    notes: field("notes"),
+  };
+}
+
+function vehicleFailure(error: unknown, previous: ActionState): ActionState {
+  if (error instanceof ZodError)
+    return { error: error.issues[0]?.message ?? "Revisa el vehículo.", stamp: previous.stamp };
+  if (error instanceof DomainError) return { error: error.message, stamp: previous.stamp };
+  console.error(error);
+  return { error: "No se pudo guardar el vehículo. Inténtalo de nuevo.", stamp: previous.stamp };
+}
+
+export async function addVehicleAction(customerId: string, previous: ActionState, formData: FormData) {
+  await addressActor();
+  try {
+    await createVehicle(getDb(), customerId, vehicleFromForm(formData));
+    return afterAddressChange(customerId, previous);
+  } catch (error) {
+    return vehicleFailure(error, previous);
+  }
+}
+
+export async function updateVehicleAction(
+  customerId: string,
+  vehicleId: string,
+  previous: ActionState,
+  formData: FormData,
+) {
+  await addressActor();
+  try {
+    await updateVehicle(getDb(), customerId, vehicleId, vehicleFromForm(formData));
+    return afterAddressChange(customerId, previous);
+  } catch (error) {
+    return vehicleFailure(error, previous);
+  }
+}
+
+export async function deleteVehicleAction(customerId: string, vehicleId: string, previous: ActionState) {
+  await addressActor();
+  try {
+    await deleteVehicle(getDb(), customerId, vehicleId);
+    return afterAddressChange(customerId, previous);
+  } catch (error) {
+    return vehicleFailure(error, previous);
   }
 }

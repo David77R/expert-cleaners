@@ -37,6 +37,7 @@ import { formatAddress, formatMoney } from "@/domain/invoice";
 import { hasDelivery } from "@/domain/delivery";
 import { geocodeIfNeeded } from "@/server/geocoding";
 import { isPickupService } from "@/domain/pickup";
+import { assertVehiclesBelong } from "@/server/vehicles";
 
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
@@ -52,6 +53,7 @@ type ResolvedItem = {
   specs: Record<string, string | number>;
   details: ItemDetails;
   priceCents: number;
+  vehicleId: string | null;
   service: schema.Service;
 };
 
@@ -173,6 +175,7 @@ async function resolveItems(
       specs: item.specs,
       details: cleanDetails(item.details ?? {}),
       priceCents: item.priceCents ?? service.basePriceCents,
+      vehicleId: item.vehicleId ?? null,
       service,
     };
   });
@@ -191,12 +194,22 @@ async function currentItems(tx: Tx, current: AppointmentRow): Promise<ResolvedIt
       specs: item.specs,
       details: item.details,
       priceCents: item.priceCents,
+      vehicleId: item.vehicleId,
       service,
     }));
   }
   const [service] = await tx.select().from(services).where(eq(services.id, current.serviceId)).limit(1);
   return service
-    ? [{ serviceId: service.id, specs: current.specs, details: {}, priceCents: current.priceCents, service }]
+    ? [
+        {
+          serviceId: service.id,
+          specs: current.specs,
+          details: {},
+          priceCents: current.priceCents,
+          vehicleId: null,
+          service,
+        },
+      ]
     : [];
 }
 
@@ -212,6 +225,7 @@ async function saveItems(tx: Tx, appointmentId: string, items: readonly Resolved
       specs: item.specs,
       details: item.details,
       priceCents: item.priceCents,
+      vehicleId: item.vehicleId,
       position,
     };
     const current = existing[position];
@@ -222,10 +236,18 @@ async function saveItems(tx: Tx, appointmentId: string, items: readonly Resolved
   if (leftover.length > 0) await tx.delete(appointmentItems).where(inArray(appointmentItems.id, leftover));
 }
 
-function itemSignature(items: readonly Pick<ResolvedItem, "serviceId" | "specs" | "details" | "priceCents">[]): string {
+function itemSignature(
+  items: readonly Pick<ResolvedItem, "serviceId" | "specs" | "details" | "priceCents" | "vehicleId">[],
+): string {
   const sorted = (value: object) => Object.entries(value).sort(([a], [b]) => a.localeCompare(b));
   return JSON.stringify(
-    items.map((item) => [item.serviceId, item.priceCents, sorted(item.specs), sorted(item.details ?? {})]),
+    items.map((item) => [
+      item.serviceId,
+      item.priceCents,
+      sorted(item.specs),
+      sorted(item.details ?? {}),
+      item.vehicleId ?? null,
+    ]),
   );
 }
 
@@ -248,6 +270,11 @@ export async function createAppointment(db: Db, actor: Actor, raw: CreateAppoint
   if (requested.length === 0) throw new DomainError("service_required", "Elige un servicio");
   return db.transaction(async (tx) => {
     const items = await resolveItems(tx, requested);
+    await assertVehiclesBelong(
+      tx,
+      input.customerId,
+      items.map((item) => item.vehicleId),
+    );
     const twoAddresses = items.some((item) => item.service.twoAddresses);
 
     const [address] = await tx.select().from(addresses).where(eq(addresses.id, input.addressId)).limit(1);
@@ -525,6 +552,11 @@ export async function updateAppointmentItems(db: Db, actor: Actor, id: string, r
     }
     const previous = await currentItems(tx, current);
     const items = await resolveItems(tx, input.items, new Set(previous.map((item) => item.serviceId)));
+    await assertVehiclesBelong(
+      tx,
+      current.customerId,
+      items.map((item) => item.vehicleId),
+    );
 
     let destinationAddress = current.destinationAddress;
     if (items.some((item) => item.service.twoAddresses)) {
@@ -701,7 +733,7 @@ export async function getDay(db: Db, date: string, technicianId?: string) {
       service: true,
       technician: true,
       deliveryTechnician: true,
-      items: { orderBy: [asc(appointmentItems.position)], with: { service: true } },
+      items: { orderBy: [asc(appointmentItems.position)], with: { service: true, vehicle: true } },
     },
     orderBy: [asc(appointments.startMin)],
   });
@@ -721,7 +753,7 @@ export async function getRange(db: Db, raw: unknown) {
       service: true,
       technician: true,
       deliveryTechnician: true,
-      items: { orderBy: [asc(appointmentItems.position)], with: { service: true } },
+      items: { orderBy: [asc(appointmentItems.position)], with: { service: true, vehicle: true } },
     },
     orderBy: [asc(appointments.date), asc(appointments.startMin)],
   });
@@ -748,7 +780,7 @@ export async function getDeliveries(db: Db, from: string, to: string, technician
       service: true,
       technician: true,
       deliveryTechnician: true,
-      items: { orderBy: [asc(appointmentItems.position)], with: { service: true } },
+      items: { orderBy: [asc(appointmentItems.position)], with: { service: true, vehicle: true } },
     },
     orderBy: [asc(appointments.deliveryDate), asc(appointments.deliveryStartMin)],
   });
@@ -763,7 +795,7 @@ export async function getAppointment(db: Db, id: string) {
       service: true,
       technician: true,
       deliveryTechnician: true,
-      items: { orderBy: [asc(appointmentItems.position)], with: { service: true } },
+      items: { orderBy: [asc(appointmentItems.position)], with: { service: true, vehicle: true } },
       agent: true,
       photos: true,
       history: { orderBy: [desc(appointmentHistory.createdAt)] },

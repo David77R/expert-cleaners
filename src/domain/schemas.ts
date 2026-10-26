@@ -6,6 +6,7 @@ import { CANCEL_REASONS } from "./appointment-rules";
 import { isValidPhone } from "./customer-rules";
 import { daysBetween, isRealDate, periodBounds } from "./date-rules";
 import { SLUG_PATTERN } from "./service-rules";
+import { sizePricesSchema, sizePricesValue } from "./vehicles";
 
 export const isoDate = z
   .string()
@@ -145,6 +146,7 @@ export const createServiceSchema = z.object({
   internalNotes: z.string().trim().optional(),
   detailedSpecs: z.string().trim().optional(),
   fields: serviceFieldsSchema.default([]),
+  sizePrices: sizePricesSchema,
 });
 
 export const updateServiceSchema = z
@@ -160,6 +162,7 @@ export const updateServiceSchema = z
     internalNotes: z.string().trim().nullable().optional(),
     detailedSpecs: z.string().trim().nullable().optional(),
     fields: serviceFieldsSchema.optional(),
+    sizePrices: sizePricesValue.optional(),
   })
   .refine((value) => Object.values(value).some((field) => field !== undefined), "Envía al menos un campo");
 
@@ -232,6 +235,7 @@ export const appointmentItemSchema = z.object({
   specs: specsSchema.default({}),
   details: itemDetailsSchema.default({}),
   priceCents: z.number().int().min(0, "El precio no puede ser negativo").max(10_000_000).optional(),
+  vehicleId: z.uuid().nullable().optional(),
 });
 
 const itemsSchema = z

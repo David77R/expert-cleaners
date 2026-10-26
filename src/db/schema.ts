@@ -1,5 +1,6 @@
 import { relations } from "drizzle-orm";
 import type { ItemDetails } from "@/domain/appointment-items";
+import type { SizePrices } from "@/domain/vehicles";
 import type { AppointmentStages } from "@/domain/delivery";
 import {
   boolean,
@@ -96,6 +97,25 @@ export const addresses = pgTable(
   (t) => [index("addresses_customer_idx").on(t.customerId)],
 );
 
+export const vehicles = pgTable(
+  "vehicles",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    customerId: uuid("customer_id")
+      .notNull()
+      .references(() => customers.id, { onDelete: "cascade" }),
+    make: text("make").notNull().default(""),
+    model: text("model").notNull().default(""),
+    year: smallint("year"),
+    color: text("color").notNull().default(""),
+    plate: text("plate").notNull().default(""),
+    size: text("size").notNull().default("sedan"),
+    notes: text("notes").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("vehicles_customer_idx").on(t.customerId)],
+);
+
 export const customerNotes = pgTable("customer_notes", {
   id: uuid("id").primaryKey().defaultRandom(),
   customerId: uuid("customer_id")
@@ -121,6 +141,7 @@ export const services = pgTable("services", {
   internalNotes: text("internal_notes"),
   detailedSpecs: text("detailed_specs"),
   fields: jsonb("fields").$type<ServiceField[]>().notNull().default([]),
+  sizePrices: jsonb("size_prices").$type<SizePrices>().notNull().default({}),
 });
 
 export const technicians = pgTable("technicians", {
@@ -197,6 +218,7 @@ export const appointmentItems = pgTable(
       .references(() => services.id),
     specs: jsonb("specs").$type<Record<string, string | number>>().notNull().default({}),
     details: jsonb("details").$type<ItemDetails>().notNull().default({}),
+    vehicleId: uuid("vehicle_id").references(() => vehicles.id, { onDelete: "set null" }),
     priceCents: integer("price_cents").notNull(),
     position: smallint("position").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -256,6 +278,7 @@ export const routeDrafts = pgTable(
 
 export const customersRelations = relations(customers, ({ many }) => ({
   addresses: many(addresses),
+  vehicles: many(vehicles),
   appointments: many(appointments),
   history: many(customerNotes),
 }));
@@ -292,6 +315,11 @@ export const appointmentsRelations = relations(appointments, ({ one, many }) => 
 export const appointmentItemsRelations = relations(appointmentItems, ({ one }) => ({
   appointment: one(appointments, { fields: [appointmentItems.appointmentId], references: [appointments.id] }),
   service: one(services, { fields: [appointmentItems.serviceId], references: [services.id] }),
+  vehicle: one(vehicles, { fields: [appointmentItems.vehicleId], references: [vehicles.id] }),
+}));
+
+export const vehiclesRelations = relations(vehicles, ({ one }) => ({
+  customer: one(customers, { fields: [vehicles.customerId], references: [customers.id] }),
 }));
 
 export const appointmentHistoryRelations = relations(appointmentHistory, ({ one }) => ({
@@ -308,6 +336,7 @@ export type Service = typeof services.$inferSelect;
 export type Customer = typeof customers.$inferSelect;
 export type NewCustomer = typeof customers.$inferInsert;
 export type Address = typeof addresses.$inferSelect;
+export type Vehicle = typeof vehicles.$inferSelect;
 export type Photo = typeof appointmentPhotos.$inferSelect;
 export type Appointment = typeof appointments.$inferSelect;
 export type NewAppointment = typeof appointments.$inferInsert;

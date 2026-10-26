@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { AppointmentItemsEditor, type EditorItem } from "@/components/appointment-items-editor";
 import { INPUT } from "@/components/form-kit";
+import type { PickerVehicle } from "@/components/vehicle-select";
 import type { ItemValues } from "@/domain/appointment-items";
 import { DESTINATION_PREFIX, type FormService } from "@/domain/appointment-form";
 import { DEFAULT_STATE } from "@/domain/customer-form";
@@ -23,6 +24,8 @@ export function PanelItemsForm({
   hasDestination,
   compact = true,
   showDuration = true,
+  customerId = null,
+  vehicles = [],
 }: {
   appointmentId: string;
   services: FormService[];
@@ -31,6 +34,8 @@ export function PanelItemsForm({
   hasDestination: boolean;
   compact?: boolean;
   showDuration?: boolean;
+  customerId?: string | null;
+  vehicles?: PickerVehicle[];
 }) {
   const [needsDestination, setNeedsDestination] = useState(false);
   const idPrefix = `panel-${appointmentId}`;
@@ -47,6 +52,8 @@ export function PanelItemsForm({
         idPrefix={idPrefix}
         compact={compact}
         onChange={changeItems}
+        customerId={customerId}
+        vehicles={vehicles}
       />
       {needsDestination && !hasDestination && (
         <fieldset className="grid gap-2">

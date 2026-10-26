@@ -50,6 +50,7 @@ export function TicketPhotoStrip({
 }
 
 export function TicketLineExtras({
+  fabricDetails = true,
   details,
   photos,
   photoRoom,
@@ -57,6 +58,7 @@ export function TicketLineExtras({
   onAddPhotos,
   onRemovePhoto,
 }: {
+  fabricDetails?: boolean;
   details: ItemDetails;
   photos: readonly TicketPhoto[];
   photoRoom: number;
@@ -75,65 +77,69 @@ export function TicketLineExtras({
 
   return (
     <div className="flex flex-col gap-2.5">
-      <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-medium text-soft">Color</span>
-        <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Color">
-          {COLOR_SWATCHES.map((swatch) => {
-            const selected = details.color?.toLowerCase() === swatch.name.toLowerCase();
-            return (
-              <button
-                key={swatch.name}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                title={swatch.name}
-                aria-label={swatch.name}
-                onClick={() => onDetail("color", selected ? "" : swatch.name)}
-                className={`h-6 w-6 rounded-full border transition-transform hover:scale-110 ${
-                  selected ? "ring-2 ring-brand ring-offset-2" : "border-ink/20"
-                }`}
-                style={{ backgroundColor: swatch.hex }}
+      {fabricDetails && (
+        <>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-soft">Color</span>
+            <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Color">
+              {COLOR_SWATCHES.map((swatch) => {
+                const selected = details.color?.toLowerCase() === swatch.name.toLowerCase();
+                return (
+                  <button
+                    key={swatch.name}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    title={swatch.name}
+                    aria-label={swatch.name}
+                    onClick={() => onDetail("color", selected ? "" : swatch.name)}
+                    className={`h-6 w-6 rounded-full border transition-transform hover:scale-110 ${
+                      selected ? "ring-2 ring-brand ring-offset-2" : "border-ink/20"
+                    }`}
+                    style={{ backgroundColor: swatch.hex }}
+                  />
+                );
+              })}
+            </div>
+            <input
+              value={details.color ?? ""}
+              onChange={(event) => onDetail("color", event.target.value)}
+              placeholder="O escribe el color: gris claro, estampado…"
+              maxLength={40}
+              className={FIELD}
+              aria-label="Color"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <label className={LABEL}>
+              Tamaño
+              <input
+                list="ticket-sizes"
+                value={details.size ?? ""}
+                onChange={(event) => onDetail("size", event.target.value)}
+                placeholder="Mediano"
+                maxLength={40}
+                className={FIELD}
               />
-            );
-          })}
-        </div>
-        <input
-          value={details.color ?? ""}
-          onChange={(event) => onDetail("color", event.target.value)}
-          placeholder="O escribe el color: gris claro, estampado…"
-          maxLength={40}
-          className={FIELD}
-          aria-label="Color"
-        />
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <label className={LABEL}>
-          Tamaño
-          <input
-            list="ticket-sizes"
-            value={details.size ?? ""}
-            onChange={(event) => onDetail("size", event.target.value)}
-            placeholder="Mediano"
-            maxLength={40}
-            className={FIELD}
-          />
-          <datalist id="ticket-sizes">
-            {SIZE_OPTIONS.map((option) => (
-              <option key={option} value={option} />
-            ))}
-          </datalist>
-        </label>
-        <label className={LABEL}>
-          Dimensiones
-          <input
-            value={details.dimensions ?? ""}
-            onChange={(event) => onDetail("dimensions", event.target.value)}
-            placeholder={'84" x 36"'}
-            maxLength={80}
-            className={FIELD}
-          />
-        </label>
-      </div>
+              <datalist id="ticket-sizes">
+                {SIZE_OPTIONS.map((option) => (
+                  <option key={option} value={option} />
+                ))}
+              </datalist>
+            </label>
+            <label className={LABEL}>
+              Dimensiones
+              <input
+                value={details.dimensions ?? ""}
+                onChange={(event) => onDetail("dimensions", event.target.value)}
+                placeholder={'84" x 36"'}
+                maxLength={80}
+                className={FIELD}
+              />
+            </label>
+          </div>
+        </>
+      )}
       <label className={LABEL}>
         Notas del artículo
         <textarea

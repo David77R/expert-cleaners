@@ -57,6 +57,13 @@
       "when": 1792001545311,
       "tag": "0007_item_details_photos",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793022069656,
+      "tag": "0008_vehicles",
+      "breakpoints": true
     }
   ]
 }

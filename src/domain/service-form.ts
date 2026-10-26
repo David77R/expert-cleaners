@@ -2,6 +2,7 @@ import type { ZodError } from "zod";
 import type { Service, ServiceField } from "@/db/schema";
 import { isServiceIcon } from "./service-icons";
 import { slugify } from "./service-rules";
+import { VEHICLE_SIZES, type SizePrices, type VehicleSize } from "./vehicles";
 
 export const SERVICE_TEXT_FIELDS = [
   "name",
@@ -32,6 +33,7 @@ export type FieldDraft = {
 };
 
 export type ServiceFormValues = Record<ServiceTextField, string> & {
+  sizePrices: Record<VehicleSize, string>;
   icon: string;
   twoAddresses: boolean;
   active: boolean;
@@ -40,7 +42,7 @@ export type ServiceFormValues = Record<ServiceTextField, string> & {
 
 export type FieldDraftErrors = { label?: string; options?: string };
 
-export type ServiceFormErrors = Partial<Record<ServiceTextField | "fields", string>> & {
+export type ServiceFormErrors = Partial<Record<ServiceTextField | "fields" | "sizePrices", string>> & {
   rows?: Record<number, FieldDraftErrors>;
 };
 
@@ -58,10 +60,28 @@ export function emptyServiceForm(): ServiceFormValues {
     durationMin: "0",
     internalNotes: "",
     detailedSpecs: "",
+    sizePrices: { sedan: "", suv: "", pickup: "", van: "", other: "" },
     twoAddresses: false,
     active: true,
     fields: [],
   };
+}
+
+export const SIZE_PRICE_PREFIX = "sizePrice_";
+
+function sizePriceTexts(prices: SizePrices | null | undefined): Record<VehicleSize, string> {
+  return Object.fromEntries(
+    VEHICLE_SIZES.map((size) => [size, prices?.[size] !== undefined ? dollarsText(prices[size] as number) : ""]),
+  ) as Record<VehicleSize, string>;
+}
+
+export function sizePricesFromForm(values: ServiceFormValues): SizePrices {
+  const prices: SizePrices = {};
+  for (const size of VEHICLE_SIZES) {
+    const cents = parseDollars(values.sizePrices[size] ?? "");
+    if (values.sizePrices[size]?.trim() && cents !== null) prices[size] = cents;
+  }
+  return prices;
 }
 
 export function dollarsText(cents: number): string {
@@ -80,6 +100,7 @@ export function serviceFormFromService(service: Service): ServiceFormValues {
     durationMin: String(service.durationMin),
     internalNotes: service.internalNotes ?? "",
     detailedSpecs: service.detailedSpecs ?? "",
+    sizePrices: sizePriceTexts(service.sizePrices),
     twoAddresses: service.twoAddresses,
     active: service.active,
     fields: service.fields.map((field) => ({
@@ -101,6 +122,7 @@ export function readServiceForm(data: { get(name: string): FormDataEntryValue | 
   const values = emptyServiceForm();
   for (const field of SERVICE_TEXT_FIELDS) values[field] = text(data, field);
   values.icon = text(data, "icon");
+  for (const size of VEHICLE_SIZES) values.sizePrices[size] = text(data, `${SIZE_PRICE_PREFIX}${size}`);
   values.twoAddresses = data.get("twoAddresses") === "on";
   values.active = data.get("active") === "on";
 
@@ -194,6 +216,9 @@ export function validateServiceForm(values: ServiceFormValues): ServiceFormError
   if (parseDuration(values.durationMin) === null) {
     errors.durationMin = `La duración debe estar entre ${MIN_DURATION} y ${MAX_DURATION} minutos`;
   }
+  if (VEHICLE_SIZES.some((size) => values.sizePrices[size]?.trim() && parseDollars(values.sizePrices[size]) === null)) {
+    errors.sizePrices = "Revisa los precios por tipo de vehículo: escribe montos como 180 o 180.50, o déjalos vacíos";
+  }
   if (values.fields.length > MAX_SERVICE_FIELDS) {
     errors.fields = `Un servicio admite hasta ${MAX_SERVICE_FIELDS} campos`;
   }
@@ -241,6 +266,7 @@ export function createServiceInputFromForm(values: ServiceFormValues) {
     internalNotes: blankToUndefined(values.internalNotes),
     detailedSpecs: blankToUndefined(values.detailedSpecs),
     fields: fieldsFromForm(values),
+    sizePrices: sizePricesFromForm(values),
   };
 }
 
@@ -257,6 +283,7 @@ export function updateServiceInputFromForm(values: ServiceFormValues, options: {
     internalNotes: blankToNull(values.internalNotes),
     detailedSpecs: blankToNull(values.detailedSpecs),
     fields: fieldsFromForm(values),
+    sizePrices: sizePricesFromForm(values),
   };
 }
 

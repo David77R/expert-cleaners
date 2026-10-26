@@ -7,8 +7,11 @@ import { Card, Field, INPUT } from "@/components/form-kit";
 import { Icon } from "@/components/icons";
 import { ServiceIcon } from "@/components/service-icon";
 import { SERVICE_ICONS, SERVICE_ICON_KEYS } from "@/domain/service-icons";
+import { VEHICLE_SIZES, VEHICLE_SIZE_LABELS } from "@/domain/vehicles";
+import { client } from "@/config/clients";
 import {
   MAX_SERVICE_FIELDS,
+  SIZE_PRICE_PREFIX,
   emptyFieldDraft,
   type FieldDraft,
   type ServiceFormValues,
@@ -163,6 +166,34 @@ export function ServiceForm({
             )}
           </ServiceFormField>
         </div>
+        {client.features.vehicles && (
+          <fieldset className="flex flex-col gap-2 sm:col-span-2">
+            <legend className="text-sm font-medium">
+              Precio según el tipo de vehículo <span className="font-normal text-muted">(opcional)</span>
+            </legend>
+            <p className="text-xs text-soft">Déjalo vacío para usar el precio base en ese tipo de vehículo.</p>
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(7.5rem,1fr))] gap-3">
+              {VEHICLE_SIZES.map((size) => (
+                <label key={size} className="flex flex-col gap-1 text-xs font-medium text-soft">
+                  {VEHICLE_SIZE_LABELS[size]}
+                  <span className="relative">
+                    <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted">
+                      $
+                    </span>
+                    <input
+                      name={`${SIZE_PRICE_PREFIX}${size}`}
+                      inputMode="decimal"
+                      defaultValue={values.sizePrices[size]}
+                      placeholder={values.price || "0"}
+                      className={`${INPUT} pl-6 tabular-nums`}
+                    />
+                  </span>
+                </label>
+              ))}
+            </div>
+            {errors.sizePrices && <p className="text-sm text-attention">{errors.sizePrices}</p>}
+          </fieldset>
+        )}
         <ServiceFormField name="description" label="Descripción" error={errors.description} wide optional>
           {(props) => (
             <textarea

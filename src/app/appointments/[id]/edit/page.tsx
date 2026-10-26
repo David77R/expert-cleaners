@@ -31,6 +31,9 @@ import { getAppointment } from "@/server/appointments";
 import { getActor } from "@/server/auth";
 import { panelPhotos } from "@/server/photos";
 import { getPhotoStorage } from "@/server/storage";
+import { client } from "@/config/clients";
+import { listVehicles } from "@/server/vehicles";
+import { vehicleSummary } from "@/domain/vehicles";
 
 function first(value: string | string[] | undefined): string {
   return (Array.isArray(value) ? value[0] : value) ?? "";
@@ -95,8 +98,11 @@ export default async function EditAppointmentPage({ params, searchParams }: Page
             specs: appointment.specs,
             details: {},
             priceCents: appointment.priceCents,
+            vehicleId: null as string | null,
+            vehicle: null,
           },
         ];
+  const vehicles = client.features.vehicles ? await listVehicles(db, appointment.customer.id) : [];
   const customer = appointment.customer;
 
   return (
@@ -163,7 +169,10 @@ export default async function EditAppointmentPage({ params, searchParams }: Page
                       details: Object.fromEntries(
                         Object.entries(item.details ?? {}).map(([key, value]) => [key, String(value)]),
                       ),
+                      vehicleId: item.vehicleId ?? "",
                     }))}
+                    customerId={appointment.customer.id}
+                    vehicles={vehicles}
                     durationMin={appointment.durationMin}
                     showDuration={false}
                     hasDestination={appointment.destinationAddress !== null}
@@ -176,7 +185,10 @@ export default async function EditAppointmentPage({ params, searchParams }: Page
                       key={item.id}
                       className="flex justify-between gap-3 rounded-md border border-hair px-3.5 py-2.5 text-sm"
                     >
-                      <span className="font-medium">{item.service.name}</span>
+                      <span className="flex min-w-0 flex-col">
+                        <span className="font-medium">{item.service.name}</span>
+                        {item.vehicle && <span className="text-xs text-soft">{vehicleSummary(item.vehicle)}</span>}
+                      </span>
                       <span className="tabular-nums">{formatMoney(item.priceCents)}</span>
                     </li>
                   ))}

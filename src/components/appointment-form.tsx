@@ -141,6 +141,7 @@ export function AppointmentForm({
           errors={errors}
           idPrefix="appointment"
           onChange={changeItems}
+          customerId={customer?.id ?? null}
         />
 
         {needsDestination && (

@@ -47,10 +47,14 @@ import { addDays, confirmationMessage, whatsappHref } from "@/domain/order";
 import { guessServiceIcon } from "@/domain/service-icons";
 import { calendarHref } from "@/lib/calendar-links";
 import { DEFAULT_STATE } from "@/domain/customer-form";
+import { VehicleSelect, fetchVehicles, type PickerVehicle } from "@/components/vehicle-select";
+import { client } from "@/config/clients";
+import { isVehicleSize, priceForSize } from "@/domain/vehicles";
 
 type Line = {
   uid: number;
   serviceId: string;
+  vehicleId: string | null;
   price: string;
   specs: Record<string, string>;
   details: ItemDetails;
@@ -439,6 +443,7 @@ export function OrderBuilder({
   const [lines, setLines] = useState<Line[]>([]);
 
   const [customer, setCustomer] = useState<PickerCustomer | null>(null);
+  const [vehicles, setVehicles] = useState<PickerVehicle[]>([]);
   const [addressId, setAddressId] = useState("");
   const [notes, setNotes] = useState("");
   const [schedule, setSchedule] = useState<Schedule | null>(null);
@@ -494,10 +499,13 @@ export function OrderBuilder({
     const hasRequired = fieldsForService(service).some((field) => field.required);
     setLines((current) => {
       const last = current.map((line) => line.serviceId).lastIndexOf(service.id);
+      const vehicleId = last >= 0 ? current[last].vehicleId : vehicles.length === 1 ? vehicles[0].id : null;
+      const vehicle = vehicles.find((item) => item.id === vehicleId);
       const line: Line = {
         uid: current.reduce((max, item) => Math.max(max, item.uid), 0) + 1,
         serviceId: service.id,
-        price: last >= 0 ? current[last].price : centsToDollars(service.basePriceCents),
+        vehicleId,
+        price: last >= 0 ? current[last].price : centsToDollars(priceForSize(service, vehicle?.size)),
         specs: last >= 0 ? { ...current[last].specs } : {},
         details: {},
         photos: [],
@@ -516,6 +524,21 @@ export function OrderBuilder({
     const priceKey = itemKey(index, "price");
     return (
       <>
+        {client.features.vehicles && (
+          <div className="px-2.5 pb-2">
+            <VehicleSelect
+              customerId={customer?.id ?? null}
+              vehicles={vehicles}
+              value={line.vehicleId}
+              onChange={(vehicleId) => setLineVehicle(line.uid, vehicleId)}
+              onCreated={(vehicle) => {
+                const next = [...vehicles, vehicle];
+                setVehicles(next);
+                setLineVehicle(line.uid, vehicle.id, next);
+              }}
+            />
+          </div>
+        )}
         {!expanded && (line.photos.length > 0 || Object.values(line.details).some(Boolean)) && (
           <div className="flex flex-col gap-1.5 px-2.5 pb-2">
             <span className="flex flex-wrap items-center gap-1.5 text-[11px] text-soft">
@@ -588,6 +611,7 @@ export function OrderBuilder({
               </div>
             )}
             <TicketLineExtras
+              fabricDetails={!client.features.vehicles}
               details={line.details}
               photos={line.photos}
               photoRoom={MAX_PHOTOS_PER_APPOINTMENT - photoCount}
@@ -713,12 +737,55 @@ export function OrderBuilder({
     setCustomer(next);
     setAddressId(next.addresses[0]?.id ?? "");
     setMessage(null);
+    setVehicles([]);
+    setLines((current) => current.map((line) => ({ ...line, vehicleId: null })));
+    if (client.features.vehicles) {
+      void fetchVehicles(next.id).then((found) => {
+        setVehicles(found);
+        if (found.length === 1) assignVehicleToAll(found[0]);
+      });
+    }
+  }
+
+  function clearCustomer() {
+    setCustomer(null);
+    setAddressId("");
+    setVehicles([]);
+    setLines((current) => current.map((line) => ({ ...line, vehicleId: null })));
+  }
+
+  function priceFor(serviceId: string, vehicle: PickerVehicle | undefined, fallback: string): string {
+    const service = byId.get(serviceId);
+    if (!service || !vehicle || !isVehicleSize(vehicle.size) || service.sizePrices?.[vehicle.size] === undefined) {
+      return fallback;
+    }
+    return centsToDollars(priceForSize(service, vehicle.size));
+  }
+
+  function assignVehicleToAll(vehicle: PickerVehicle) {
+    setLines((current) =>
+      current.map((line) =>
+        line.vehicleId
+          ? line
+          : { ...line, vehicleId: vehicle.id, price: priceFor(line.serviceId, vehicle, line.price) },
+      ),
+    );
+  }
+
+  function setLineVehicle(uid: number, vehicleId: string | null, known: readonly PickerVehicle[] = vehicles) {
+    const vehicle = known.find((item) => item.id === vehicleId);
+    setLines((current) =>
+      current.map((line) =>
+        line.uid === uid ? { ...line, vehicleId, price: priceFor(line.serviceId, vehicle, line.price) } : line,
+      ),
+    );
   }
 
   function reset() {
     lines.forEach((line) => line.photos.forEach((photo) => URL.revokeObjectURL(photo.url)));
     setLines([]);
     setCustomer(null);
+    setVehicles([]);
     setAddressId("");
     setNotes("");
     setSchedule(null);
@@ -779,7 +846,11 @@ export function OrderBuilder({
       date: plan.pickup.date,
       startMin: plan.pickup.startMin,
       durationMin: plan.pickup.durationMin,
-      items: inputs.map((input, index) => ({ ...input, details: cleanDetails(lines[index]?.details ?? {}) })),
+      items: inputs.map((input, index) => ({
+        ...input,
+        details: cleanDetails(lines[index]?.details ?? {}),
+        vehicleId: lines[index]?.vehicleId ?? null,
+      })),
       notes: notes.trim(),
       ...(plan.readyDate ? { readyDate: plan.readyDate } : {}),
       ...(plan.destination ? { destinationAddress: plan.destination } : {}),
@@ -1011,10 +1082,7 @@ export function OrderBuilder({
               <CustomerPicker
                 selected={customer}
                 onSelect={chooseCustomer}
-                onClear={() => {
-                  setCustomer(null);
-                  setAddressId("");
-                }}
+                onClear={clearCustomer}
                 onCreateNew={(term) => {
                   setCustomerSeed(term);
                   setModal("customer");

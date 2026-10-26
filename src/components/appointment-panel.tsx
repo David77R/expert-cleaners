@@ -43,6 +43,8 @@ import { PhotoGallery } from "@/components/photo-gallery";
 import { StatusBadge } from "@/components/status-badge";
 import type { getAppointment } from "@/server/appointments";
 import type { PanelPhotos } from "@/server/photos";
+import type { PickerVehicle } from "@/components/vehicle-select";
+import { vehicleSummary } from "@/domain/vehicles";
 
 type Detail = Awaited<ReturnType<typeof getAppointment>>;
 
@@ -61,6 +63,7 @@ export function AppointmentPanel({
   nav,
   photos,
   conflicts = [],
+  vehicles = [],
 }: {
   appointment: Detail;
   technicians: CalendarTechnician[];
@@ -68,6 +71,7 @@ export function AppointmentPanel({
   nav: CalendarNav;
   photos: PanelPhotos;
   conflicts?: ConflictPartner[];
+  vehicles?: PickerVehicle[];
 }) {
   const actions = panelActions(appointment.status, appointment.paymentStatus, appointment.invoiceStatus);
   const closeHref = calendarHref(nav);
@@ -82,6 +86,8 @@ export function AppointmentPanel({
             specs: appointment.specs,
             details: {} as ItemDetails,
             priceCents: appointment.priceCents,
+            vehicleId: null as string | null,
+            vehicle: null,
           },
         ];
   const canEditItems = appointment.status !== "cancelled" && appointment.invoiceStatus !== "sent";
@@ -387,6 +393,12 @@ export function AppointmentPanel({
                   <span className="font-medium">{item.service.name}</span>
                   <span className="tabular-nums">{formatMoney(item.priceCents)}</span>
                 </div>
+                {item.vehicle && (
+                  <p className="mt-1 flex items-center gap-1.5 text-xs font-medium text-brand-ink">
+                    <Icon name="car" size={13} />
+                    {vehicleSummary(item.vehicle)}
+                  </p>
+                )}
                 {[...describeSpecs(item.specs, fieldsForService(item.service)), ...describeDetails(item.details)]
                   .length > 0 && (
                   <p className="mt-1 text-xs text-soft">
@@ -451,7 +463,10 @@ export function AppointmentPanel({
                     details: Object.fromEntries(
                       Object.entries(item.details ?? {}).map(([key, value]) => [key, String(value)]),
                     ),
+                    vehicleId: item.vehicleId ?? "",
                   }))}
+                  customerId={appointment.customer.id}
+                  vehicles={vehicles}
                   durationMin={appointment.durationMin}
                   hasDestination={appointment.destinationAddress !== null}
                 />

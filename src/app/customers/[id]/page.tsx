@@ -11,6 +11,8 @@ import { BackLink } from "@/components/back-link";
 import { Icon } from "@/components/icons";
 import { CustomerAddresses } from "@/components/customer-addresses";
 import { CustomerAppointmentsTable } from "@/components/customer-appointments-table";
+import { CustomerVehicles } from "@/components/customer-vehicles";
+import { client } from "@/config/clients";
 import { MergeCustomerForm } from "@/components/merge-customer-form";
 import { NoteForm } from "@/components/note-form";
 import { deleteCustomerAction } from "@/app/customers/[id]/actions";
@@ -161,6 +163,14 @@ export default async function CustomerPage({ params, searchParams }: PageProps<"
               </h2>
               <CustomerAddresses customerId={customer.id} addresses={customer.addresses} />
             </section>
+            {client.features.vehicles && (
+              <section className="flex flex-col gap-3">
+                <h2 className="font-display text-lg font-semibold">
+                  Vehículos <span className="text-sm font-normal text-muted">({customer.vehicles.length})</span>
+                </h2>
+                <CustomerVehicles customerId={customer.id} vehicles={customer.vehicles} />
+              </section>
+            )}
           </div>
 
           <aside className="flex min-w-0 flex-col gap-4">

@@ -60,6 +60,7 @@ export async function createService(db: Db, actor: Actor, raw: CreateServiceInpu
       internalNotes: input.internalNotes ?? null,
       detailedSpecs: input.detailedSpecs ?? null,
       fields: input.fields,
+      sizePrices: input.sizePrices,
     })
     .returning();
   return created;

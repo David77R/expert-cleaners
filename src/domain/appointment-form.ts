@@ -4,6 +4,7 @@ import { ITEM_PREFIX, itemKey, readItemValues, validateItems } from "./appointme
 import { parseTimeInput } from "./appointment-panel";
 import { serviceIconOf, type ServiceIconKey } from "./service-icons";
 import { DEFAULT_STATE, coordinatesFrom } from "./customer-form";
+import type { SizePrices } from "./vehicles";
 
 export type AppointmentFormValues = Record<string, string>;
 export type AppointmentFormErrors = Record<string, string>;
@@ -27,6 +28,7 @@ export type FormService = {
   durationMin: number;
   twoAddresses: boolean;
   fields: ServiceField[];
+  sizePrices?: SizePrices;
 };
 export function toFormService(row: FormService & { icon?: string | null }): FormService {
   return {
@@ -39,6 +41,7 @@ export function toFormService(row: FormService & { icon?: string | null }): Form
     durationMin: row.durationMin,
     twoAddresses: row.twoAddresses,
     fields: row.fields,
+    sizePrices: row.sizePrices ?? {},
   };
 }
 

@@ -256,7 +256,11 @@ export async function getCustomerSummary(db: Db, id: string) {
 export async function getCustomer(db: Db, id: string) {
   const row = await db.query.customers.findFirst({
     where: eq(customers.id, id),
-    with: { addresses: true, history: { orderBy: [desc(customerNotes.createdAt)] } },
+    with: {
+      addresses: true,
+      vehicles: { orderBy: [asc(schema.vehicles.createdAt)] },
+      history: { orderBy: [desc(customerNotes.createdAt)] },
+    },
   });
   if (!row) throw new DomainError("not_found", "El cliente no existe");
 
@@ -268,7 +272,7 @@ export async function getCustomer(db: Db, id: string) {
       agent: true,
       technician: true,
       deliveryTechnician: true,
-      items: { orderBy: [asc(schema.appointmentItems.position)], with: { service: true } },
+      items: { orderBy: [asc(schema.appointmentItems.position)], with: { service: true, vehicle: true } },
     },
     orderBy: [desc(appointments.date), desc(appointments.startMin)],
     limit: 50,
@@ -523,6 +527,7 @@ export async function mergeCustomers(db: Db, actor: Actor, sourceId: string, tar
     }
 
     await tx.update(customerNotes).set({ customerId: target.id }).where(eq(customerNotes.customerId, source.id));
+    await tx.update(schema.vehicles).set({ customerId: target.id }).where(eq(schema.vehicles.customerId, source.id));
 
     const notes = [target.notes, source.notes]
       .map((note) => note?.trim() ?? "")

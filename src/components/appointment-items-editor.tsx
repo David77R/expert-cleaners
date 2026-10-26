@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { VehicleSelect, fetchVehicles, type PickerVehicle } from "@/components/vehicle-select";
+import { client } from "@/config/clients";
+import { isVehicleSize, priceForSize, vehicleName } from "@/domain/vehicles";
 import { INPUT } from "@/components/form-kit";
 import { Icon } from "@/components/icons";
 import { ServiceIcon } from "@/components/service-icon";
@@ -25,6 +28,7 @@ import { formatMoney } from "@/domain/invoice";
 type Row = {
   uid: number;
   serviceId: string;
+  vehicleId: string;
   price: string;
   specs: Record<string, string>;
   details: Record<string, string>;
@@ -130,7 +134,7 @@ function ItemFields({
           {errors[`spec.${field.key}`] && <span className="text-attention">{errors[`spec.${field.key}`]}</span>}
         </label>
       ))}
-      {(["color", "size", "dimensions"] as const).map((detail) => (
+      {(client.features.vehicles ? [] : (["color", "size", "dimensions"] as const)).map((detail) => (
         <label key={detail} className={LABEL}>
           {DETAIL_LABELS[detail]}
           <input
@@ -169,6 +173,8 @@ export function AppointmentItemsEditor({
   idPrefix,
   compact = false,
   onChange,
+  customerId = null,
+  vehicles: initialVehicles = [],
 }: {
   services: FormService[];
   initialItems: ItemValues[];
@@ -176,6 +182,8 @@ export function AppointmentItemsEditor({
   idPrefix: string;
   compact?: boolean;
   onChange?: (items: EditorItem[]) => void;
+  customerId?: string | null;
+  vehicles?: PickerVehicle[];
 }) {
   const byId = new Map(services.map((service) => [service.id, service]));
   const categories = [...new Set(services.map((service) => service.category))];
@@ -185,6 +193,7 @@ export function AppointmentItemsEditor({
       .map((item, uid) => ({
         uid,
         serviceId: item.serviceId,
+        vehicleId: item.vehicleId ?? "",
         price: item.price,
         specs: { ...item.specs },
         details: { ...(item.details ?? {}) },
@@ -195,6 +204,37 @@ export function AppointmentItemsEditor({
   const [openRows, setOpenRows] = useState<number[]>([]);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [applied, setApplied] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState<{ customerId: string | null; list: PickerVehicle[] }>({
+    customerId,
+    list: initialVehicles,
+  });
+  const vehicles = loaded.customerId === customerId ? loaded.list : [];
+
+  useEffect(() => {
+    if (!client.features.vehicles || !customerId || loaded.customerId === customerId) return;
+    let alive = true;
+    void fetchVehicles(customerId).then((list) => {
+      if (alive) setLoaded({ customerId, list });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [customerId, loaded.customerId]);
+
+  function setRowVehicle(uid: number, vehicleId: string | null, known: readonly PickerVehicle[] = vehicles) {
+    const vehicle = known.find((item) => item.id === vehicleId);
+    update(
+      rows.map((row) => {
+        if (row.uid !== uid) return row;
+        const service = byId.get(row.serviceId);
+        const sized =
+          service && vehicle && isVehicleSize(vehicle.size) && service.sizePrices?.[vehicle.size] !== undefined
+            ? centsToDollars(priceForSize(service, vehicle.size))
+            : row.price;
+        return { ...row, vehicleId: vehicleId ?? "", price: sized };
+      }),
+    );
+  }
 
   const total = rows.reduce((sum, row) => sum + rowCents(row, byId.get(row.serviceId)), 0);
   const groups = [...new Set(rows.map((row) => row.serviceId))].map((serviceId) => ({
@@ -228,10 +268,12 @@ export function AppointmentItemsEditor({
   function add(service: FormService) {
     if (rows.length >= MAX_ITEMS) return;
     const uid = rows.reduce((max, row) => Math.max(max, row.uid), -1) + 1;
+    const defaultVehicle = vehicles.length === 1 ? vehicles[0] : undefined;
     const row: Row = {
       uid,
       serviceId: service.id,
-      price: centsToDollars(service.basePriceCents),
+      vehicleId: defaultVehicle?.id ?? "",
+      price: centsToDollars(priceForSize(service, defaultVehicle?.size)),
       specs: {},
       details: {},
     };
@@ -298,6 +340,7 @@ export function AppointmentItemsEditor({
         <div key={row.uid} hidden>
           <input type="hidden" name={itemKey(index, "serviceId")} value={row.serviceId} />
           <input type="hidden" name={itemKey(index, "price")} value={row.price} />
+          <input type="hidden" name={itemKey(index, "vehicleId")} value={row.vehicleId} />
           {Object.entries(row.specs).map(([key, value]) => (
             <input key={key} type="hidden" name={itemSpecKey(index, key)} value={value} />
           ))}
@@ -494,7 +537,10 @@ export function AppointmentItemsEditor({
                         const rowErrors = unitErrors(index);
                         const rowOpen =
                           units.length === 1 || openRows.includes(row.uid) || Object.keys(rowErrors).length > 0;
-                        const summary = describeRow(row, service);
+                        const rowVehicle = vehicles.find((vehicle) => vehicle.id === row.vehicleId);
+                        const summary = [rowVehicle ? vehicleName(rowVehicle) : "", describeRow(row, service)]
+                          .filter(Boolean)
+                          .join(" · ");
                         return (
                           <li key={row.uid} className="rounded-md border border-hair bg-canvas/40">
                             <div className="flex items-center gap-2 px-2.5 py-1.5">
@@ -528,7 +574,20 @@ export function AppointmentItemsEditor({
                               </button>
                             </div>
                             {rowOpen && (
-                              <div className="border-t border-hair px-2.5 py-2.5">
+                              <div className="flex flex-col gap-2.5 border-t border-hair px-2.5 py-2.5">
+                                {client.features.vehicles && (
+                                  <VehicleSelect
+                                    customerId={customerId}
+                                    vehicles={vehicles}
+                                    value={row.vehicleId || null}
+                                    onChange={(vehicleId) => setRowVehicle(row.uid, vehicleId)}
+                                    onCreated={(vehicle) => {
+                                      const next = [...vehicles, vehicle];
+                                      setLoaded({ customerId, list: next });
+                                      setRowVehicle(row.uid, vehicle.id, next);
+                                    }}
+                                  />
+                                )}
                                 <ItemFields
                                   service={service}
                                   values={row}
