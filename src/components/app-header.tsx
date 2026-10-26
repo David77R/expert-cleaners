@@ -86,52 +86,57 @@ export async function AppShell({ active, actor, children }: { active: Section; a
 
   return (
     <div className="flex min-h-full flex-1 flex-col lg:flex-row">
-      <aside className="hidden w-60 shrink-0 flex-col bg-rail lg:sticky lg:top-0 lg:flex lg:h-screen">
-        <div className="px-5 pb-4 pt-6">
-          <SidebarBrand brand={brand} />
-          {switcher && <div className="mt-4">{switcher}</div>}
+      <aside className="hidden w-60 shrink-0 flex-col overflow-hidden bg-rail lg:sticky lg:top-0 lg:flex lg:h-dvh">
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pb-3 [scrollbar-color:var(--rail-line)_transparent] [scrollbar-width:thin]">
+          <div className="px-5 pb-4 pt-6 [@media(max-height:760px)]:pb-3 [@media(max-height:760px)]:pt-4">
+            <SidebarBrand brand={brand} />
+            {switcher && <div className="mt-4">{switcher}</div>}
+          </div>
+
+          <Link
+            href="/calendar"
+            aria-label={`Ir a hoy: ${WEEKDAY_LONG[weekdayIndex(today)]} ${Number(today.slice(8, 10))} de ${month.primary.toLowerCase()} de ${month.secondary}`}
+            className="mx-3 flex items-center gap-3 rounded-xl border border-rail-line bg-rail-raised px-3 py-2.5 transition-colors hover:bg-rail-line"
+          >
+            <span className="font-display flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand text-base font-semibold leading-none tabular-nums text-white">
+              {Number(today.slice(8, 10))}
+            </span>
+            <span className="min-w-0 leading-tight">
+              <span className="block truncate text-sm font-medium text-white">
+                Hoy, {WEEKDAY_LONG[weekdayIndex(today)].toLowerCase()}
+              </span>
+              <span className="block truncate text-xs capitalize text-rail-text">
+                {month.primary} {month.secondary}
+              </span>
+            </span>
+          </Link>
+
+          <nav
+            aria-label="Principal"
+            className="mt-5 flex flex-col gap-1 px-3 [@media(max-height:760px)]:mt-3 [@media(max-height:760px)]:gap-0.5"
+          >
+            {links.map((link) => {
+              const current = link.key === active;
+              return (
+                <Link
+                  key={link.key}
+                  href={link.href}
+                  aria-current={current ? "page" : undefined}
+                  className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors [@media(max-height:760px)]:py-2 ${
+                    current
+                      ? "bg-brand/20 text-white ring-1 ring-inset ring-brand/40"
+                      : "text-rail-text hover:bg-white/[0.06] hover:text-white"
+                  }`}
+                >
+                  <Icon name={link.icon} size={18} />
+                  {link.label}
+                </Link>
+              );
+            })}
+          </nav>
         </div>
 
-        <Link
-          href="/calendar"
-          aria-label={`Ir a hoy: ${WEEKDAY_LONG[weekdayIndex(today)]} ${Number(today.slice(8, 10))} de ${month.primary.toLowerCase()} de ${month.secondary}`}
-          className="mx-3 flex items-center gap-3 rounded-xl border border-rail-line bg-rail-raised px-3 py-2.5 transition-colors hover:bg-rail-line"
-        >
-          <span className="font-display flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand text-base font-semibold leading-none tabular-nums text-white">
-            {Number(today.slice(8, 10))}
-          </span>
-          <span className="min-w-0 leading-tight">
-            <span className="block truncate text-sm font-medium text-white">
-              Hoy, {WEEKDAY_LONG[weekdayIndex(today)].toLowerCase()}
-            </span>
-            <span className="block truncate text-xs capitalize text-rail-text">
-              {month.primary} {month.secondary}
-            </span>
-          </span>
-        </Link>
-
-        <nav aria-label="Principal" className="mt-5 flex flex-col gap-1 px-3">
-          {links.map((link) => {
-            const current = link.key === active;
-            return (
-              <Link
-                key={link.key}
-                href={link.href}
-                aria-current={current ? "page" : undefined}
-                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
-                  current
-                    ? "bg-brand/20 text-white ring-1 ring-inset ring-brand/40"
-                    : "text-rail-text hover:bg-white/[0.06] hover:text-white"
-                }`}
-              >
-                <Icon name={link.icon} size={18} />
-                {link.label}
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="mt-auto border-t border-rail-line px-5 py-4">
+        <div className="shrink-0 border-t border-rail-line bg-rail px-5 py-4 [@media(max-height:760px)]:py-3">
           <div className="flex items-center gap-3">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-rail-line text-xs font-semibold text-white">
               {initialsOf(actor.name)}
@@ -180,7 +185,7 @@ export async function AppShell({ active, actor, children }: { active: Section; a
             <span aria-hidden="true" className="hidden h-8 w-px bg-hair xl:block" />
             <Link
               href="/orders/new"
-              className="flex items-center gap-1.5 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+              className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
             >
               <Icon name="plus" size={15} />
               Nuevo pedido

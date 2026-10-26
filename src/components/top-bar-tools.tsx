@@ -27,7 +27,7 @@ export function CityClock({ city }: { city: string }) {
       <span className="font-display text-sm font-semibold tabular-nums" suppressHydrationWarning>
         {TIME.format(now)}
       </span>
-      <span className="text-[11px] text-muted first-letter:uppercase" suppressHydrationWarning>
+      <span className="whitespace-nowrap text-[11px] text-muted first-letter:uppercase" suppressHydrationWarning>
         {city} · {DAY.format(now)}
       </span>
     </span>
