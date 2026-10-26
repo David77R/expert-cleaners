@@ -109,7 +109,17 @@ function QuickAction({
   );
 }
 
-export function DashboardView({ data, actorName, now }: { data: Dashboard; actorName: string; now: number }) {
+export function DashboardView({
+  data,
+  actorName,
+  now,
+  rugPickup,
+}: {
+  data: Dashboard;
+  actorName: string;
+  now: number;
+  rugPickup: boolean;
+}) {
   const today = data.today;
   const month = viewHeading("month", today);
   const topMax = Math.max(1, ...data.topServices.map((service) => service.total));
@@ -149,16 +159,18 @@ export function DashboardView({ data, actorName, now }: { data: Dashboard; actor
         <QuickAction href="/customers/new" label="Nuevo cliente" icon="users" />
         <QuickAction href={calendarHref({ view: "day", date: today })} label="Calendario de hoy" icon="calendar" />
         <QuickAction href={calendarHref({ view: "day", date: today, mapa: true })} label="Mapa y rutas" icon="pin" />
-        <QuickAction
-          href={calendarHref({ view: "day", date: today, entregas: true })}
-          label="Entregas de hoy"
-          icon="truck"
-        />
+        {rugPickup && (
+          <QuickAction
+            href={calendarHref({ view: "day", date: today, entregas: true })}
+            label="Entregas de hoy"
+            icon="truck"
+          />
+        )}
         <QuickAction href="/alerts" label="Alertas" icon="alert" />
         <QuickAction href="/reports" label="Reportes" icon="report" />
       </nav>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className={`grid grid-cols-2 gap-3 md:grid-cols-3 ${rugPickup ? "xl:grid-cols-6" : "xl:grid-cols-5"}`}>
         <Kpi
           label="Citas hoy"
           value={String(data.todayCount)}
@@ -166,14 +178,16 @@ export function DashboardView({ data, actorName, now }: { data: Dashboard; actor
           href={calendarHref({ view: "day", date: today })}
           detail={`${data.status.confirmed} confirmadas · ${data.status.completed} completadas`}
         />
-        <Kpi
-          label="Entregas hoy"
-          value={String(data.deliveryCount)}
-          icon="truck"
-          tone="info"
-          href={calendarHref({ view: "day", date: today, entregas: true })}
-          detail="Con el botón Entregas"
-        />
+        {rugPickup && (
+          <Kpi
+            label="Entregas hoy"
+            value={String(data.deliveryCount)}
+            icon="truck"
+            tone="info"
+            href={calendarHref({ view: "day", date: today, entregas: true })}
+            detail="Con el botón Entregas"
+          />
+        )}
         <Kpi
           label="Por confirmar"
           value={String(data.pendingWeek)}

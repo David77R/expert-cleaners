@@ -7,7 +7,7 @@ import { toFormService, type FormTechnician } from "@/domain/appointment-form";
 import { todayIn } from "@/domain/date-rules";
 import { AppShell } from "@/components/app-header";
 import { OrderBuilder } from "@/components/order-builder";
-import { getActor } from "@/server/auth";
+import { getActor, getBrand } from "@/server/auth";
 import { listServices } from "@/server/services";
 
 const NOTICES: Record<string, string> = {
@@ -22,6 +22,7 @@ export default async function NewOrderPage({ searchParams }: PageProps<"/orders/
   if (!actor) redirect("/login");
 
   const aviso = (await searchParams).aviso;
+  const brand = await getBrand();
   const db = getDb();
   const services = (await listServices(db, actor.companyId)).map(toFormService);
   const technicians: FormTechnician[] = (await listTechnicians(db, actor.companyId))
@@ -41,7 +42,9 @@ export default async function NewOrderPage({ searchParams }: PageProps<"/orders/
         <div className="flex flex-col gap-1">
           <h1 className="font-display text-2xl font-semibold tracking-tight">Nuevo pedido</h1>
           <p className="text-sm text-soft">
-            Toca los servicios para armar el ticket, elige el cliente y programa la recogida y la entrega.
+            {brand.features.rugPickup
+              ? "Toca los servicios para armar el ticket, elige el cliente y programa la recogida y la entrega."
+              : "Toca los servicios para armar el ticket, elige el cliente y programa la cita."}
           </p>
           {isAdmin(actor) && (
             <Link href="/services" className="w-fit text-xs font-semibold text-brand-ink hover:underline">
