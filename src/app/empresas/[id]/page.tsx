@@ -107,7 +107,7 @@ export default async function CompanyPage({ params, searchParams }: PageProps<"/
               {brand.logo && (
                 <form action={removeLogoAction.bind(null, company.id)}>
                   <button type="submit" className="text-sm font-semibold text-attention hover:underline">
-                    Quitar logo y usar las iniciales
+                    Quitar logo
                   </button>
                 </form>
               )}

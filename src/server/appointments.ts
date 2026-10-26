@@ -831,6 +831,20 @@ function overlapIdsOf(rows: AppointmentRow[]): string[] {
   return [...ids];
 }
 
+export async function activeServicesToday(db: Db, companyId: string, date: string): Promise<number> {
+  const [row] = await db
+    .select({ total: sql<number>`count(*)`.mapWith(Number) })
+    .from(appointments)
+    .where(
+      and(
+        eq(appointments.companyId, companyId),
+        eq(appointments.date, date),
+        inArray(appointments.status, ["not_confirmed", "confirmed", "rescheduled"]),
+      ),
+    );
+  return row?.total ?? 0;
+}
+
 export async function getDay(db: Db, companyId: string, date: string, technicianId?: string) {
   const where = and(
     eq(appointments.companyId, companyId),

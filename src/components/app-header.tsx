@@ -6,6 +6,8 @@ import { WEEKDAY_LONG, initialsOf, viewHeading, weekdayIndex } from "@/domain/ca
 import { todayIn } from "@/domain/date-rules";
 import { logout } from "@/app/login/actions";
 import { AlertsBell, BellLink } from "@/components/alerts-bell";
+import { ActiveServices, ActiveServicesLink } from "@/components/active-services";
+import { CarMotion } from "@/components/car-motion";
 import { Icon, type IconName } from "@/components/icons";
 import { BrandMark } from "@/components/brand-mark";
 import { MobileNav } from "@/components/mobile-nav";
@@ -171,9 +173,14 @@ export async function AppShell({ active, actor, children }: { active: Section; a
         brand={<BrandMark brand={brand} size="sm" />}
         switcher={switcher}
         bell={
-          <Suspense fallback={<BellLink count={null} active={active === "alerts"} tone="dark" />}>
-            <AlertsBell companyId={actor.companyId} active={active === "alerts"} tone="dark" />
-          </Suspense>
+          <>
+            <Suspense fallback={<ActiveServicesLink count={null} tone="dark" vehicles={brand.features.vehicles} />}>
+              <ActiveServices companyId={actor.companyId} tone="dark" vehicles={brand.features.vehicles} />
+            </Suspense>
+            <Suspense fallback={<BellLink count={null} active={active === "alerts"} tone="dark" />}>
+              <AlertsBell companyId={actor.companyId} active={active === "alerts"} tone="dark" />
+            </Suspense>
+          </>
         }
       />
 
@@ -187,7 +194,7 @@ export async function AppShell({ active, actor, children }: { active: Section; a
               href="/orders/new"
               className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
             >
-              <Icon name="plus" size={15} />
+              {brand.features.vehicles ? <CarMotion size={22} /> : <Icon name="plus" size={15} />}
               Nuevo pedido
             </Link>
             <Link
@@ -198,6 +205,9 @@ export async function AppShell({ active, actor, children }: { active: Section; a
             >
               <Icon name="calendar" size={19} />
             </Link>
+            <Suspense fallback={<ActiveServicesLink count={null} tone="light" vehicles={brand.features.vehicles} />}>
+              <ActiveServices companyId={actor.companyId} tone="light" vehicles={brand.features.vehicles} />
+            </Suspense>
             <Suspense fallback={<BellLink count={null} active={active === "alerts"} tone="light" />}>
               <AlertsBell companyId={actor.companyId} active={active === "alerts"} tone="light" />
             </Suspense>

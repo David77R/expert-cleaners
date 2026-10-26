@@ -181,3 +181,55 @@ body {
     display: none;
   }
 }
+
+@keyframes car-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-0.8px);
+  }
+}
+
+@keyframes car-speed {
+  0% {
+    transform: translateX(3px);
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-4px);
+    opacity: 0;
+  }
+}
+
+@keyframes car-wheel {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@utility car-bob {
+  animation: car-bob 0.6s ease-in-out infinite;
+}
+
+@utility car-speed {
+  animation: car-speed 0.9s linear infinite;
+}
+
+@utility car-wheel {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: car-wheel 0.8s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .car-bob,
+  .car-speed,
+  .car-wheel {
+    animation: none !important;
+  }
+}

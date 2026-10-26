@@ -203,12 +203,7 @@ export function CompanyForm({ companyId, initialValues }: { companyId?: string; 
       </Card>
 
       <Card title="Funciones">
-        <Toggle
-          name="rugPickup"
-          label="Recogida y entrega de alfombras"
-          hint="Los servicios de alfombras se recogen y se entregan otro día."
-          defaultChecked={values.rugPickup}
-        />
+        {values.rugPickup && <input type="hidden" name="rugPickup" value="on" />}
         <Toggle
           name="vehicles"
           label="Vehículos de los clientes"
