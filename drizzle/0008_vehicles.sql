@@ -1,4 +1,4 @@
-CREATE TABLE "vehicles" (
+CREATE TABLE IF NOT EXISTS "vehicles" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"customer_id" uuid NOT NULL,
 	"make" text DEFAULT '' NOT NULL,
@@ -11,9 +11,15 @@ CREATE TABLE "vehicles" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "appointment_items" ADD COLUMN "vehicle_id" uuid;--> statement-breakpoint
-ALTER TABLE "services" ADD COLUMN "size_prices" jsonb DEFAULT '{}'::jsonb NOT NULL;--> statement-breakpoint
-ALTER TABLE "vehicles" ADD CONSTRAINT "vehicles_customer_id_customers_id_fk" FOREIGN KEY ("customer_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "vehicles_customer_idx" ON "vehicles" USING btree ("customer_id");--> statement-breakpoint
-ALTER TABLE "appointment_items" ADD CONSTRAINT "appointment_items_vehicle_id_vehicles_id_fk" FOREIGN KEY ("vehicle_id") REFERENCES "public"."vehicles"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "appointment_items" ADD COLUMN IF NOT EXISTS "vehicle_id" uuid;--> statement-breakpoint
+ALTER TABLE "services" ADD COLUMN IF NOT EXISTS "size_prices" jsonb DEFAULT '{}'::jsonb NOT NULL;--> statement-breakpoint
+DO $$ BEGIN
+	ALTER TABLE "vehicles" ADD CONSTRAINT "vehicles_customer_id_customers_id_fk" FOREIGN KEY ("customer_id") REFERENCES "public"."customers"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "vehicles_customer_idx" ON "vehicles" USING btree ("customer_id");--> statement-breakpoint
+DO $$ BEGIN
+	ALTER TABLE "appointment_items" ADD CONSTRAINT "appointment_items_vehicle_id_vehicles_id_fk" FOREIGN KEY ("vehicle_id") REFERENCES "public"."vehicles"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;--> statement-breakpoint
 ALTER TABLE "vehicles" ENABLE ROW LEVEL SECURITY;
