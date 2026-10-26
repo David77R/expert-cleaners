@@ -19,7 +19,19 @@ import { listRouteDraftsForDay, saveRouteDraft } from "@/server/route-drafts";
 import { createService, listServices, updateService } from "@/server/services";
 import { createTechnician, listTechnicians } from "@/server/technicians";
 import { createVehicle, listVehicles } from "@/server/vehicles";
-import { companyBrand, listCompanies } from "@/server/companies";
+import {
+  companyBrand,
+  companyOverview,
+  companyPeople,
+  createCompany,
+  createCompanyAdmin,
+  listCompanies,
+  removeCompanyLogo,
+  setCompanyLogo,
+  updateCompany,
+} from "@/server/companies";
+import { companyFormFrom, companyInputFromForm, emptyCompanyForm } from "@/domain/company-form";
+import sharp from "sharp";
 import { getAgentReportPdf } from "@/server/reports";
 import type { Technician } from "@/db/schema";
 import { AGENT_JOSUE } from "@/db/seed-data";
@@ -251,5 +263,123 @@ describe("empresas separadas", () => {
   it("el dueño cuenta como administrador", () => {
     expect(isAdmin({ role: "owner" })).toBe(true);
     expect(isAdmin({ role: "agent" })).toBe(false);
+  });
+});
+
+describe("administración de empresas", () => {
+  const OWNER = { id: AGENT_JOSUE.id, name: "David", role: "owner" as const, companyId: EXPERT_CLEANERS_COMPANY_ID };
+  const tampa = async () => ({ lat: 27.9506, lng: -82.4572 });
+  const nowhere = async () => null;
+  const form = (overrides = {}) =>
+    companyInputFromForm({
+      ...emptyCompanyForm(),
+      name: "Brillo Total LLC",
+      shortName: "Brillo Total",
+      slug: "brillo-total",
+      initials: "BT",
+      city: "Tampa",
+      state: "FL",
+      vehicles: true,
+      ...overrides,
+    });
+
+  it("solo el dueño crea, edita y ve el resumen de empresas", async () => {
+    await expect(createCompany(ctx.db, RVA_ADMIN, form(), tampa)).rejects.toMatchObject({ code: "forbidden" });
+    await expect(companyOverview(ctx.db, EXPERT_ADMIN)).rejects.toMatchObject({ code: "forbidden" });
+    await expect(updateCompany(ctx.db, RVA_ADMIN, RVA_COMPANY_ID, form(), tampa)).rejects.toMatchObject({
+      code: "forbidden",
+    });
+  });
+
+  it("crea una empresa ubicando la ciudad y no repite identificadores", async () => {
+    const created = await createCompany(ctx.db, OWNER, form(), tampa);
+    expect(created.settings.location.center).toEqual({ lat: 27.9506, lng: -82.4572 });
+    expect(created.settings.features.vehicles).toBe(true);
+    await expect(createCompany(ctx.db, OWNER, form({ name: "Otra" }), tampa)).rejects.toMatchObject({
+      code: "slug_taken",
+    });
+    await expect(
+      createCompany(ctx.db, OWNER, form({ slug: "sin-mapa", city: "Ciudad Inventada" }), nowhere),
+    ).rejects.toMatchObject({ code: "city_not_found" });
+
+    const overview = await companyOverview(ctx.db, OWNER);
+    const rva = overview.find((company) => company.id === RVA_COMPANY_ID);
+    expect(rva).toMatchObject({ technicians: 1, customers: 1, appointments: 1 });
+    expect(overview.find((company) => company.id === created.id)).toMatchObject({ people: 0, appointments: 0 });
+  });
+
+  it("al editar conserva el identificador y la ubicación si la ciudad no cambió", async () => {
+    const rva = (await listCompanies(ctx.db)).find((company) => company.id === RVA_COMPANY_ID)!;
+    const values = companyFormFrom(rva);
+    const updated = await updateCompany(
+      ctx.db,
+      OWNER,
+      RVA_COMPANY_ID,
+      companyInputFromForm({ ...values, slug: "cambiado", lat: "", lng: "", tagline: "Detailing a domicilio" }),
+      nowhere,
+    );
+    expect(updated.slug).toBe("rva");
+    expect(updated.settings.tagline).toBe("Detailing a domicilio");
+    expect(updated.settings.location.center).toEqual(rva.settings.location.center);
+    expect(updated.settings.theme).toEqual(rva.settings.theme);
+    expect(updated.settings.logo).toEqual(rva.settings.logo);
+  });
+
+  it("procesa el logo, genera los íconos y permite quitarlo", async () => {
+    const saved = new Map<string, Uint8Array>();
+    const storage = {
+      async put(path: string, bytes: Uint8Array) {
+        saved.set(path, bytes);
+        return `https://cdn.test/company-branding/${path}`;
+      },
+    };
+    const png = new Uint8Array(
+      await sharp({ create: { width: 600, height: 300, channels: 4, background: "#ff6600" } })
+        .png()
+        .toBuffer(),
+    );
+    const now = new Date("2026-10-26T12:00:00Z");
+    const updated = await setCompanyLogo(ctx.db, storage, OWNER, RVA_COMPANY_ID, png, now);
+    const folder = `${RVA_COMPANY_ID}/${now.getTime()}`;
+    expect(updated.settings.logo).toEqual({
+      src: `https://cdn.test/company-branding/${folder}/logo.webp`,
+      width: 448,
+      height: 224,
+    });
+    expect(updated.settings.icons).toBe(`https://cdn.test/company-branding/${folder}`);
+    expect([...saved.keys()].sort()).toEqual(
+      ["apple-icon.png", "icon-192.png", "icon-512.png", "icon-maskable-512.png", "logo.webp"].map(
+        (file) => `${folder}/${file}`,
+      ),
+    );
+    const icon = await sharp(saved.get(`${folder}/icon-512.png`)!).metadata();
+    expect([icon.width, icon.height]).toEqual([512, 512]);
+
+    await expect(
+      setCompanyLogo(ctx.db, storage, OWNER, RVA_COMPANY_ID, new TextEncoder().encode("no soy imagen")),
+    ).rejects.toMatchObject({ code: "invalid_logo" });
+
+    const cleared = await removeCompanyLogo(ctx.db, OWNER, RVA_COMPANY_ID);
+    expect(cleared.settings.logo).toBeNull();
+    expect(cleared.settings.icons).toBe("/clients/default");
+  });
+
+  it("crea el primer administrador dentro de la empresa", async () => {
+    const auth = createFakeUserAdmin();
+    const brillo = (await listCompanies(ctx.db)).find((company) => company.slug === "brillo-total")!;
+    const admin = await createCompanyAdmin(ctx.db, auth, OWNER, brillo.id, {
+      name: "Marta Brillo",
+      email: "marta@brillo.test",
+      password: "segura-123",
+    });
+    expect(admin).toMatchObject({ role: "admin", companyId: brillo.id });
+    const people = await companyPeople(ctx.db, auth, OWNER, brillo.id);
+    expect(people).toEqual([
+      { id: admin.id, name: "Marta Brillo", email: "marta@brillo.test", role: "admin", active: true },
+    ]);
+    await expect(
+      createCompanyAdmin(ctx.db, auth, RVA_ADMIN, brillo.id, { name: "X", email: "x@x.test", password: "segura-123" }),
+    ).rejects.toMatchObject({ code: "forbidden" });
+    expect(await listTechnicians(ctx.db, brillo.id)).toEqual([]);
   });
 });

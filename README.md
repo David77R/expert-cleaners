@@ -41,7 +41,7 @@ Para correr la app necesitas un proyecto Supabase (o Supabase CLI local):
 
 Todas las empresas viven en la misma base de datos, en la tabla `companies`. Cada empresa guarda ahí su nombre, logo, colores, zona de trabajo, horario de reservas y funciones (recogida de alfombras, vehículos, reserva en línea). Clientes, citas, técnicos, servicios, vehículos, rutas y agentes llevan `company_id`, y cada consulta filtra por la empresa de quien entró. Los logos e íconos van en `public/clients/<slug>/`.
 
-Un administrador o agente solo ve su empresa. El dueño (rol `owner`) puede ver cualquier empresa; la empresa activa se guarda en la cookie `cc-company`. La pantalla de inicio de sesión usa la empresa de `NEXT_PUBLIC_CLIENT_ID` (`expert-cleaners` si no está definida).
+Un administrador o agente solo ve su empresa. El dueño (rol `owner`) puede ver cualquier empresa; la empresa activa se guarda en la cookie `cc-company`. El dueño cambia de empresa con el selector del menú y administra todas en `/empresas`: crear, editar datos, zona, colores, funciones y horario, subir el logo (se guarda en el bucket público `company-branding` y genera los íconos de la app), desactivar y crear el primer administrador. La pantalla de inicio de sesión usa la empresa de `NEXT_PUBLIC_CLIENT_ID` (`expert-cleaners` si no está definida).
 
 Si una empresa tiene la reserva en línea activa, sus clientes reservan en `/reservar/<slug>`. Se puede preseleccionar un paquete con `/reservar/<slug>?package=<slug-del-paquete>`.
 

@@ -3,12 +3,14 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { getDb } from "@/db/client";
-import { profiles, type Actor, type Profile } from "@/db/schema";
+import { profiles, type Actor, type Company, type Profile } from "@/db/schema";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { DomainError } from "@/domain/appointment-rules";
 import { ACTIVE_COMPANY_COOKIE, DEFAULT_COMPANY_SLUG, brandOf, type Brand } from "@/domain/companies";
 import { assertAdmin } from "@/domain/permissions";
 import { findCompany, findCompanyBySlug, listCompanies } from "@/server/companies";
+
+export const INACTIVE_COMPANY_EXIT = "/salir?motivo=empresa";
 
 const currentProfile = cache(async (): Promise<{ profile: Profile | null } | null> => {
   const supabase = await createSupabaseServerClient();
@@ -25,12 +27,12 @@ async function chosenCompany(): Promise<string | null> {
   return company?.id ?? null;
 }
 
-const activeCompanyId = cache(async (): Promise<string | null> => {
+const activeCompany = cache(async (): Promise<Company | null> => {
   const session = await currentProfile();
   const profile = session?.profile;
   if (!profile?.active) return null;
-  if (profile.role === "owner") return (await chosenCompany()) ?? profile.companyId;
-  return profile.companyId;
+  const id = profile.role === "owner" ? ((await chosenCompany()) ?? profile.companyId) : profile.companyId;
+  return id ? findCompany(getDb(), id) : null;
 });
 
 export async function getActor(): Promise<Actor | null> {
@@ -38,16 +40,15 @@ export async function getActor(): Promise<Actor | null> {
   if (!session) return null;
   const { profile } = session;
   if (!profile || !profile.active) redirect("/salir");
-  if (profile.role !== "owner" && !profile.companyId) redirect("/salir");
-  const companyId = (await activeCompanyId()) ?? (await getBrand()).id;
-  return { id: profile.id, name: profile.name, role: profile.role, companyId };
+  const company = await activeCompany();
+  if (profile.role !== "owner" && (!company || !company.active)) redirect(INACTIVE_COMPANY_EXIT);
+  return { id: profile.id, name: profile.name, role: profile.role, companyId: company?.id ?? (await getBrand()).id };
 }
 
 export const getBrand = cache(async (): Promise<Brand> => {
   const db = getDb();
-  const id = await activeCompanyId();
   const company =
-    (id ? await findCompany(db, id) : null) ??
+    (await activeCompany()) ??
     (await findCompanyBySlug(db, process.env.NEXT_PUBLIC_CLIENT_ID || DEFAULT_COMPANY_SLUG)) ??
     (await listCompanies(db))[0];
   if (!company) throw new Error("No hay empresas registradas");

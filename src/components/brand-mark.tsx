@@ -18,6 +18,7 @@ export function BrandMark({
         width={width}
         height={height}
         priority
+        unoptimized={/^https?:/.test(brand.logo.src)}
         className="shrink-0 object-contain"
         style={{ height, width }}
       />

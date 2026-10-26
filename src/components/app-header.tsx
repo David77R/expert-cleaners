@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { isAdmin } from "@/domain/permissions";
+import { isAdmin, isOwner } from "@/domain/permissions";
 import { Suspense, type ReactNode } from "react";
 import type { Actor } from "@/db/schema";
 import { WEEKDAY_LONG, initialsOf, viewHeading, weekdayIndex } from "@/domain/calendar-view";
@@ -11,21 +11,35 @@ import { BrandMark } from "@/components/brand-mark";
 import { MobileNav } from "@/components/mobile-nav";
 import type { Brand } from "@/domain/companies";
 import { getBrand } from "@/server/auth";
+import { getDb } from "@/db/client";
+import { listCompanies } from "@/server/companies";
+import { CompanySwitcher } from "@/components/company-switcher";
 import { GlobalSearch, CityClock } from "@/components/top-bar-tools";
 
 type Section =
-  "home" | "orders" | "calendar" | "customers" | "services" | "agents" | "technicians" | "reports" | "alerts";
+  | "home"
+  | "orders"
+  | "calendar"
+  | "customers"
+  | "services"
+  | "agents"
+  | "technicians"
+  | "reports"
+  | "alerts"
+  | "companies";
 
-const LINKS: { key: Section; href: string; label: string; icon: IconName; adminOnly?: boolean }[] = [
-  { key: "home", href: "/inicio", label: "Inicio", icon: "home" },
-  { key: "orders", href: "/orders/new", label: "Nuevo pedido", icon: "plus" },
-  { key: "customers", href: "/customers", label: "Clientes", icon: "users" },
-  { key: "services", href: "/services", label: "Servicios", icon: "tag", adminOnly: true },
-  { key: "calendar", href: "/calendar", label: "Calendario", icon: "calendar" },
-  { key: "agents", href: "/agents", label: "Agentes", icon: "agent", adminOnly: true },
-  { key: "technicians", href: "/technicians", label: "Técnicos", icon: "wrench", adminOnly: true },
-  { key: "reports", href: "/reports", label: "Reportes", icon: "report" },
-];
+const LINKS: { key: Section; href: string; label: string; icon: IconName; adminOnly?: boolean; ownerOnly?: boolean }[] =
+  [
+    { key: "home", href: "/inicio", label: "Inicio", icon: "home" },
+    { key: "orders", href: "/orders/new", label: "Nuevo pedido", icon: "plus" },
+    { key: "customers", href: "/customers", label: "Clientes", icon: "users" },
+    { key: "services", href: "/services", label: "Servicios", icon: "tag", adminOnly: true },
+    { key: "calendar", href: "/calendar", label: "Calendario", icon: "calendar" },
+    { key: "agents", href: "/agents", label: "Agentes", icon: "agent", adminOnly: true },
+    { key: "technicians", href: "/technicians", label: "Técnicos", icon: "wrench", adminOnly: true },
+    { key: "reports", href: "/reports", label: "Reportes", icon: "report" },
+    { key: "companies", href: "/empresas", label: "Empresas", icon: "building", ownerOnly: true },
+  ];
 
 const TITLES: Record<Section, string> = {
   home: "Inicio",
@@ -37,6 +51,7 @@ const TITLES: Record<Section, string> = {
   technicians: "Técnicos",
   reports: "Reportes",
   alerts: "Alertas",
+  companies: "Empresas",
 };
 
 function SidebarBrand({ brand }: { brand: Brand }) {
@@ -61,13 +76,20 @@ export async function AppShell({ active, actor, children }: { active: Section; a
   const brand = await getBrand();
   const today = todayIn();
   const month = viewHeading("month", today);
-  const links = LINKS.filter((link) => !link.adminOnly || isAdmin(actor));
+  const links = LINKS.filter((link) => (!link.adminOnly || isAdmin(actor)) && (!link.ownerOnly || isOwner(actor)));
+  const switcher = isOwner(actor) ? (
+    <CompanySwitcher
+      activeId={actor.companyId}
+      companies={(await listCompanies(getDb())).map(({ id, name, active }) => ({ id, name, active }))}
+    />
+  ) : null;
 
   return (
     <div className="flex min-h-full flex-1 flex-col lg:flex-row">
       <aside className="hidden w-60 shrink-0 flex-col bg-rail lg:sticky lg:top-0 lg:flex lg:h-screen">
         <div className="px-5 pb-4 pt-6">
           <SidebarBrand brand={brand} />
+          {switcher && <div className="mt-4">{switcher}</div>}
         </div>
 
         <Link
@@ -142,6 +164,7 @@ export async function AppShell({ active, actor, children }: { active: Section; a
         roleLabel={ROLE_LABEL[actor.role]}
         logout={logout}
         brand={<BrandMark brand={brand} size="sm" />}
+        switcher={switcher}
         bell={
           <Suspense fallback={<BellLink count={null} active={active === "alerts"} tone="dark" />}>
             <AlertsBell companyId={actor.companyId} active={active === "alerts"} tone="dark" />

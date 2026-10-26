@@ -19,6 +19,7 @@ export function MobileNav({
   roleLabel,
   bell,
   brand,
+  switcher = null,
   logout,
 }: {
   links: MobileLink[];
@@ -29,6 +30,7 @@ export function MobileNav({
   roleLabel: string;
   bell: ReactNode;
   brand: ReactNode;
+  switcher?: ReactNode;
   logout: () => Promise<void>;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -167,6 +169,7 @@ export function MobileNav({
                 <Icon name="close" size={20} />
               </button>
             </div>
+            {switcher && <div className="px-4 pb-3">{switcher}</div>}
             <div className="px-4 pb-3 text-ink [&_input]:border-transparent [&_input]:bg-paper">
               <GlobalSearch />
             </div>

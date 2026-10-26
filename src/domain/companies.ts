@@ -20,6 +20,7 @@ export type CompanySettings = {
   tagline: string;
   headline: string;
   logo: { src: string; width: number; height: number } | null;
+  icons?: string;
   location: CompanyLocation;
   theme: Record<string, string>;
   themeColor: string;
@@ -47,8 +48,8 @@ export function brandOf(company: { id: string; slug: string; name: string; setti
   return { ...company.settings, id: company.id, slug: company.slug, name: company.name };
 }
 
-export function brandIcon(brand: Pick<Brand, "slug">, file: string): string {
-  return `/clients/${brand.slug}/${file}`;
+export function brandIcon(brand: Pick<Brand, "slug" | "icons">, file: string): string {
+  return `${brand.icons ?? `/clients/${brand.slug}`}/${file}`;
 }
 
 export function brandStyle(brand: Pick<Brand, "theme" | "backgroundTint">): CSSProperties {

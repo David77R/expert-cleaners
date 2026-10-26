@@ -9,6 +9,7 @@ import {
   mergeVerified,
   parseCensusSuggestions,
   pickCensusMatch,
+  pickCity,
   pickGeocodeResult,
   rankSuggestions,
   splitHouseNumber,
@@ -411,5 +412,20 @@ describe("sugerencias verificadas con el Census", () => {
       "Miami",
     ]);
     expect(mergeVerified("795 nw 80 ter 33322", [miami, sunrise], []).map((s) => s.city)).toEqual(["Sunrise", "Miami"]);
+  });
+});
+
+describe("centro de la ciudad de una empresa", () => {
+  it("toma la primera ciudad de Estados Unidos en el estado pedido", () => {
+    const data = {
+      features: [
+        feature({ countrycode: "MX", state: "Jalisco" }, [-103.3, 20.6]),
+        feature({ countrycode: "US", state: "Georgia" }, [-84.2, 31.5]),
+        feature({ countrycode: "US", state: "Florida" }, [-82.457178, 27.950575]),
+      ],
+    };
+    expect(pickCity(data, "FL")).toEqual({ lat: 27.9506, lng: -82.4572 });
+    expect(pickCity(data, "TX")).toBeNull();
+    expect(pickCity(null, "FL")).toBeNull();
   });
 });

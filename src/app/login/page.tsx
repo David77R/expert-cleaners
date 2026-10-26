@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { useSearchParams } from "next/navigation";
 import { login } from "./actions";
 import { BrandMark } from "@/components/brand-mark";
 import { useBrand } from "@/components/brand-provider";
@@ -11,6 +12,7 @@ const FIELD =
 export default function LoginPage() {
   const [state, action, pending] = useActionState(login, undefined);
   const brand = useBrand();
+  const companyOff = useSearchParams().get("aviso") === "empresa";
 
   return (
     <main className="flex flex-1 flex-col lg:flex-row">
@@ -62,6 +64,12 @@ export default function LoginPage() {
             autoComplete="current-password"
             className={FIELD}
           />
+
+          {companyOff && !state?.error && (
+            <p role="status" className="mt-4 rounded-md bg-warning-soft px-3.5 py-2.5 text-sm font-medium text-warning">
+              Tu empresa está desactivada en este momento. Habla con el administrador.
+            </p>
+          )}
 
           {state?.error && (
             <p role="alert" className="mt-4 text-sm font-medium text-attention">

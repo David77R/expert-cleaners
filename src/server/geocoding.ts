@@ -1,4 +1,5 @@
 import type { CompanyLocation } from "@/domain/companies";
+import { stateCode } from "@/domain/us-states";
 import { env } from "@/lib/env";
 
 export interface GeocodeInput {
@@ -356,67 +357,6 @@ export function parseSuggestions(data: unknown): AddressSuggestion[] {
 
 const PHOTON_URL = "https://photon.komoot.io/api/";
 
-const US_STATES: Record<string, string> = {
-  alabama: "AL",
-  alaska: "AK",
-  arizona: "AZ",
-  arkansas: "AR",
-  california: "CA",
-  colorado: "CO",
-  connecticut: "CT",
-  delaware: "DE",
-  "district of columbia": "DC",
-  florida: "FL",
-  georgia: "GA",
-  hawaii: "HI",
-  idaho: "ID",
-  illinois: "IL",
-  indiana: "IN",
-  iowa: "IA",
-  kansas: "KS",
-  kentucky: "KY",
-  louisiana: "LA",
-  maine: "ME",
-  maryland: "MD",
-  massachusetts: "MA",
-  michigan: "MI",
-  minnesota: "MN",
-  mississippi: "MS",
-  missouri: "MO",
-  montana: "MT",
-  nebraska: "NE",
-  nevada: "NV",
-  "new hampshire": "NH",
-  "new jersey": "NJ",
-  "new mexico": "NM",
-  "new york": "NY",
-  "north carolina": "NC",
-  "north dakota": "ND",
-  ohio: "OH",
-  oklahoma: "OK",
-  oregon: "OR",
-  pennsylvania: "PA",
-  "rhode island": "RI",
-  "south carolina": "SC",
-  "south dakota": "SD",
-  tennessee: "TN",
-  texas: "TX",
-  utah: "UT",
-  vermont: "VT",
-  virginia: "VA",
-  washington: "WA",
-  "west virginia": "WV",
-  wisconsin: "WI",
-  wyoming: "WY",
-  "puerto rico": "PR",
-};
-
-function stateCode(value: string): string {
-  const clean = value.trim();
-  if (/^[A-Za-z]{2}$/.test(clean)) return clean.toUpperCase();
-  return US_STATES[clean.toLowerCase()] ?? clean;
-}
-
 export function parsePhotonSuggestions(data: unknown): AddressSuggestion[] {
   const features = (data as { features?: PeliasFeature[] } | null)?.features ?? [];
   const suggestions: AddressSuggestion[] = [];
@@ -639,4 +579,28 @@ export async function suggestAddresses(query: string, area: ServiceArea): Promis
     suggestionCache.set(cacheKey, { at: Date.now(), value });
   }
   return value;
+}
+
+type PhotonPlace = { geometry?: { coordinates?: [number, number] }; properties?: Record<string, unknown> };
+
+export function pickCity(data: unknown, state: string): { lat: number; lng: number } | null {
+  const features = (data as { features?: PhotonPlace[] } | null)?.features ?? [];
+  for (const feature of features) {
+    const p = feature.properties ?? {};
+    const [lng, lat] = feature.geometry?.coordinates ?? [];
+    if (typeof lat !== "number" || typeof lng !== "number") continue;
+    if (text(p.countrycode).toUpperCase() !== "US") continue;
+    if (state && stateCode(text(p.state)) !== state.toUpperCase()) continue;
+    return { lat: Math.round(lat * 10000) / 10000, lng: Math.round(lng * 10000) / 10000 };
+  }
+  return null;
+}
+
+export async function locateCity(city: string, state: string): Promise<{ lat: number; lng: number } | null> {
+  const url = new URL(PHOTON_URL);
+  url.searchParams.set("q", `${city}, ${state}`);
+  url.searchParams.set("limit", "5");
+  url.searchParams.set("lang", "en");
+  url.searchParams.set("layer", "city");
+  return pickCity(await fetchJson(url, "Photon city"), state);
 }
