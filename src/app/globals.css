@@ -101,3 +101,83 @@ body {
     animation-duration: 0.01ms !important;
   }
 }
+
+@keyframes ops-route-flow {
+  to {
+    stroke-dashoffset: -48;
+  }
+}
+
+@keyframes ops-pulse {
+  0% {
+    transform: scale(0.4);
+    opacity: 0.75;
+  }
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+@keyframes ops-chip {
+  0%,
+  4% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  8%,
+  28% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  33%,
+  100% {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes ops-glow {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+@utility ops-route {
+  stroke-dasharray: 2 10;
+  animation: ops-route-flow 1.6s linear infinite;
+}
+
+@utility ops-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ops-pulse 2.4s ease-out infinite;
+}
+
+@utility ops-chip {
+  opacity: 0;
+  animation: ops-chip 12s ease-in-out infinite;
+}
+
+@utility ops-glow {
+  animation: ops-glow 6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ops-route,
+  .ops-pulse,
+  .ops-glow {
+    animation: none !important;
+  }
+  .ops-chip {
+    animation: none !important;
+    opacity: 0;
+  }
+  .ops-car {
+    display: none;
+  }
+}
