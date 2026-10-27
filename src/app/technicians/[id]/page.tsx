@@ -10,6 +10,9 @@ import { Icon } from "@/components/icons";
 import { TechnicianForm } from "@/components/technician-form";
 import { getActor } from "@/server/auth";
 import { getTechnician, technicianUsage } from "@/server/technicians";
+import { TechnicianAccessCard } from "@/components/technician-access-card";
+import { getTechnicianAccess, type TechnicianAccess } from "@/server/technician-access";
+import { getUserAdmin } from "@/server/user-admin";
 
 function describeUsage(total: number, upcoming: number): string {
   if (total === 0) return "Todavía sin citas.";
@@ -32,6 +35,13 @@ export default async function EditTechnicianPage({ params, searchParams }: PageP
 
   const { total, upcoming } = await technicianUsage(db, id);
   const deleteFailed = (await searchParams).error === "no-eliminado";
+  let access: TechnicianAccess = null;
+  let accessProblem: string | null = null;
+  try {
+    access = await getTechnicianAccess(db, getUserAdmin(), actor.companyId, id);
+  } catch (error) {
+    accessProblem = error instanceof Error ? error.message : "No se pudo revisar el usuario del técnico.";
+  }
 
   return (
     <AppShell active="technicians" actor={actor}>
@@ -53,6 +63,16 @@ export default async function EditTechnicianPage({ params, searchParams }: PageP
         )}
 
         <TechnicianForm technicianId={technician.id} initialValues={technicianFormFromTechnician(technician)} />
+
+        {accessProblem ? (
+          <p className="max-w-3xl rounded-md bg-warning-soft px-3.5 py-2.5 text-sm text-warning">{accessProblem}</p>
+        ) : (
+          <TechnicianAccessCard
+            technicianId={technician.id}
+            technicianName={technician.name}
+            access={access && { email: access.email, active: access.active }}
+          />
+        )}
 
         {total === 0 && (
           <details className="group max-w-3xl rounded-md border border-hair bg-paper">

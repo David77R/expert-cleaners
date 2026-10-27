@@ -70,14 +70,56 @@ function SidebarBrand({ brand }: { brand: Brand }) {
   );
 }
 
-export const ROLE_LABEL: Record<Actor["role"], string> = { owner: "Dueño", admin: "Administrador", agent: "Agente" };
+export const ROLE_LABEL: Record<Actor["role"], string> = {
+  owner: "Dueño",
+  admin: "Administrador",
+  agent: "Agente",
+  technician: "Técnico",
+};
 
 function RoleLabel({ role }: { role: Actor["role"] }) {
   return ROLE_LABEL[role];
 }
 
+function TechnicianShell({ actor, brand, children }: { actor: Actor; brand: Brand; children: ReactNode }) {
+  return (
+    <div className="flex min-h-full flex-1 flex-col">
+      <header className="sticky top-0 z-30 flex items-center gap-3 bg-rail px-4 pb-2.5 pt-[max(0.625rem,env(safe-area-inset-top))] md:px-8">
+        <Link href="/tecnico" aria-label="Mis citas" className="flex shrink-0 items-center">
+          <BrandMark brand={brand} size="sm" />
+        </Link>
+        <Link
+          href="/tecnico"
+          className="flex items-center gap-2 rounded-full bg-white/[0.08] px-3.5 py-2 text-sm font-semibold text-white transition-colors hover:bg-white/[0.14]"
+        >
+          <Icon name="calendar" size={16} />
+          Mis citas
+        </Link>
+        <span className="ml-auto hidden min-w-0 truncate text-sm text-rail-text sm:block">{actor.name}</span>
+        <form action={logout}>
+          <button
+            type="submit"
+            aria-label="Cerrar sesión"
+            className="flex h-10 w-10 items-center justify-center rounded-full text-rail-text transition-colors hover:bg-white/[0.06] hover:text-white"
+          >
+            <Icon name="logout" size={19} />
+          </button>
+        </form>
+      </header>
+      {children}
+    </div>
+  );
+}
+
 export async function AppShell({ active, actor, children }: { active: Section; actor: Actor; children: ReactNode }) {
   const brand = await getBrand();
+  if (actor.role === "technician") {
+    return (
+      <TechnicianShell actor={actor} brand={brand}>
+        {children}
+      </TechnicianShell>
+    );
+  }
   const today = todayIn();
   const month = viewHeading("month", today);
   const links = LINKS.filter((link) => (!link.adminOnly || isAdmin(actor)) && (!link.ownerOnly || isOwner(actor)));

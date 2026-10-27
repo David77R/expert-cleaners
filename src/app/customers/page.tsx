@@ -11,6 +11,7 @@ import { Icon } from "@/components/icons";
 import { SearchBox } from "@/components/search-box";
 import { getActor } from "@/server/auth";
 import { searchCustomers } from "@/server/customers";
+import { hidePhone } from "@/domain/phone-privacy";
 
 const PAGE_SIZE = 20;
 const RECENT_COUNT = 5;
@@ -67,11 +68,13 @@ export default async function CustomersPage({ searchParams }: PageProps<"/custom
   );
   const browsing = Boolean(filters.q) || filtersActive || first(params.todos) === "1" || first(params.sort) !== "";
 
-  const { items, hasMore, total } = await searchCustomers(getDb(), actor.companyId, {
+  const found = await searchCustomers(getDb(), actor.companyId, {
     ...filters,
     limit: browsing ? PAGE_SIZE : RECENT_COUNT,
     offset: browsing ? offset : 0,
   });
+  const { hasMore, total } = found;
+  const items = found.items.map((customer) => hidePhone(actor, customer));
 
   function href(overrides: Record<string, string | number | undefined>): string {
     const next = new URLSearchParams();

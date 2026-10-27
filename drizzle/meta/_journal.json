@@ -78,6 +78,13 @@
       "when": 1793043388161,
       "tag": "0010_vehicle_care",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793153600000,
+      "tag": "0011_technician_access",
+      "breakpoints": true
     }
   ]
 }

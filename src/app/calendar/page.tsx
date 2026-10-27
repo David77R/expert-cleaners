@@ -31,6 +31,7 @@ import type { MapRouteDraft, MapServiceOption, MapStop, MapTechnicianOption } fr
 import { MonthView } from "@/components/month-view";
 import { WeekView } from "@/components/week-view";
 import { conflictingAppointments, getAppointment, getDay, getDeliveries, getRange } from "@/server/appointments";
+import { hideCustomerPhones } from "@/domain/phone-privacy";
 import { getActor, getBrand } from "@/server/auth";
 import { locateMissingAddresses } from "@/server/customers";
 import { panelPhotos } from "@/server/photos";
@@ -64,10 +65,11 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
   const estado = parseStatusFilter(first(params.estado));
   const nav = { view, date, tech, entregas, estado };
 
-  const data =
+  const loaded =
     view === "day" || mapa
       ? await getDay(db, actor.companyId, date, tech ?? undefined)
       : await getRange(db, actor.companyId, { ...viewRange(view, date), technicianId: tech ?? undefined });
+  const data = { ...loaded, appointments: hideCustomerPhones(actor, loaded.appointments) };
   const laneTechnicians = [...allTechnicians];
   for (const appointment of data.appointments) {
     if (appointment.status === "cancelled") continue;
@@ -75,12 +77,15 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
   }
   const visibleTechnicians = tech ? laneTechnicians.filter((t) => t.id === tech) : laneTechnicians;
   const deliveryRange = view === "day" || mapa ? { from: date, to: date } : viewRange(view, date);
-  const deliveryRows = await getDeliveries(
-    db,
-    actor.companyId,
-    deliveryRange.from,
-    deliveryRange.to,
-    mapa ? undefined : (tech ?? undefined),
+  const deliveryRows = hideCustomerPhones(
+    actor,
+    await getDeliveries(
+      db,
+      actor.companyId,
+      deliveryRange.from,
+      deliveryRange.to,
+      mapa ? undefined : (tech ?? undefined),
+    ),
   );
   const deliveryEntries: CalendarAppointment[] = deliveryRows.flatMap((row) => {
     const entry = asDeliveryEntry(row);
@@ -207,7 +212,8 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
   let selected: Awaited<ReturnType<typeof getAppointment>> | null = null;
   if (requestedAppointment.success) {
     try {
-      selected = await getAppointment(db, actor.companyId, requestedAppointment.data);
+      const found = await getAppointment(db, actor.companyId, requestedAppointment.data);
+      selected = hideCustomerPhones(actor, [found])[0];
     } catch (error) {
       if (!(error instanceof DomainError && error.code === "not_found")) throw error;
     }

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { assertTechnicianAppointment } from "@/server/technician-access";
 import { ZodError } from "zod";
 import { getDb } from "@/db/client";
 import { DomainError } from "@/domain/appointment-rules";
@@ -29,7 +30,8 @@ export async function toggleTaskAction(
   done: boolean,
 ): Promise<WorkResult> {
   try {
-    const actor = await requireActor();
+    const actor = await requireActor({ allowTechnician: true });
+    await assertTechnicianAppointment(getDb(), actor, appointmentId);
     await setChecklistTask(getDb(), actor, appointmentId, { itemId, task, done });
   } catch (error) {
     return failure(error, "No se pudo guardar la tarea. Inténtalo de nuevo.");
@@ -45,7 +47,8 @@ export async function saveInspectionAction(
   notes: string,
 ): Promise<WorkResult> {
   try {
-    const actor = await requireActor();
+    const actor = await requireActor({ allowTechnician: true });
+    await assertTechnicianAppointment(getDb(), actor, appointmentId);
     await saveInspection(getDb(), actor, appointmentId, { itemId, marks, notes });
   } catch (error) {
     return failure(error, "No se pudo guardar la inspección. Inténtalo de nuevo.");

@@ -40,7 +40,12 @@ export async function login(_prev: { error?: string } | undefined, formData: For
     }
     redirect("/empresas");
   }
-  redirect("/inicio");
+  const [profile] = await getDb()
+    .select({ role: profiles.role })
+    .from(profiles)
+    .where(eq(profiles.id, data.user.id))
+    .limit(1);
+  redirect(profile?.role === "technician" ? "/tecnico" : "/inicio");
 }
 
 export async function logout() {

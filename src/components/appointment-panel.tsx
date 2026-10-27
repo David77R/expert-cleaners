@@ -46,6 +46,7 @@ import type { getAppointment } from "@/server/appointments";
 import type { PanelPhotos } from "@/server/photos";
 import type { PickerVehicle } from "@/components/vehicle-select";
 import { vehicleSummary } from "@/domain/vehicles";
+import { ContactButtons } from "@/components/contact-buttons";
 
 type Detail = Awaited<ReturnType<typeof getAppointment>>;
 
@@ -365,6 +366,7 @@ export function AppointmentPanel({
             </span>
             <Icon name="right" className="shrink-0 text-muted" />
           </Link>
+          <ContactButtons customerId={customer.id} />
           {isUnlocated(appointment.address) && <UnlocatedAddressAlert />}
           <dl className="flex flex-col gap-2">
             <Row label="Dirección del servicio">

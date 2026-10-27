@@ -44,7 +44,8 @@ import { prefillFromSearch } from "@/domain/customer-form";
 import { needsPickup } from "@/domain/pickup";
 import { formatDayLabel } from "@/domain/calendar-view";
 import { formatAddress, formatMoney } from "@/domain/invoice";
-import { addDays, confirmationMessage, whatsappHref } from "@/domain/order";
+import { addDays, confirmationMessage } from "@/domain/order";
+import { ContactButton } from "@/components/contact-buttons";
 import { guessServiceIcon } from "@/domain/service-icons";
 import { calendarHref } from "@/lib/calendar-links";
 import { VehicleSelect, fetchVehicles, type PickerVehicle } from "@/components/vehicle-select";
@@ -79,7 +80,7 @@ type Done = {
   date: string;
   conflicts: number;
   message: string;
-  phone: string;
+  customerId: string;
   photos: PhotoUpload | null;
 };
 
@@ -885,7 +886,7 @@ export function OrderBuilder({
         code: result.code,
         date: result.date,
         conflicts: result.conflicts,
-        phone: chosen.phone,
+        customerId: chosen.id,
         photos: null,
         message: confirmationMessage({
           companyName: brand.shortName,
@@ -1040,14 +1041,12 @@ export function OrderBuilder({
               Mensaje para el cliente
               <textarea readOnly value={done.message} rows={10} className={`${FIELD} resize-y text-sm`} />
             </label>
-            <a
-              href={whatsappHref(done.phone, done.message)}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center justify-center gap-2 rounded-md bg-[#25D366] px-4 py-2.5 text-sm font-semibold text-white hover:opacity-90"
-            >
-              Enviar confirmación por WhatsApp
-            </a>
+            <ContactButton
+              customerId={done.customerId}
+              channel="whatsapp"
+              text={done.message}
+              label="Enviar confirmación por WhatsApp"
+            />
             <div className="grid grid-cols-2 gap-2">
               <Link
                 href={calendarHref({ view: "day", date: done.date, appt: done.id, entregas: true })}

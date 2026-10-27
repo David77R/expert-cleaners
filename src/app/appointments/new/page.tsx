@@ -13,6 +13,7 @@ import { BackLink } from "@/components/back-link";
 import { getActor, getBrand } from "@/server/auth";
 import { getCustomerSummary } from "@/server/customers";
 import { listServices } from "@/server/services";
+import { hidePhone } from "@/domain/phone-privacy";
 
 function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
@@ -48,9 +49,10 @@ export default async function NewAppointmentPage({ searchParams }: PageProps<"/a
     requestedTech.success && technicians.some((t) => t.id === requestedTech.data) ? requestedTech.data : "";
 
   const requestedCustomer = z.uuid().safeParse(first(params.customer));
-  const customer = requestedCustomer.success
+  const summary = requestedCustomer.success
     ? await getCustomerSummary(db, actor.companyId, requestedCustomer.data)
     : null;
+  const customer = summary ? hidePhone(actor, summary) : null;
 
   const initialValues = {
     ...emptyAppointmentForm((await getBrand()).location.state),

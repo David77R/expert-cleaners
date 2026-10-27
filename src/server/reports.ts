@@ -1,4 +1,4 @@
-import { and, asc, eq, or, sql } from "drizzle-orm";
+import { and, asc, eq, ne, or, sql } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { DomainError } from "@/domain/appointment-rules";
 import { BUSINESS_TIMEZONE, enumerateDates } from "@/domain/date-rules";
@@ -38,9 +38,12 @@ function emptyMetrics(length: number): ReportMetrics {
 }
 
 function inReport(companyId: string) {
-  return or(
-    eq(profiles.companyId, companyId),
-    sql`exists (select 1 from ${appointments} where ${appointments.agentId} = ${profiles.id} and ${appointments.companyId} = ${companyId})`,
+  return and(
+    ne(profiles.role, "technician"),
+    or(
+      eq(profiles.companyId, companyId),
+      sql`exists (select 1 from ${appointments} where ${appointments.agentId} = ${profiles.id} and ${appointments.companyId} = ${companyId})`,
+    ),
   );
 }
 

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { hideCustomerPhones } from "@/domain/phone-privacy";
 import { getDb } from "@/db/client";
 import { dayQuerySchema } from "@/domain/schemas";
 import { createAppointment, getDay } from "@/server/appointments";
@@ -7,10 +8,11 @@ import { handle } from "@/server/http";
 
 export function GET(request: Request) {
   return handle(async () => {
-    const { companyId } = await requireActor();
+    const actor = await requireActor();
     const params = Object.fromEntries(new URL(request.url).searchParams);
     const query = dayQuerySchema.parse(params);
-    return NextResponse.json(await getDay(getDb(), companyId, query.date, query.technicianId));
+    const day = await getDay(getDb(), actor.companyId, query.date, query.technicianId);
+    return NextResponse.json({ ...day, appointments: hideCustomerPhones(actor, day.appointments) });
   });
 }
 

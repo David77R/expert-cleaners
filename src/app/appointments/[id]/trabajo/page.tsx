@@ -18,9 +18,12 @@ import { ItemChecklist } from "@/components/item-checklist";
 import { StatusBadge } from "@/components/status-badge";
 import { calendarHref } from "@/lib/calendar-links";
 import { getAppointment } from "@/server/appointments";
-import { getActor, getBrand } from "@/server/auth";
+import { TECHNICIAN_HOME, getActor, getBrand } from "@/server/auth";
+import { assertTechnicianAppointment } from "@/server/technician-access";
 import { panelPhotos } from "@/server/photos";
 import { getPhotoStorage } from "@/server/storage";
+import { ContactButton } from "@/components/contact-buttons";
+import { hidePhone } from "@/domain/phone-privacy";
 
 function Step({
   number,
@@ -50,15 +53,17 @@ function Step({
 }
 
 export default async function WorkSheetPage({ params }: PageProps<"/appointments/[id]/trabajo">) {
-  const actor = await getActor();
+  const actor = await getActor({ allowTechnician: true });
   if (!actor) redirect("/login");
   const brand = await getBrand();
+  const isTechnician = actor.role === "technician";
 
   const { id } = await params;
   if (!z.uuid().safeParse(id).success) notFound();
   const db = getDb();
   let appointment: Awaited<ReturnType<typeof getAppointment>>;
   try {
+    await assertTechnicianAppointment(db, actor, id);
     appointment = await getAppointment(db, actor.companyId, id);
   } catch (error) {
     if (error instanceof DomainError && error.code === "not_found") notFound();
@@ -66,17 +71,19 @@ export default async function WorkSheetPage({ params }: PageProps<"/appointments
   }
   const photos = await panelPhotos(db, getPhotoStorage, actor, id);
   const editable = appointment.status !== "cancelled";
-  const customer = appointment.customer;
+  const customer = hidePhone(actor, appointment.customer);
   const technician = appointment.technician;
   const address = formatAddress(appointment.address);
-  const back = calendarHref({ date: appointment.date, appt: appointment.id });
+  const back = isTechnician
+    ? `${TECHNICIAN_HOME}?date=${appointment.date}`
+    : calendarHref({ date: appointment.date, appt: appointment.id });
 
   return (
     <AppShell active="calendar" actor={actor}>
       <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 px-4 py-5 md:px-8 md:py-6">
         <div className="flex flex-col gap-1">
           <Link href={back} className="flex w-fit items-center gap-1 text-sm font-medium text-soft hover:text-ink">
-            <Icon name="left" size={15} /> Volver al calendario
+            <Icon name="left" size={15} /> {isTechnician ? "Volver a mis citas" : "Volver al calendario"}
           </Link>
           <div className="flex flex-wrap items-center gap-2.5">
             <h1 className="font-display text-2xl font-semibold tracking-tight">Hoja de trabajo</h1>
@@ -101,15 +108,13 @@ export default async function WorkSheetPage({ params }: PageProps<"/appointments
             </span>
           </div>
           <div className="grid gap-2 text-sm sm:grid-cols-2">
-            <a
-              href={`tel:${customer.phone}`}
-              className="flex min-h-11 items-center gap-2 rounded-md bg-canvas px-3 py-2 font-medium hover:bg-hair/50"
-            >
-              <Icon name="phone" size={16} />
-              <span className="min-w-0 truncate">
+            <div className="flex min-h-11 items-center gap-2 rounded-md bg-canvas py-1.5 pl-3 pr-1.5 font-medium">
+              <span className="min-w-0 flex-1 truncate">
                 {customer.firstName} {customer.lastName} · {formatPhone(customer.phone)}
               </span>
-            </a>
+              <ContactButton customerId={customer.id} channel="call" />
+              <ContactButton customerId={customer.id} channel="whatsapp" />
+            </div>
             <a
               href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`}
               target="_blank"

@@ -40,14 +40,31 @@ export async function hasSession(): Promise<boolean> {
   return (await currentProfile()) !== null;
 }
 
-export async function getActor(): Promise<Actor | null> {
+export const TECHNICIAN_HOME = "/tecnico";
+
+type ActorOptions = { allowTechnician?: boolean };
+
+async function resolveActor(): Promise<Actor | null> {
   const session = await currentProfile();
   if (!session) return null;
   const { profile } = session;
   if (!profile || !profile.active) redirect("/salir");
+  if (profile.role === "technician" && !profile.technicianId) redirect("/salir");
   const company = await activeCompany();
   if (profile.role !== "owner" && (!company || !company.active)) redirect(INACTIVE_COMPANY_EXIT);
-  return { id: profile.id, name: profile.name, role: profile.role, companyId: company?.id ?? (await getBrand()).id };
+  return {
+    id: profile.id,
+    name: profile.name,
+    role: profile.role,
+    companyId: company?.id ?? (await getBrand()).id,
+    technicianId: profile.technicianId ?? null,
+  };
+}
+
+export async function getActor(options: ActorOptions = {}): Promise<Actor | null> {
+  const actor = await resolveActor();
+  if (actor?.role === "technician" && !options.allowTechnician) redirect(TECHNICIAN_HOME);
+  return actor;
 }
 
 export const getBrand = cache(async (): Promise<Brand> => {
@@ -60,9 +77,12 @@ export const getBrand = cache(async (): Promise<Brand> => {
   return brandOf(company);
 });
 
-export async function requireActor(): Promise<Actor> {
-  const actor = await getActor();
+export async function requireActor(options: ActorOptions = {}): Promise<Actor> {
+  const actor = await resolveActor();
   if (!actor) throw new DomainError("unauthorized", "Inicia sesión para continuar");
+  if (actor.role === "technician" && !options.allowTechnician) {
+    throw new DomainError("forbidden", "Tu usuario de técnico no tiene acceso a esta sección");
+  }
   return actor;
 }
 

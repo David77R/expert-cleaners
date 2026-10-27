@@ -18,6 +18,8 @@ import { NoteForm } from "@/components/note-form";
 import { deleteCustomerAction } from "@/app/customers/[id]/actions";
 import { getActor, getBrand } from "@/server/auth";
 import { customersByIds, getCustomer, possibleDuplicates } from "@/server/customers";
+import { ContactButtons } from "@/components/contact-buttons";
+import { hidePhone } from "@/domain/phone-privacy";
 
 const NOTE_DATE = new Intl.DateTimeFormat("es-US", {
   timeZone: "America/New_York",
@@ -40,7 +42,7 @@ export default async function CustomerPage({ params, searchParams }: PageProps<"
   const parsed = z.uuid().safeParse((await params).id);
   if (!parsed.success) notFound();
 
-  let customer;
+  let customer: Awaited<ReturnType<typeof getCustomer>>;
   try {
     customer = await getCustomer(getDb(), actor.companyId, parsed.data);
   } catch (error) {
@@ -64,6 +66,7 @@ export default async function CustomerPage({ params, searchParams }: PageProps<"
       )
     : [];
   const duplicates = await customersByIds(getDb(), actor.companyId, duplicateIds);
+  customer = hidePhone(actor, customer);
 
   const fullName = `${customer.firstName} ${customer.lastName}`;
 
@@ -147,13 +150,16 @@ export default async function CustomerPage({ params, searchParams }: PageProps<"
               <p className="rounded-md bg-warning-soft px-3 py-2 text-sm text-warning">{customer.notes}</p>
             )}
           </div>
-          <Link
-            href={`/appointments/new?customer=${customer.id}`}
-            className="flex items-center justify-center gap-2 self-start rounded-md bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 sm:self-center"
-          >
-            <Icon name="plus" />
-            Nueva cita
-          </Link>
+          <div className="flex flex-col gap-2 self-stretch sm:w-56 sm:self-center">
+            <Link
+              href={`/appointments/new?customer=${customer.id}`}
+              className="flex items-center justify-center gap-2 rounded-md bg-brand px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            >
+              <Icon name="plus" />
+              Nueva cita
+            </Link>
+            <ContactButtons customerId={customer.id} />
+          </div>
         </section>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">

@@ -5,6 +5,7 @@ import type { CompanySettings } from "@/domain/companies";
 import type { ChecklistGroup, ChecklistProgress, Inspection } from "@/domain/vehicle-care";
 import type { AppointmentStages } from "@/domain/delivery";
 import {
+  type AnyPgColumn,
   boolean,
   date,
   doublePrecision,
@@ -20,7 +21,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-export const userRole = pgEnum("user_role", ["agent", "admin", "owner"]);
+export const userRole = pgEnum("user_role", ["agent", "admin", "owner", "technician"]);
 export const appointmentStatus = pgEnum("appointment_status", [
   "not_confirmed",
   "confirmed",
@@ -65,14 +66,19 @@ export const companies = pgTable("companies", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const profiles = pgTable("profiles", {
-  id: uuid("id").primaryKey(),
-  companyId: uuid("company_id").references(() => companies.id),
-  name: text("name").notNull(),
-  role: userRole("role").notNull().default("agent"),
-  active: boolean("active").notNull().default(true),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+export const profiles = pgTable(
+  "profiles",
+  {
+    id: uuid("id").primaryKey(),
+    companyId: uuid("company_id").references(() => companies.id),
+    name: text("name").notNull(),
+    role: userRole("role").notNull().default("agent"),
+    active: boolean("active").notNull().default(true),
+    technicianId: uuid("technician_id").references((): AnyPgColumn => technicians.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("profiles_technician_idx").on(t.technicianId)],
+);
 
 export const customers = pgTable(
   "customers",
@@ -385,4 +391,4 @@ export type AppointmentItem = typeof appointmentItems.$inferSelect;
 export type AppointmentStatus = (typeof appointmentStatus.enumValues)[number];
 export type RouteDraft = typeof routeDrafts.$inferSelect;
 export type UserRole = (typeof userRole.enumValues)[number];
-export type Actor = { id: string; name: string; role: UserRole; companyId: string };
+export type Actor = { id: string; name: string; role: UserRole; companyId: string; technicianId?: string | null };
