@@ -1,8 +1,17 @@
 import { US_FOCUS, US_METROS, US_REGIONS, US_VIEWBOX } from "@/components/us-map-data";
 
-const ROUTE_COLORS = ["#fbbf24", "#60a5fa", "#34d399"] as const;
-const FOCUS_DELAYS = ["0s", "-20s", "-10s"] as const;
-const REGION_DELAYS = ["0s", "1.2s", "2.4s", "3.6s", "4.8s"] as const;
+const FOCUS_DELAYS = ["0s", "-36s", "-18s"] as const;
+const REGION_DELAYS = ["0s", "2.4s", "4.8s", "7.2s", "9.6s"] as const;
+
+function Star({ x, y, size, delay }: { x: number; y: number; size: number; delay: number }) {
+  return (
+    <g transform={`translate(${x} ${y})`} className="usmap-twinkle" style={{ animationDelay: `${delay}s` }}>
+      <circle r={size * 3} fill="#ffffff" opacity="0.08" />
+      <circle r={size * 1.6} fill="#dfe4ff" opacity="0.22" />
+      <circle r={size} fill="#ffffff" />
+    </g>
+  );
+}
 
 export function UsOpsMap() {
   return (
@@ -21,64 +30,48 @@ export function UsOpsMap() {
               />
             ))}
             {US_METROS.map((metro, index) => (
-              <g key={metro.name} transform={`translate(${metro.at[0]} ${metro.at[1]})`}>
-                <circle
-                  r="3.2"
-                  fill="#8e9bff"
-                  className="ops-pulse"
-                  style={{ animationDelay: `${(index % 6) * 0.4}s` }}
-                />
-                <circle r="1.5" fill="#c7cdff" />
-              </g>
+              <Star key={metro.name} x={metro.at[0]} y={metro.at[1]} size={0.9} delay={(index % 7) * 0.7} />
             ))}
             {US_FOCUS.map((focus, index) => (
               <g key={focus.name} className="usmap-focus" style={{ animationDelay: FOCUS_DELAYS[index] }}>
-                <circle cx={focus.at[0]} cy={focus.at[1]} r="34" fill="#5b6cff" opacity="0.1" />
-                {focus.routes.map((route, routeIndex) => (
-                  <g key={route.d}>
-                    <path
-                      d={route.d}
-                      fill="none"
-                      stroke={ROUTE_COLORS[routeIndex]}
-                      strokeOpacity="0.18"
-                      strokeWidth="6"
-                      strokeLinecap="round"
-                      vectorEffect="non-scaling-stroke"
-                    />
-                    <path
-                      d={route.d}
-                      fill="none"
-                      stroke={ROUTE_COLORS[routeIndex]}
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      className="ops-route"
-                      vectorEffect="non-scaling-stroke"
-                    />
-                    {route.stops.map(([x, y]) => (
-                      <circle
-                        key={`${x}-${y}`}
-                        cx={x}
-                        cy={y}
-                        r="0.8"
-                        fill="#070b14"
-                        stroke={ROUTE_COLORS[routeIndex]}
-                        strokeWidth="2"
-                        vectorEffect="non-scaling-stroke"
-                      />
-                    ))}
-                  </g>
+                <circle cx={focus.at[0]} cy={focus.at[1]} r="36" fill="#5b6cff" opacity="0.08" />
+                {focus.routes.map((route) => (
+                  <path
+                    key={route.d}
+                    d={`M${focus.at[0]} ${focus.at[1]} ${route.stops.map(([x, y]) => `L${x} ${y}`).join(" ")}`}
+                    fill="none"
+                    stroke="#ffffff"
+                    strokeOpacity="0.32"
+                    strokeWidth="1"
+                    strokeLinejoin="round"
+                    vectorEffect="non-scaling-stroke"
+                  />
                 ))}
-                <rect
-                  x={focus.at[0] - 1.3}
-                  y={focus.at[1] - 1.3}
-                  width="2.6"
-                  height="2.6"
-                  rx="0.7"
-                  fill="#5b6cff"
+                <path
+                  d={focus.routes
+                    .map((route, routeIndex) => {
+                      const next = focus.routes[(routeIndex + 1) % focus.routes.length];
+                      return `M${route.stops[2][0]} ${route.stops[2][1]} L${next.stops[1][0]} ${next.stops[1][1]}`;
+                    })
+                    .join(" ")}
+                  fill="none"
                   stroke="#ffffff"
-                  strokeWidth="1.5"
+                  strokeOpacity="0.12"
+                  strokeWidth="1"
                   vectorEffect="non-scaling-stroke"
                 />
+                {focus.routes.flatMap((route, routeIndex) =>
+                  route.stops.map(([x, y], stopIndex) => (
+                    <Star
+                      key={`${x}-${y}`}
+                      x={x}
+                      y={y}
+                      size={stopIndex === route.stops.length - 1 ? 0.75 : 0.55}
+                      delay={(routeIndex * 4 + stopIndex) * 0.45}
+                    />
+                  )),
+                )}
+                <Star x={focus.at[0]} y={focus.at[1]} size={1.1} delay={0} />
               </g>
             ))}
           </svg>
@@ -86,10 +79,10 @@ export function UsOpsMap() {
         {US_FOCUS.map((focus, index) => (
           <div
             key={focus.name}
-            className="usmap-focus absolute left-1/2 top-[calc(50%-11rem)] hidden -translate-x-1/2 items-center gap-2.5 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.07] px-3.5 py-2.5 shadow-2xl backdrop-blur-md sm:flex"
+            className="usmap-focus absolute left-1/2 top-[calc(50%-11rem)] hidden -translate-x-1/2 items-center gap-2.5 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.06] px-3.5 py-2.5 shadow-2xl backdrop-blur-md sm:flex"
             style={{ animationDelay: FOCUS_DELAYS[index] }}
           >
-            <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#34d399] shadow-[0_0_12px_#34d399]" />
+            <span className="h-2 w-2 shrink-0 rounded-full bg-white shadow-[0_0_12px_#ffffff]" />
             <span className="leading-tight">
               <span className="block text-[13px] font-semibold text-white">{focus.name}</span>
               <span className="block text-[11px] text-white/60">3 técnicos en ruta · 12 paradas</span>

@@ -102,49 +102,32 @@ body {
   }
 }
 
-@keyframes ops-route-flow {
-  to {
-    stroke-dashoffset: -48;
-  }
-}
-
-@keyframes ops-pulse {
-  0% {
-    transform: scale(0.4);
-    opacity: 0.75;
-  }
-  100% {
-    transform: scale(2.6);
-    opacity: 0;
-  }
-}
-
 @keyframes usmap-tour {
   0%,
-  3% {
+  2.3% {
     transform: translate(0, 0) scale(1);
   }
-  10%,
-  25% {
+  11.6%,
+  23.6% {
     transform: translate(-374.31%, -169.1%) scale(5);
   }
   31%,
-  36.33% {
+  35.63% {
     transform: translate(0, 0) scale(1);
   }
-  43.33%,
-  58.33% {
+  44.93%,
+  56.93% {
     transform: translate(-371.9%, -419.26%) scale(5);
   }
   64.33%,
-  69.67% {
+  68.96% {
     transform: translate(0, 0) scale(1);
   }
-  76.67%,
-  91.67% {
+  78.26%,
+  90.26% {
     transform: translate(-0.05%, 12.05%) scale(5);
   }
-  97.67%,
+  97.66%,
   100% {
     transform: translate(0, 0) scale(1);
   }
@@ -152,11 +135,11 @@ body {
 
 @keyframes usmap-focus {
   0%,
-  9% {
+  10% {
     opacity: 0;
   }
-  12%,
-  24% {
+  14%,
+  23% {
     opacity: 1;
   }
   27%,
@@ -171,31 +154,30 @@ body {
     fill: #111a36;
     stroke: #2e3d70;
   }
-  40% {
-    fill: #22337a;
+  45% {
+    fill: #1f2f72;
     stroke: #7c8cff;
   }
 }
 
-@utility ops-route {
-  stroke-dasharray: 2 10;
-  animation: ops-route-flow 1.6s linear infinite;
-}
-
-@utility ops-pulse {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: ops-pulse 2.4s ease-out infinite;
+@keyframes usmap-twinkle {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 
 @utility usmap-tour {
   transform-origin: 0 0;
-  animation: usmap-tour 30s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  animation: usmap-tour 54s cubic-bezier(0.45, 0, 0.25, 1) infinite;
 }
 
 @utility usmap-focus {
   opacity: 0;
-  animation: usmap-focus 30s ease-in-out infinite;
+  animation: usmap-focus 54s ease-in-out infinite;
 }
 
 @utility usmap-region {
@@ -203,14 +185,117 @@ body {
   stroke: #2e3d70;
   stroke-width: 1;
   stroke-linejoin: round;
-  animation: usmap-glow 6s ease-in-out infinite;
+  animation: usmap-glow 12s ease-in-out infinite;
+}
+
+@utility usmap-twinkle {
+  animation: usmap-twinkle 4.5s ease-in-out infinite;
+}
+
+@property --login-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes login-spin {
+  to {
+    --login-angle: 360deg;
+  }
+}
+
+@keyframes login-aurora {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(8%, -6%) scale(1.15);
+  }
+  100% {
+    transform: translate(-6%, 8%) scale(0.95);
+  }
+}
+
+@keyframes login-shine {
+  0% {
+    background-position:
+      160% 0,
+      0 0;
+  }
+  55%,
+  100% {
+    background-position:
+      -60% 0,
+      0 0;
+  }
+}
+
+@keyframes login-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes login-breathe {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 rgb(91 108 255 / 0));
+  }
+  50% {
+    filter: drop-shadow(0 0 14px rgb(124 140 255 / 0.75));
+  }
+}
+
+@utility login-border {
+  background: conic-gradient(
+    from var(--login-angle),
+    rgb(255 255 255 / 0.06) 0deg,
+    rgb(255 255 255 / 0.06) 200deg,
+    #5b6cff 260deg,
+    #a5b4ff 300deg,
+    #34d399 330deg,
+    rgb(255 255 255 / 0.06) 360deg
+  );
+  animation: login-spin 9s linear infinite;
+}
+
+@utility login-aurora {
+  animation: login-aurora 22s ease-in-out infinite alternate;
+}
+
+@utility login-shine {
+  background-image:
+    linear-gradient(110deg, transparent 35%, rgb(255 255 255 / 0.38) 50%, transparent 65%),
+    linear-gradient(90deg, #5b6cff, #4553f0);
+  background-size:
+    250% 100%,
+    100% 100%;
+  background-repeat: no-repeat;
+  animation: login-shine 4.5s ease-in-out infinite;
+}
+
+@utility login-rise {
+  animation: login-rise 0.7s cubic-bezier(0.2, 0.75, 0.2, 1) both;
+}
+
+@utility login-breathe {
+  animation: login-breathe 5s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ops-route,
-  .ops-pulse,
   .usmap-tour,
-  .usmap-region {
+  .usmap-region,
+  .usmap-twinkle,
+  .login-border,
+  .login-aurora,
+  .login-shine,
+  .login-rise,
+  .login-breathe {
     animation: none !important;
   }
   .usmap-focus {
