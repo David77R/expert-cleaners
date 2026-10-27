@@ -102,49 +102,31 @@ body {
   }
 }
 
-@keyframes usmap-tour {
-  0%,
-  2.3% {
-    transform: translate(0, 0) scale(1);
+@keyframes usmap-spot {
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
   }
-  11.6%,
-  23.6% {
-    transform: translate(-374.31%, -169.1%) scale(5);
+  5%,
+  17% {
+    opacity: 1;
+    transform: scale(1);
   }
-  31%,
-  35.63% {
-    transform: translate(0, 0) scale(1);
-  }
-  44.93%,
-  56.93% {
-    transform: translate(-371.9%, -419.26%) scale(5);
-  }
-  64.33%,
-  68.96% {
-    transform: translate(0, 0) scale(1);
-  }
-  78.26%,
-  90.26% {
-    transform: translate(-0.05%, 12.05%) scale(5);
-  }
-  97.66%,
+  23%,
   100% {
-    transform: translate(0, 0) scale(1);
+    opacity: 0;
+    transform: scale(1.04);
   }
 }
 
-@keyframes usmap-focus {
+@keyframes usmap-draw {
   0%,
-  10% {
-    opacity: 0;
+  2% {
+    stroke-dashoffset: 1;
   }
-  14%,
-  23% {
-    opacity: 1;
-  }
-  27%,
+  11%,
   100% {
-    opacity: 0;
+    stroke-dashoffset: 0;
   }
 }
 
@@ -170,14 +152,17 @@ body {
   }
 }
 
-@utility usmap-tour {
-  transform-origin: 0 0;
-  animation: usmap-tour 54s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+@utility usmap-spot {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: usmap-spot 19s ease-in-out infinite;
 }
 
-@utility usmap-focus {
-  opacity: 0;
-  animation: usmap-focus 54s ease-in-out infinite;
+@utility usmap-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: usmap-draw 19s ease-out infinite;
 }
 
 @utility usmap-region {
@@ -288,9 +273,9 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .usmap-tour,
   .usmap-region,
   .usmap-twinkle,
+  .usmap-draw,
   .login-border,
   .login-aurora,
   .login-shine,
@@ -298,7 +283,7 @@ body {
   .login-breathe {
     animation: none !important;
   }
-  .usmap-focus {
+  .usmap-spot {
     animation: none !important;
     opacity: 0;
   }
