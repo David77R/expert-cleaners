@@ -150,12 +150,20 @@ export function CalendarToolbar({
             <Link
               href={calendarHref({ view: "day", date, tech, mapa: true, entregas, estado })}
               aria-current={mapa ? "true" : undefined}
-              className={`-mb-px flex items-center justify-center gap-1.5 border-b-[3px] px-2 py-2.5 text-sm font-semibold transition-colors sm:px-4 ${
-                mapa ? "border-brand text-ink" : "border-transparent text-muted hover:text-ink"
+              className={`group -mb-px flex items-center justify-center border-b-[3px] px-1 py-1.5 text-sm font-semibold transition-colors sm:ml-1 sm:px-1.5 ${
+                mapa ? "border-brand" : "border-transparent"
               }`}
             >
-              <Icon name="pin" size={14} />
-              Mapa
+              <span
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1 transition-colors ${
+                  mapa
+                    ? "bg-brand text-white shadow-sm"
+                    : "bg-brand-soft text-brand-ink group-hover:bg-brand group-hover:text-white"
+                }`}
+              >
+                <Icon name="map" size={15} />
+                Mapa
+              </span>
             </Link>
           </div>
         </div>

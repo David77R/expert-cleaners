@@ -29,8 +29,8 @@ export function BellLink({ count, active, tone }: { count: number | null; active
       className={`relative flex h-10 w-10 items-center justify-center rounded-full transition-colors ${
         tone === "light"
           ? active
-            ? "bg-brand-soft text-brand-ink"
-            : "text-soft hover:bg-canvas hover:text-ink"
+            ? "bg-warning text-white shadow-sm"
+            : "bg-warning-soft/80 text-warning hover:bg-warning-soft"
           : active
             ? "bg-brand/20 text-white"
             : "text-rail-text hover:bg-white/[0.06] hover:text-white"

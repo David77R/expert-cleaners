@@ -22,7 +22,7 @@ export function ActiveServicesLink({
       aria-label={label}
       className={`group relative flex h-10 w-10 items-center justify-center rounded-full transition-colors ${
         tone === "light"
-          ? "text-soft hover:bg-canvas hover:text-ink"
+          ? "bg-brand-soft/70 text-brand-ink hover:bg-brand-soft"
           : "text-rail-text hover:bg-white/[0.06] hover:text-white"
       }`}
     >

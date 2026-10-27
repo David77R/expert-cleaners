@@ -12,7 +12,7 @@ import { Icon, type IconName } from "@/components/icons";
 import { BrandMark } from "@/components/brand-mark";
 import { MobileNav } from "@/components/mobile-nav";
 import { SidebarNav } from "@/components/sidebar-nav";
-import { PreviewLink } from "@/components/preview-link";
+import { CalendarTodayLink, MapLink, MapLinkFallback } from "@/components/top-bar-links";
 import type { Brand } from "@/domain/companies";
 import { getBrand } from "@/server/auth";
 import { getDb } from "@/db/client";
@@ -154,6 +154,9 @@ export async function AppShell({ active, actor, children }: { active: Section; a
         switcher={switcher}
         bell={
           <>
+            <Suspense fallback={null}>
+              <MapLink tone="dark" />
+            </Suspense>
             <Suspense fallback={<ActiveServicesLink count={null} tone="dark" vehicles={brand.features.vehicles} />}>
               <ActiveServices companyId={actor.companyId} tone="dark" vehicles={brand.features.vehicles} />
             </Suspense>
@@ -177,15 +180,18 @@ export async function AppShell({ active, actor, children }: { active: Section; a
               {brand.features.vehicles ? <CarMotion size={22} /> : <Icon name="plus" size={15} />}
               Nuevo pedido
             </Link>
-            <PreviewLink
-              section="today"
-              href="/calendar"
-              aria-label="Calendario de hoy"
-              title="Calendario de hoy"
-              className="flex h-10 w-10 items-center justify-center rounded-full text-soft transition-colors hover:bg-canvas hover:text-ink"
+            <Suspense fallback={<MapLinkFallback />}>
+              <MapLink tone="light" />
+            </Suspense>
+            <Suspense
+              fallback={
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-soft/70 text-indigo">
+                  <Icon name="calendar" size={19} />
+                </span>
+              }
             >
-              <Icon name="calendar" size={19} />
-            </PreviewLink>
+              <CalendarTodayLink />
+            </Suspense>
             <Suspense fallback={<ActiveServicesLink count={null} tone="light" vehicles={brand.features.vehicles} />}>
               <ActiveServices companyId={actor.companyId} tone="light" vehicles={brand.features.vehicles} />
             </Suspense>
