@@ -340,3 +340,45 @@ body {
     animation: none !important;
   }
 }
+
+@keyframes nav-progress {
+  0% {
+    transform: scaleX(0);
+  }
+  30% {
+    transform: scaleX(0.45);
+  }
+  70% {
+    transform: scaleX(0.8);
+  }
+  100% {
+    transform: scaleX(0.94);
+  }
+}
+
+@keyframes nav-preview-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@utility nav-progress {
+  transform-origin: left;
+  animation: nav-progress 2.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@utility nav-preview-in {
+  animation: nav-preview-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-progress,
+  .nav-preview-in {
+    animation: none !important;
+  }
+}

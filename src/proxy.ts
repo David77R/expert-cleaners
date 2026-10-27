@@ -37,8 +37,8 @@ export async function proxy(request: NextRequest) {
 
   let user: unknown = null;
   try {
-    const { data } = await supabase.auth.getUser();
-    user = data.user;
+    const { data } = await supabase.auth.getClaims();
+    user = data?.claims?.sub ?? null;
   } catch (error) {
     console.error("No se pudo validar la sesión con Supabase", error);
   }

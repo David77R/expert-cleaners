@@ -14,9 +14,10 @@ export const INACTIVE_COMPANY_EXIT = "/salir?motivo=empresa";
 
 const currentProfile = cache(async (): Promise<{ profile: Profile | null } | null> => {
   const supabase = await createSupabaseServerClient();
-  const { data } = await supabase.auth.getUser();
-  if (!data.user) return null;
-  const [profile] = await getDb().select().from(profiles).where(eq(profiles.id, data.user.id)).limit(1);
+  const { data } = await supabase.auth.getClaims();
+  const userId = data?.claims?.sub;
+  if (!userId) return null;
+  const [profile] = await getDb().select().from(profiles).where(eq(profiles.id, userId)).limit(1);
   return { profile: profile ?? null };
 });
 

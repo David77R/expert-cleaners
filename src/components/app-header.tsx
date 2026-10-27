@@ -11,6 +11,8 @@ import { CarMotion } from "@/components/car-motion";
 import { Icon, type IconName } from "@/components/icons";
 import { BrandMark } from "@/components/brand-mark";
 import { MobileNav } from "@/components/mobile-nav";
+import { SidebarNav } from "@/components/sidebar-nav";
+import { NAV_PREVIEW_SECTIONS } from "@/domain/nav-preview";
 import type { Brand } from "@/domain/companies";
 import { getBrand } from "@/server/auth";
 import { getDb } from "@/db/client";
@@ -113,29 +115,11 @@ export async function AppShell({ active, actor, children }: { active: Section; a
             </span>
           </Link>
 
-          <nav
-            aria-label="Principal"
-            className="mt-5 flex flex-col gap-1 px-3 [@media(max-height:760px)]:mt-3 [@media(max-height:760px)]:gap-0.5"
-          >
-            {links.map((link) => {
-              const current = link.key === active;
-              return (
-                <Link
-                  key={link.key}
-                  href={link.href}
-                  aria-current={current ? "page" : undefined}
-                  className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors [@media(max-height:760px)]:py-2 ${
-                    current
-                      ? "bg-brand/20 text-white ring-1 ring-inset ring-brand/40"
-                      : "text-rail-text hover:bg-white/[0.06] hover:text-white"
-                  }`}
-                >
-                  <Icon name={link.icon} size={18} />
-                  {link.label}
-                </Link>
-              );
-            })}
-          </nav>
+          <SidebarNav
+            links={links.map(({ key, href, label, icon }) => ({ key, href, label, icon }))}
+            active={active}
+            previews={NAV_PREVIEW_SECTIONS}
+          />
         </div>
 
         <div className="shrink-0 border-t border-rail-line bg-rail px-5 py-4 [@media(max-height:760px)]:py-3">
