@@ -5,7 +5,7 @@ import { useActionState, useState } from "react";
 import { login } from "@/app/login/actions";
 import { CompanySolutionsMark } from "@/components/company-solutions-mark";
 import { Icon } from "@/components/icons";
-import { OpsMap } from "@/components/ops-map";
+import { UsOpsMap } from "@/components/us-ops-map";
 
 const FIELD =
   "mt-1.5 w-full rounded-lg border border-[#d9dcea] bg-white px-3.5 py-3 text-sm text-[#0f1424] placeholder:text-[#9aa0b8] focus:border-[#5b6cff] focus:outline-none focus:ring-4 focus:ring-[#5b6cff]/15";
@@ -24,7 +24,7 @@ export function LoginScreen() {
   return (
     <main className="flex min-h-dvh flex-1 flex-col bg-[#070b14] lg:flex-row">
       <section className="relative flex min-h-[44vh] flex-col justify-between overflow-hidden px-6 pb-14 pt-[max(1.5rem,env(safe-area-inset-top))] lg:min-h-0 lg:flex-[1.15] lg:p-12">
-        <OpsMap />
+        <UsOpsMap />
         <div className="relative flex items-center gap-3">
           <CompanySolutionsMark size={44} />
           <span className="leading-tight">

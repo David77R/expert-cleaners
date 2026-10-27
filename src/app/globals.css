@@ -119,31 +119,61 @@ body {
   }
 }
 
-@keyframes ops-chip {
+@keyframes usmap-tour {
   0%,
-  4% {
-    opacity: 0;
-    transform: translateY(10px);
+  3% {
+    transform: translate(0, 0) scale(1);
   }
-  8%,
-  28% {
-    opacity: 1;
-    transform: translateY(0);
+  10%,
+  25% {
+    transform: translate(-374.31%, -169.1%) scale(5);
   }
-  33%,
+  31%,
+  36.33% {
+    transform: translate(0, 0) scale(1);
+  }
+  43.33%,
+  58.33% {
+    transform: translate(-371.9%, -419.26%) scale(5);
+  }
+  64.33%,
+  69.67% {
+    transform: translate(0, 0) scale(1);
+  }
+  76.67%,
+  91.67% {
+    transform: translate(-0.05%, 12.05%) scale(5);
+  }
+  97.67%,
   100% {
-    opacity: 0;
-    transform: translateY(-6px);
+    transform: translate(0, 0) scale(1);
   }
 }
 
-@keyframes ops-glow {
+@keyframes usmap-focus {
+  0%,
+  9% {
+    opacity: 0;
+  }
+  12%,
+  24% {
+    opacity: 1;
+  }
+  27%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes usmap-glow {
   0%,
   100% {
-    opacity: 0.55;
+    fill: #111a36;
+    stroke: #2e3d70;
   }
-  50% {
-    opacity: 0.9;
+  40% {
+    fill: #22337a;
+    stroke: #7c8cff;
   }
 }
 
@@ -158,27 +188,34 @@ body {
   animation: ops-pulse 2.4s ease-out infinite;
 }
 
-@utility ops-chip {
-  opacity: 0;
-  animation: ops-chip 12s ease-in-out infinite;
+@utility usmap-tour {
+  transform-origin: 0 0;
+  animation: usmap-tour 30s cubic-bezier(0.65, 0, 0.35, 1) infinite;
 }
 
-@utility ops-glow {
-  animation: ops-glow 6s ease-in-out infinite;
+@utility usmap-focus {
+  opacity: 0;
+  animation: usmap-focus 30s ease-in-out infinite;
+}
+
+@utility usmap-region {
+  fill: #111a36;
+  stroke: #2e3d70;
+  stroke-width: 1;
+  stroke-linejoin: round;
+  animation: usmap-glow 6s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .ops-route,
   .ops-pulse,
-  .ops-glow {
+  .usmap-tour,
+  .usmap-region {
     animation: none !important;
   }
-  .ops-chip {
+  .usmap-focus {
     animation: none !important;
     opacity: 0;
-  }
-  .ops-car {
-    display: none;
   }
 }
 
