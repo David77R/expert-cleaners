@@ -128,10 +128,14 @@ export async function updateCompany(db: Db, actor: schema.Actor, id: string, raw
   const sameCity =
     input.city.toLowerCase() === current.settings.location.city.toLowerCase() &&
     input.state === current.settings.location.state;
+  const previous = current.settings.location.center;
+  const keptPrevious = input.lat === previous.lat && input.lng === previous.lng;
   const center =
     input.lat === null && input.lng === null && sameCity
-      ? current.settings.location.center
-      : await centerFor(input, locate);
+      ? previous
+      : !sameCity && keptPrevious
+        ? await centerFor({ ...input, lat: null, lng: null }, locate)
+        : await centerFor(input, locate);
   const [updated] = await db
     .update(companies)
     .set({ name: input.name, active: input.active, settings: settingsFromInput(input, center, current.settings) })

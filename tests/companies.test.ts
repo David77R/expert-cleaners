@@ -325,6 +325,38 @@ describe("administración de empresas", () => {
     expect(updated.settings.logo).toEqual(rva.settings.logo);
   });
 
+  it("al cambiar de ciudad busca la nueva aunque el formulario traiga las coordenadas viejas", async () => {
+    const rva = (await listCompanies(ctx.db)).find((company) => company.id === RVA_COMPANY_ID)!;
+    const values = companyFormFrom(rva);
+    const richmond = async () => ({ lat: 37.5407, lng: -77.436 });
+    const moved = await updateCompany(
+      ctx.db,
+      OWNER,
+      RVA_COMPANY_ID,
+      companyInputFromForm({ ...values, city: "Richmond", state: "VA", radiusKm: "40" }),
+      richmond,
+    );
+    expect(moved.settings.location).toMatchObject({
+      label: "Richmond, VA",
+      city: "Richmond",
+      state: "VA",
+      stateName: "Virginia",
+      center: { lat: 37.5407, lng: -77.436 },
+      radiusKm: 40,
+    });
+
+    const exact = await updateCompany(
+      ctx.db,
+      OWNER,
+      RVA_COMPANY_ID,
+      companyInputFromForm({ ...companyFormFrom(moved), city: "Henrico", lat: "37.6", lng: "-77.5" }),
+      nowhere,
+    );
+    expect(exact.settings.location.center).toEqual({ lat: 37.6, lng: -77.5 });
+
+    await updateCompany(ctx.db, OWNER, RVA_COMPANY_ID, companyInputFromForm(values), nowhere);
+  });
+
   it("procesa el logo, genera los íconos y permite quitarlo", async () => {
     const saved = new Map<string, Uint8Array>();
     const storage = {
