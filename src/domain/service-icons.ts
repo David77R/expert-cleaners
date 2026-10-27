@@ -17,6 +17,11 @@ export const SERVICE_ICONS = {
   curtain: "Cortina",
   blinds: "Persiana",
   car: "Carro",
+  wash: "Lavado",
+  seat: "Interior",
+  wheel: "Rines y llantas",
+  shield: "Protección",
+  steam: "Vapor",
   shoe: "Zapato",
   bottle: "Producto o químico",
   laundry: "Lavandería",
@@ -32,6 +37,25 @@ export const SERVICE_ICONS = {
 export type ServiceIconKey = keyof typeof SERVICE_ICONS;
 
 export const SERVICE_ICON_KEYS = Object.keys(SERVICE_ICONS) as ServiceIconKey[];
+
+const VEHICLE_ONLY_ICON_KEYS: ServiceIconKey[] = ["wash", "seat", "wheel", "shield", "steam"];
+
+const VEHICLE_ICON_KEYS: ServiceIconKey[] = [
+  "car",
+  ...VEHICLE_ONLY_ICON_KEYS,
+  "bottle",
+  "sparkles",
+  "rework",
+  "ban",
+  "tag",
+];
+
+export function serviceIconChoices(features: { vehicles: boolean }, current?: string): ServiceIconKey[] {
+  const keys = features.vehicles
+    ? VEHICLE_ICON_KEYS
+    : SERVICE_ICON_KEYS.filter((key) => !VEHICLE_ONLY_ICON_KEYS.includes(key));
+  return isServiceIcon(current) && !keys.includes(current) ? [...keys, current] : keys;
+}
 
 const RULES: [ServiceIconKey, string[]][] = [
   ["rework", ["reproceso", "rework", "rehacer"]],
@@ -62,6 +86,11 @@ const RULES: [ServiceIconKey, string[]][] = [
   ["blinds", ["blinds", "persiana", "persianas", "zebra"]],
   ["car", ["carro", "auto", "car", "vehiculo", "coche", "interior"]],
   ["shoe", ["zapato", "zapatos", "shoe", "shoes", "tenis", "sneaker", "sneakers"]],
+  ["shield", ["ceramico", "ceramic", "coating", "proteccion", "sellador", "sealant", "wax", "cera", "encerado"]],
+  ["wheel", ["rin", "rines", "llanta", "llantas", "wheel", "wheels", "tire", "tires"]],
+  ["steam", ["vapor", "steam"]],
+  ["seat", ["asiento", "asientos", "seat", "seats"]],
+  ["wash", ["wash", "carwash", "enjuague"]],
 ];
 
 export function isServiceIcon(value: unknown): value is ServiceIconKey {

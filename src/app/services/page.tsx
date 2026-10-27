@@ -35,10 +35,12 @@ function ServiceRow({ service, muted = false }: { service: Service; muted?: bool
           </span>
           <span className="min-w-0">
             <span className={`block truncate font-medium ${muted ? "text-soft" : ""}`}>{service.name}</span>
-            <span className="mt-0.5 flex flex-wrap gap-x-3 text-sm text-soft">
-              <span>{describeFieldCount(service.fields.length)}</span>
-              {service.twoAddresses && <span>Dos direcciones</span>}
-            </span>
+            {(service.fields.length > 0 || service.twoAddresses) && (
+              <span className="mt-0.5 flex flex-wrap gap-x-3 text-sm text-soft">
+                {service.fields.length > 0 && <span>{describeFieldCount(service.fields.length)}</span>}
+                {service.twoAddresses && <span>Dos direcciones</span>}
+              </span>
+            )}
           </span>
         </span>
         <span className="flex items-baseline gap-5 text-sm tabular-nums">

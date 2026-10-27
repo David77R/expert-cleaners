@@ -7,7 +7,7 @@ import { createServiceAction, updateServiceAction, type ServiceFormState } from 
 import { Card, Field, INPUT } from "@/components/form-kit";
 import { Icon } from "@/components/icons";
 import { ServiceIcon } from "@/components/service-icon";
-import { SERVICE_ICONS, SERVICE_ICON_KEYS } from "@/domain/service-icons";
+import { SERVICE_ICONS, serviceIconChoices } from "@/domain/service-icons";
 import { VEHICLE_SIZES, VEHICLE_SIZE_LABELS } from "@/domain/vehicles";
 import {
   MAX_SERVICE_FIELDS,
@@ -51,6 +51,7 @@ export function ServiceForm({
   const pending = actionPending || transitionPending;
   const { values, errors } = state;
   const editing = serviceId !== undefined;
+  const iconKeys = serviceIconChoices(brand.features, initialValues.icon);
 
   const [nextId, setNextId] = useState(initialValues.fields.length);
   const [rows, setRows] = useState<Row[]>(() => initialValues.fields.map((field, index) => ({ ...field, rid: index })));
@@ -104,7 +105,7 @@ export function ServiceForm({
                 defaultValue={values.category}
                 required
                 autoComplete="off"
-                placeholder="Ej: Alfombras"
+                placeholder={brand.features.vehicles ? "Ej: Lavado y detailing" : "Ej: Alfombras"}
                 className={INPUT}
               />
               <datalist id="service-categories">
@@ -126,7 +127,7 @@ export function ServiceForm({
               <span className="flex h-7 items-center text-xs font-semibold text-soft">Auto</span>
               <span className="text-[10px] leading-tight text-muted">Automático</span>
             </label>
-            {SERVICE_ICON_KEYS.map((key) => (
+            {iconKeys.map((key) => (
               <label key={key} className={ICON_CHOICE} title={SERVICE_ICONS[key]}>
                 <input type="radio" name="icon" value={key} defaultChecked={values.icon === key} className="sr-only" />
                 <ServiceIcon icon={key} size={26} />
@@ -208,18 +209,26 @@ export function ServiceForm({
           )}
         </ServiceFormField>
         <div className="flex flex-col gap-2.5 sm:col-span-2">
-          <label className="flex items-center gap-2.5 text-sm">
-            <input
-              type="checkbox"
-              name="twoAddresses"
-              defaultChecked={values.twoAddresses}
-              disabled={lockTwoAddresses}
-              className="h-4 w-4 rounded border-hair accent-brand"
-            />
-            Lleva dos direcciones (recogida y entrega)
-          </label>
-          {lockTwoAddresses && (
-            <p className="text-sm text-soft">Esto ya no se puede cambiar porque el servicio tiene citas registradas.</p>
+          {brand.features.rugPickup ? (
+            <>
+              <label className="flex items-center gap-2.5 text-sm">
+                <input
+                  type="checkbox"
+                  name="twoAddresses"
+                  defaultChecked={values.twoAddresses}
+                  disabled={lockTwoAddresses}
+                  className="h-4 w-4 rounded border-hair accent-brand"
+                />
+                Lleva dos direcciones (recogida y entrega)
+              </label>
+              {lockTwoAddresses && (
+                <p className="text-sm text-soft">
+                  Esto ya no se puede cambiar porque el servicio tiene citas registradas.
+                </p>
+              )}
+            </>
+          ) : (
+            values.twoAddresses && <input type="hidden" name="twoAddresses" value="on" />
           )}
           {editing && (
             <label className="flex items-center gap-2.5 text-sm">
