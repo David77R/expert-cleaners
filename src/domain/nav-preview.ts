@@ -1,56 +1,60 @@
-import type { Actor } from "@/db/schema";
-import { isAdmin, isOwner } from "@/domain/permissions";
-import type { ServiceIconKey } from "@/domain/service-icons";
+import type { AppointmentStatus } from "@/db/schema";
+import type { AlertLevel, AlertType } from "@/domain/alert-rules";
 
-export const NAV_PREVIEW_SECTIONS = ["customers", "services", "agents", "technicians", "reports", "companies"] as const;
+export const NAV_PREVIEW_SECTIONS = ["today", "active", "alerts"] as const;
 
 export type NavPreviewSection = (typeof NAV_PREVIEW_SECTIONS)[number];
 
+export type PreviewAppointment = {
+  id: string;
+  code: string;
+  customerName: string;
+  serviceName: string;
+  city: string;
+  technicianName: string;
+  technicianColor: string;
+  startMin: number;
+  durationMin: number;
+  status: AppointmentStatus;
+};
+
+type DayPreview<S extends "today" | "active"> = {
+  section: S;
+  date: string;
+  nowMin: number;
+  appointments: PreviewAppointment[];
+};
+
 export type NavPreview =
+  | DayPreview<"today">
+  | DayPreview<"active">
   | {
-      section: "customers";
+      section: "alerts";
+      date: string;
       total: number;
-      newThisMonth: number;
-      recent: { id: string; code: string; name: string; phone: string }[];
-    }
-  | {
-      section: "services";
-      active: number;
-      inactive: number;
-      items: { id: string; name: string; icon: ServiceIconKey; durationMin: number; priceCents: number }[];
-    }
-  | {
-      section: "agents";
-      items: { id: string; name: string; role: Actor["role"]; active: boolean }[];
-    }
-  | {
-      section: "technicians";
-      items: { id: string; name: string; color: string; zone: string; active: boolean; today: number }[];
-    }
-  | {
-      section: "reports";
-      from: string;
-      to: string;
-      scheduled: number;
-      completed: number;
-      cancelled: number;
-      bookedCents: number;
-      paidCents: number;
-      unpaidCents: number;
-      top: { id: string; name: string; scheduled: number; bookedCents: number }[];
-    }
-  | {
-      section: "companies";
-      currentId: string;
-      items: { id: string; name: string; label: string; active: boolean }[];
+      groups: {
+        type: AlertType;
+        level: AlertLevel;
+        count: number;
+        appointments: { id: string; code: string; customerName: string; date: string; startMin: number }[];
+      }[];
     };
+
+export const ACTIVE_STATUSES: readonly AppointmentStatus[] = ["not_confirmed", "confirmed", "rescheduled"];
 
 export function isNavPreviewSection(value: unknown): value is NavPreviewSection {
   return typeof value === "string" && (NAV_PREVIEW_SECTIONS as readonly string[]).includes(value);
 }
 
-export function canPreview(actor: Pick<Actor, "role">, section: NavPreviewSection): boolean {
-  if (section === "companies") return isOwner(actor);
-  if (section === "services" || section === "agents" || section === "technicians") return isAdmin(actor);
-  return true;
+export function isInProgress(appointment: Pick<PreviewAppointment, "startMin" | "durationMin">, nowMin: number) {
+  return appointment.startMin <= nowMin && nowMin < appointment.startMin + appointment.durationMin;
+}
+
+export function splitActive(appointments: readonly PreviewAppointment[], nowMin: number) {
+  const active = appointments.filter((appointment) => ACTIVE_STATUSES.includes(appointment.status));
+  return {
+    now: active.filter((appointment) => isInProgress(appointment, nowMin)),
+    next: active.filter((appointment) => appointment.startMin > nowMin),
+    late: active.filter((appointment) => appointment.startMin + appointment.durationMin <= nowMin),
+  };
 }

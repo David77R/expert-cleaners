@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { cookies } from "next/headers";
 import { SEEN_COOKIE, unseenCount } from "@/domain/alert-seen";
 import { getDb } from "@/db/client";
 import { Icon } from "@/components/icons";
+import { PreviewLink } from "@/components/preview-link";
 import { getAlerts } from "@/server/alerts";
 
 async function alertCount(companyId: string): Promise<number | null> {
@@ -19,8 +19,10 @@ export function BellLink({ count, active, tone }: { count: number | null; active
   const label =
     count === null || count === 0 ? "Alertas: nada nuevo" : `Alertas: ${count} ${count === 1 ? "nueva" : "nuevas"}`;
   return (
-    <Link
+    <PreviewLink
+      section="alerts"
       href="/alerts"
+      direct={active}
       aria-label={label}
       title={label}
       aria-current={active ? "page" : undefined}
@@ -40,7 +42,7 @@ export function BellLink({ count, active, tone }: { count: number | null; active
           {count > 99 ? "99+" : count}
         </span>
       )}
-    </Link>
+    </PreviewLink>
   );
 }
 

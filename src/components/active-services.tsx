@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { getDb } from "@/db/client";
 import { todayIn } from "@/domain/date-rules";
 import { CarMotion } from "@/components/car-motion";
 import { Icon } from "@/components/icons";
+import { PreviewLink } from "@/components/preview-link";
 import { activeServicesToday } from "@/server/appointments";
 
 export function ActiveServicesLink({
@@ -16,7 +16,8 @@ export function ActiveServicesLink({
 }) {
   const label = count === null ? "Servicios activos hoy" : `Servicios activos hoy: ${count === 0 ? "ninguno" : count}`;
   return (
-    <Link
+    <PreviewLink
+      section="active"
       href="/calendar"
       aria-label={label}
       className={`group relative flex h-10 w-10 items-center justify-center rounded-full transition-colors ${
@@ -37,7 +38,7 @@ export function ActiveServicesLink({
       >
         {label}
       </span>
-    </Link>
+    </PreviewLink>
   );
 }
 

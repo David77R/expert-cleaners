@@ -1,8 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { AGENT_JOSUE } from "@/db/seed-data";
-import { todayIn } from "@/domain/date-rules";
-import { canPreview, isNavPreviewSection } from "@/domain/nav-preview";
-import { cancelAppointment, createAppointment } from "@/server/appointments";
+import { isNavPreviewSection, splitActive, type PreviewAppointment } from "@/domain/nav-preview";
+import { cancelAppointment, completeAppointment, createAppointment } from "@/server/appointments";
 import { getNavPreview } from "@/server/nav-preview";
 import { appointmentInput, createTestDb } from "./helpers";
 
@@ -19,10 +18,13 @@ beforeAll(async () => {
   ctx = await createTestDb();
   const make = (overrides: Record<string, unknown>) =>
     createAppointment(ctx.db, AGENT_JOSUE, appointmentInput(ctx, overrides));
-  await make({ date: TODAY, startMin: 540 });
-  await make({ date: TODAY, startMin: 660 });
-  const cancelled = await make({ date: TODAY, startMin: 900 });
+  await make({ date: TODAY, startMin: 480, durationMin: 60 });
+  await make({ date: TODAY, startMin: 600, durationMin: 120 });
+  const done = await make({ date: TODAY, startMin: 720, durationMin: 60, technicianId: ctx.techs[1].id });
+  await completeAppointment(ctx.db, AGENT_JOSUE, done.appointment.id);
+  const cancelled = await make({ date: TODAY, startMin: 900, durationMin: 60 });
   await cancelAppointment(ctx.db, AGENT_JOSUE, cancelled.appointment.id, { reason: "weather" });
+  await make({ date: TODAY, startMin: 960, durationMin: 60, technicianId: ctx.techs[1].id });
   await make({ date: "2027-05-13", startMin: 540 });
 });
 
@@ -30,55 +32,67 @@ afterAll(async () => {
   await ctx.client.close();
 });
 
-describe("permisos del resumen", () => {
-  it("solo reconoce las secciones con resumen", () => {
-    expect(isNavPreviewSection("customers")).toBe(true);
-    expect(isNavPreviewSection("calendar")).toBe(false);
-    expect(isNavPreviewSection(undefined)).toBe(false);
+function appointment(startMin: number, durationMin: number, status: PreviewAppointment["status"]): PreviewAppointment {
+  return {
+    id: `${startMin}-${status}`,
+    code: "SVC-1",
+    customerName: "Cliente",
+    serviceName: "Basic",
+    city: "Richmond",
+    technicianName: "Técnico 1",
+    technicianColor: "#000000",
+    startMin,
+    durationMin,
+    status,
+  };
+}
+
+describe("secciones con resumen", () => {
+  it("solo reconoce los botones de la barra superior", () => {
+    expect(isNavPreviewSection("today")).toBe(true);
+    expect(isNavPreviewSection("active")).toBe(true);
+    expect(isNavPreviewSection("alerts")).toBe(true);
+    expect(isNavPreviewSection("customers")).toBe(false);
   });
 
-  it("deja a cada rol ver lo mismo que ve en el menú", () => {
-    expect(canPreview({ role: "agent" }, "customers")).toBe(true);
-    expect(canPreview({ role: "agent" }, "reports")).toBe(true);
-    expect(canPreview({ role: "agent" }, "services")).toBe(false);
-    expect(canPreview({ role: "agent" }, "technicians")).toBe(false);
-    expect(canPreview({ role: "admin" }, "agents")).toBe(true);
-    expect(canPreview({ role: "admin" }, "companies")).toBe(false);
-    expect(canPreview({ role: "owner" }, "companies")).toBe(true);
+  it("separa lo que está en curso, lo que sigue y lo que quedó abierto", () => {
+    const items = [
+      appointment(480, 60, "confirmed"),
+      appointment(600, 120, "confirmed"),
+      appointment(660, 60, "completed"),
+      appointment(900, 60, "not_confirmed"),
+      appointment(1000, 60, "cancelled"),
+    ];
+    const { now, next, late } = splitActive(items, 630);
+    expect(now.map((item) => item.startMin)).toEqual([600]);
+    expect(next.map((item) => item.startMin)).toEqual([900]);
+    expect(late.map((item) => item.startMin)).toEqual([480]);
   });
 });
 
-describe("resumen de cada sección", () => {
-  it("cuenta las citas de hoy de cada técnico sin las canceladas", async () => {
-    const preview = await getNavPreview(ctx.db, AGENT_JOSUE, "technicians", TODAY);
-    if (preview.section !== "technicians") throw new Error("sección equivocada");
-    const first = preview.items.find((technician) => technician.id === ctx.techs[0].id);
-    expect(first?.today).toBe(2);
-    expect(preview.items.some((technician) => technician.id === ctx.techs[1].id && technician.today === 0)).toBe(true);
+describe("resumen de cada botón", () => {
+  it("muestra todas las citas del día en orden, incluidas las canceladas", async () => {
+    const preview = await getNavPreview(ctx.db, AGENT_JOSUE, "today", TODAY, 630);
+    if (preview.section !== "today") throw new Error("sección equivocada");
+    expect(preview.appointments.map((item) => item.startMin)).toEqual([480, 600, 720, 900, 960]);
+    expect(preview.appointments.find((item) => item.startMin === 900)?.status).toBe("cancelled");
+    expect(preview.appointments[0].technicianName).toBe(ctx.techs[0].name);
   });
 
-  it("muestra el total de clientes y los más recientes", async () => {
-    const preview = await getNavPreview(ctx.db, AGENT_JOSUE, "customers", TODAY);
-    if (preview.section !== "customers") throw new Error("sección equivocada");
-    expect(preview.total).toBeGreaterThan(0);
-    expect(preview.recent.length).toBeLessThanOrEqual(6);
-    expect(preview.recent[0].code).toMatch(/^CLI-/);
+  it("deja en servicios activos solo lo que falta por hacer", async () => {
+    const preview = await getNavPreview(ctx.db, AGENT_JOSUE, "active", TODAY, 630);
+    if (preview.section !== "active") throw new Error("sección equivocada");
+    expect(preview.appointments.map((item) => item.startMin)).toEqual([480, 600, 960]);
+    expect(preview.nowMin).toBe(630);
   });
 
-  it("lista solo los servicios activos con su precio", async () => {
-    const preview = await getNavPreview(ctx.db, AGENT_JOSUE, "services", TODAY);
-    if (preview.section !== "services") throw new Error("sección equivocada");
-    expect(preview.active).toBe(preview.items.length);
-    expect(preview.items.every((service) => service.priceCents >= 0)).toBe(true);
-  });
-
-  it("resume lo agendado en el mes hasta hoy", async () => {
-    const today = todayIn();
-    const preview = await getNavPreview(ctx.db, AGENT_JOSUE, "reports", today);
-    if (preview.section !== "reports") throw new Error("sección equivocada");
-    expect(preview.from).toBe(`${today.slice(0, 8)}01`);
-    expect(preview.to).toBe(today);
-    expect(preview.cancelled).toBe(1);
-    expect(preview.top[0]?.name).toBe(AGENT_JOSUE.name);
+  it("agrupa las alertas del día con una muestra de citas", async () => {
+    const preview = await getNavPreview(ctx.db, AGENT_JOSUE, "alerts", TODAY, 630);
+    if (preview.section !== "alerts") throw new Error("sección equivocada");
+    const pending = preview.groups.find((group) => group.type === "not_confirmed");
+    expect(pending?.count).toBe(3);
+    expect(pending?.appointments.length).toBe(3);
+    expect(preview.groups.some((group) => group.type === "completed_unpaid")).toBe(true);
+    expect(preview.total).toBe(preview.groups.reduce((sum, group) => sum + group.count, 0));
   });
 });
