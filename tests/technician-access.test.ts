@@ -3,6 +3,7 @@ import { ZodError } from "zod";
 import { EXPERT_CLEANERS_COMPANY_ID } from "@/domain/companies";
 import { AGENT_JOSUE } from "@/db/seed-data";
 import type { Actor } from "@/db/schema";
+import * as schema from "@/db/schema";
 import { canSeePhones, contactHref, hideCustomerPhones, hidePhone, maskPhone } from "@/domain/phone-privacy";
 import { createAppointment } from "@/server/appointments";
 import { getAgentReport } from "@/server/reports";
@@ -118,6 +119,24 @@ describe("usuario del técnico", () => {
     await expect(
       createTechnicianAccess(ctx.db, auth, ADMIN, ctx.techs[0].id, { email: "otro@rva.test", password: "segura123" }),
     ).rejects.toThrow("ya tiene usuario");
+  });
+
+  it("funciona aunque Supabase ya haya creado el perfil al registrar el usuario", async () => {
+    const withTrigger = {
+      ...auth,
+      createUser: async (input: Parameters<typeof auth.createUser>[0]) => {
+        const account = await auth.createUser(input);
+        await ctx.db
+          .insert(schema.profiles)
+          .values({ id: account.id, companyId: EXPERT_CLEANERS_COMPANY_ID, name: "registro", role: "agent" });
+        return account;
+      },
+    };
+    const profile = await createTechnicianAccess(ctx.db, withTrigger, ADMIN, ctx.techs[2].id, {
+      email: "trigger@prueba.test",
+      password: "segura123",
+    });
+    expect(profile).toMatchObject({ role: "technician", technicianId: ctx.techs[2].id, name: ctx.techs[2].name });
   });
 
   it("solo deja abrir las citas y clientes asignados al técnico", async () => {

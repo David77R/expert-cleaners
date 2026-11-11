@@ -116,6 +116,10 @@ export async function createTechnicianAccess(
         active: true,
         technicianId,
       })
+      .onConflictDoUpdate({
+        target: profiles.id,
+        set: { companyId: actor.companyId, name: technician.name, role: "technician", active: true, technicianId },
+      })
       .returning();
     return profile;
   } catch (error) {
