@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { BookingCalendar } from "@/components/booking-calendar";
 import { INPUT } from "@/components/form-kit";
 import { Icon } from "@/components/icons";
 import { ServiceIcon } from "@/components/service-icon";
@@ -38,6 +39,7 @@ export function BookingForm({
   services,
   days,
   preset,
+  presetSize,
   place,
 }: {
   company: string;
@@ -45,11 +47,12 @@ export function BookingForm({
   services: BookingService[];
   days: BookingDay[];
   preset: string | null;
+  presetSize: VehicleSize | null;
   place: { zip: string; city: string };
 }) {
   const copy = BOOKING_COPY[locale];
   const [serviceId, setServiceId] = useState<string | null>(preset ?? (services.length === 1 ? services[0].id : null));
-  const [size, setSize] = useState<VehicleSize | null>(null);
+  const [size, setSize] = useState<VehicleSize | null>(presetSize);
   const [date, setDate] = useState<string | null>(null);
   const [slots, setSlots] = useState<number[] | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
@@ -64,8 +67,6 @@ export function BookingForm({
   const priceCents = service ? priceForSize(service, size) : null;
   const dayLabel = useMemo(
     () => ({
-      weekday: new Intl.DateTimeFormat(copy.locale, { weekday: "short", timeZone: "UTC" }),
-      month: new Intl.DateTimeFormat(copy.locale, { month: "short", timeZone: "UTC" }),
       long: new Intl.DateTimeFormat(copy.locale, { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" }),
     }),
     [copy.locale],
@@ -189,6 +190,8 @@ export function BookingForm({
   }
 
   const invalid = (name: string) => missing.includes(name);
+  const extraFor = (option: VehicleSize) =>
+    service ? Math.max(0, priceForSize(service, option) - priceForSize(service, "sedan")) : 0;
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-4">
@@ -249,6 +252,11 @@ export function BookingForm({
               }`}
             >
               {copy.sizes[option]}
+              {service && extraFor(option) > 0 && (
+                <span className={`block text-[11px] font-medium ${size === option ? "text-white/80" : "text-brand"}`}>
+                  +{formatMoney(extraFor(option))}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -269,28 +277,16 @@ export function BookingForm({
       </Step>
 
       <Step number={3} title={copy.stepWhen}>
-        <div className="no-scrollbar -mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1 sm:-mx-5 sm:px-5">
-          {days.map((day) => {
-            const selected = day.date === date;
-            const value = asDate(day.date);
-            return (
-              <button
-                key={day.date}
-                type="button"
-                disabled={!day.open}
-                onClick={() => void loadSlots(day.date, serviceId)}
-                aria-pressed={selected}
-                className={`flex w-16 shrink-0 snap-start flex-col items-center rounded-lg border-2 py-2 transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${
-                  selected ? "border-brand bg-brand text-white" : "border-hair bg-paper hover:border-brand/40"
-                }`}
-              >
-                <span className="text-[11px] font-semibold uppercase">{dayLabel.weekday.format(value)}</span>
-                <span className="font-display text-xl font-semibold tabular-nums">{Number(day.date.slice(8, 10))}</span>
-                <span className="text-[11px] capitalize">{day.open ? dayLabel.month.format(value) : copy.closed}</span>
-              </button>
-            );
-          })}
-        </div>
+        <BookingCalendar
+          days={days}
+          selected={date}
+          onSelect={(day) => void loadSlots(day, serviceId)}
+          locale={copy.locale}
+          labels={{ previous: copy.previousMonth, next: copy.nextMonth, closed: copy.closed }}
+        />
+        {date && (
+          <p className="text-sm font-semibold text-ink first-letter:uppercase">{dayLabel.long.format(asDate(date))}</p>
+        )}
         <div className={invalid("time") && startMin === null ? "rounded-lg ring-2 ring-attention" : ""}>
           {!date || !serviceId ? (
             <p className="text-sm text-muted">{copy.pickDay}</p>

@@ -16,6 +16,8 @@ export type BookingCopy = {
   color: string;
   pickDay: string;
   closed: string;
+  previousMonth: string;
+  nextMonth: string;
   loadingTimes: string;
   noTimes: string;
   street: string;
@@ -52,12 +54,14 @@ export const BOOKING_COPY: Record<"es" | "en", BookingCopy> = {
     from: "from",
     minutes: (value) =>
       value >= 60 ? `${Math.floor(value / 60)} h${value % 60 ? ` ${value % 60} min` : ""}` : `${value} min`,
-    sizes: { sedan: "Sedan / Coupe", suv: "SUV", pickup: "Pickup truck", van: "Van / Minivan", other: "Other" },
+    sizes: { sedan: "Sedan / Coupe", suv: "SUV", pickup: "Pickup / Truck", van: "Van / Minivan", other: "Other" },
     make: "Make",
     model: "Model",
     color: "Color",
     pickDay: "Pick a day to see the available times.",
     closed: "Closed",
+    previousMonth: "Previous month",
+    nextMonth: "Next month",
     loadingTimes: "Looking for available times…",
     noTimes: "No times left that day. Try another day.",
     street: "Street address",
@@ -99,12 +103,14 @@ export const BOOKING_COPY: Record<"es" | "en", BookingCopy> = {
     from: "desde",
     minutes: (value) =>
       value >= 60 ? `${Math.floor(value / 60)} h${value % 60 ? ` ${value % 60} min` : ""}` : `${value} min`,
-    sizes: { sedan: "Sedán / coupé", suv: "SUV", pickup: "Pickup", van: "Van / minivan", other: "Otro" },
+    sizes: { sedan: "Sedán / coupé", suv: "SUV", pickup: "Pickup / truck", van: "Van / minivan", other: "Otro" },
     make: "Marca",
     model: "Modelo",
     color: "Color",
     pickDay: "Elige un día para ver las horas disponibles.",
     closed: "Cerrado",
+    previousMonth: "Mes anterior",
+    nextMonth: "Mes siguiente",
     loadingTimes: "Buscando horas disponibles…",
     noTimes: "Ya no quedan horas ese día. Prueba con otro.",
     street: "Calle y número",

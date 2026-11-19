@@ -11,6 +11,7 @@ import { BOOKING_COPY } from "@/domain/booking-copy";
 import { weekdayIndex } from "@/domain/calendar-view";
 import { brandIcon, brandOf, brandStyle } from "@/domain/companies";
 import { enumerateDates, minutesNowIn, todayIn } from "@/domain/date-rules";
+import { isVehicleSize } from "@/domain/vehicles";
 import { bookingCompany, bookingServices } from "@/server/booking";
 
 export const dynamic = "force-dynamic";
@@ -33,12 +34,13 @@ export async function generateMetadata({ params }: PageProps<"/reservar/[slug]">
   const copy = BOOKING_COPY[company.settings.booking.locale];
   const brand = brandOf(company);
   const title = `${copy.title} · ${brand.shortName}`;
-  const image = brand.logo?.src ?? brandIcon(brand, "icon-512.png");
+  const image = { url: brandIcon(brand, "og.png"), width: 1200, height: 630, alt: brand.name };
   return {
     title,
     description: copy.subtitle,
     icons: { apple: brandIcon(brand, "apple-icon.png"), icon: brandIcon(brand, "icon-192.png") },
     openGraph: { title, description: copy.subtitle, siteName: brand.name, type: "website", images: [image] },
+    twitter: { card: "summary_large_image", title, description: copy.subtitle, images: [image.url] },
   };
 }
 
@@ -56,6 +58,8 @@ export default async function BookingPage({ params, searchParams }: PageProps<"/
   const wanted = (first(query.package) || first(query.paquete)).trim().toLowerCase();
   const preset =
     services.find((service) => service.slug === wanted || service.name.toLowerCase() === wanted)?.id ?? null;
+  const sizeParam = first(query.size).trim().toLowerCase();
+  const presetSize = brand.features.vehicles && isVehicleSize(sizeParam) ? sizeParam : null;
   const zip = first(query.zip).trim();
   const city = first(query.city).trim().replace(/\s+/g, " ");
   const place = {
@@ -82,6 +86,7 @@ export default async function BookingPage({ params, searchParams }: PageProps<"/
             services={services}
             days={days}
             preset={preset}
+            presetSize={presetSize}
             place={place}
           />
         </div>
