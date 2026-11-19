@@ -8,6 +8,15 @@ const MIN_CHARS = 3;
 const DEBOUNCE_MS = 350;
 const CLIENT_TIMEOUT_MS = 9000;
 
+const LABELS = {
+  searching: "Buscando…",
+  empty: "Sin sugerencias. Puedes escribir la dirección completa a mano.",
+  verified: "Dirección verificada",
+  approximate: "Calle encontrada con tu número",
+};
+
+export type AddressAutocompleteLabels = typeof LABELS;
+
 function fillField(form: HTMLFormElement | null, name: string, value: string) {
   const field = form?.elements.namedItem(name);
   if (field instanceof HTMLInputElement && value) field.value = value;
@@ -21,6 +30,10 @@ export function AddressAutocomplete({
   required,
   placeholder,
   className,
+  endpoint = "/api/geocode/autocomplete",
+  labels = LABELS,
+  onChoose,
+  onBlur,
 }: {
   control: FieldControlProps;
   name: string;
@@ -29,6 +42,10 @@ export function AddressAutocomplete({
   required?: boolean;
   placeholder?: string;
   className?: string;
+  endpoint?: string;
+  labels?: AddressAutocompleteLabels;
+  onChoose?: (suggestion: AddressSuggestion) => void;
+  onBlur?: (input: HTMLInputElement) => void;
 }) {
   const listId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -75,14 +92,15 @@ export function AddressAutocomplete({
       request.current = controller;
       const timeout = setTimeout(() => controller.abort(), CLIENT_TIMEOUT_MS);
       try {
-        const res = await fetch(`/api/geocode/autocomplete?q=${encodeURIComponent(key)}`, {
+        const res = await fetch(`${endpoint}${endpoint.includes("?") ? "&" : "?"}q=${encodeURIComponent(key)}`, {
           signal: controller.signal,
         });
         const data: { suggestions?: AddressSuggestion[] } = res.ok ? await res.json() : {};
         if (request.current !== controller) return;
         const list = data.suggestions ?? [];
         if (list.length > 0) cache.current.set(key, list);
-        show(list);
+        if (document.activeElement === inputRef.current) show(list);
+        else setSuggestions(list);
       } catch {
         if (request.current === controller) show([]);
       } finally {
@@ -104,6 +122,7 @@ export function AddressAutocomplete({
     setCoords(suggestion.approximate ? null : { lat: suggestion.lat, lng: suggestion.lng });
     setSuggestions([]);
     close();
+    onChoose?.(suggestion);
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -144,14 +163,17 @@ export function AddressAutocomplete({
           search(event.target.value);
         }}
         onKeyDown={onKeyDown}
-        onBlur={close}
+        onBlur={(event) => {
+          close();
+          onBlur?.(event.currentTarget);
+        }}
         className={className}
       />
       <input type="hidden" name={`${prefix}lat`} value={coords ? String(coords.lat) : ""} />
       <input type="hidden" name={`${prefix}lng`} value={coords ? String(coords.lng) : ""} />
       {loading && (
         <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted">
-          Buscando…
+          {labels.searching}
         </span>
       )}
       {showList && (
@@ -161,9 +183,7 @@ export function AddressAutocomplete({
           className="absolute z-20 mt-1 max-h-72 w-full overflow-y-auto rounded-md border border-hair bg-paper py-1 shadow-lg"
         >
           {suggestions.length === 0 ? (
-            <li className="px-3.5 py-2.5 text-sm text-muted">
-              Sin sugerencias. Puedes escribir la dirección completa a mano.
-            </li>
+            <li className="px-3.5 py-2.5 text-sm text-muted">{labels.empty}</li>
           ) : (
             suggestions.map((suggestion, index) => (
               <li
@@ -180,11 +200,9 @@ export function AddressAutocomplete({
                   {[suggestion.city, suggestion.state, suggestion.zip].filter(Boolean).join(", ")}
                 </span>
                 {suggestion.verified ? (
-                  <span className="block text-[11px] font-semibold text-success">Dirección verificada</span>
+                  <span className="block text-[11px] font-semibold text-success">{labels.verified}</span>
                 ) : (
-                  suggestion.approximate && (
-                    <span className="block text-[11px] text-muted">Calle encontrada con tu número</span>
-                  )
+                  suggestion.approximate && <span className="block text-[11px] text-muted">{labels.approximate}</span>
                 )}
               </li>
             ))

@@ -16,6 +16,9 @@ export type BookingCopy = {
   color: string;
   pickDay: string;
   closed: string;
+  streetHint: string;
+  address: { searching: string; empty: string; verified: string; approximate: string };
+  progress: (done: number, total: number) => string;
   previousMonth: string;
   nextMonth: string;
   loadingTimes: string;
@@ -60,6 +63,14 @@ export const BOOKING_COPY: Record<"es" | "en", BookingCopy> = {
     color: "Color",
     pickDay: "Pick a day to see the available times.",
     closed: "Closed",
+    streetHint: "Start typing your address",
+    address: {
+      searching: "Searching…",
+      empty: "No suggestions. You can type the full address.",
+      verified: "Verified address",
+      approximate: "Street found with your number",
+    },
+    progress: (done, total) => `${done} of ${total} steps`,
     previousMonth: "Previous month",
     nextMonth: "Next month",
     loadingTimes: "Looking for available times…",
@@ -109,6 +120,14 @@ export const BOOKING_COPY: Record<"es" | "en", BookingCopy> = {
     color: "Color",
     pickDay: "Elige un día para ver las horas disponibles.",
     closed: "Cerrado",
+    streetHint: "Empieza a escribir tu dirección",
+    address: {
+      searching: "Buscando…",
+      empty: "Sin sugerencias. Puedes escribir la dirección completa a mano.",
+      verified: "Dirección verificada",
+      approximate: "Calle encontrada con tu número",
+    },
+    progress: (done, total) => `${done} de ${total} pasos`,
     previousMonth: "Mes anterior",
     nextMonth: "Mes siguiente",
     loadingTimes: "Buscando horas disponibles…",
